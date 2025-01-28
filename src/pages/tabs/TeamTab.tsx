@@ -12,6 +12,9 @@ interface TeamTabProps {
   teams: Record<string, Team>;
 }
 
+const TWO_CUP_SETS = ["Set 13"] as const;
+type TwoCupSet = typeof TWO_CUP_SETS[number];
+
 const TeamTab: React.FC<TeamTabProps> = ({
   league,
   players,
@@ -23,7 +26,8 @@ const TeamTab: React.FC<TeamTabProps> = ({
   const [selectedTeamId, setSelectedTeamId] = useState<string>(userTeam?.teamId || "");
   const [selectedCup, setSelectedCup] = useState<number>(() => {
     const currentCup = league.settings?.currentCup ?? 0;
-    return Math.min(currentCup + 1, 3);
+    const maxCups = TWO_CUP_SETS.includes(league.season as TwoCupSet) ? 2 : 3;
+    return Math.min(currentCup + 1, maxCups);
   });
 
   // Define selectedTeam from selectedTeamId
@@ -323,7 +327,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
         </div>
 
         <div className="btn-group">
-          {[1, 2, 3].map((cupNumber) => (
+          {Array.from({ length: TWO_CUP_SETS.includes(league.season as TwoCupSet) ? 2 : 3 }, (_, i) => i + 1).map((cupNumber) => (
             <button
               key={cupNumber}
               className={`btn btn-${
