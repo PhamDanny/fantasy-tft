@@ -1,15 +1,17 @@
 import React, { useState } from "react";
-import type { League, Player, Transaction } from "../../types";
+import type { League, Player, Transaction, Team } from "../../types";
 import { format } from "date-fns";
 
 interface TransactionHistoryTabProps {
   league: League;
   players: Record<string, Player>;
+  teams: Record<string, Team>;
 }
 
 const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
   league,
   players,
+  teams,
 }) => {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<string>("");
@@ -25,7 +27,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
   };
 
   const getTeamName = (teamId: string) =>
-    league.teams[teamId]?.teamName || "Unknown Team";
+    teams[teamId]?.teamName || "Unknown Team";
 
   const getPlayerName = (playerId: string) =>
     players[playerId]?.name || "Unknown Player";
@@ -189,7 +191,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
                   onChange={(e) => setSelectedTeam(e.target.value)}
                 >
                   <option value="">All Teams</option>
-                  {Object.entries(league.teams).map(([teamId, team]) => (
+                  {Object.entries(teams).map(([teamId, team]) => (
                     <option key={teamId} value={teamId}>
                       {team.teamName}
                     </option>

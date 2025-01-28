@@ -15,12 +15,14 @@ interface StandingsTabProps {
   league: League;
   players: Record<string, Player>;
   user: User;
+  teams: Record<string, Team>;
 }
 
 const StandingsTab: React.FC<StandingsTabProps> = ({
   league,
   players,
   user,
+  teams,
 }) => {
   const [expandedTeams, setExpandedTeams] = useState<Record<string, boolean>>(
     {}
@@ -35,7 +37,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
   };
 
   const isLeagueAtCapacity = () => {
-    return Object.keys(league.teams).length >= league.settings.teamsLimit;
+    return Object.keys(teams).length >= league.settings.teamsLimit;
   };
 
   const getEmptyLineup = (settings: LeagueSettings): TeamLineup => ({
@@ -182,7 +184,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
   };
 
   // Sort teams by total score
-  const sortedTeams = Object.entries(league.teams)
+  const sortedTeams = Object.entries(teams)
     .map(([teamId, team]) => ({
       teamId,
       team,
@@ -209,7 +211,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                   : league.settings.currentCup}
               </div>
               <div className="mb-2">
-                Teams: {Object.keys(league.teams).length}/
+                Teams: {Object.keys(teams).length}/
                 {league.settings.teamsLimit}
               </div>
             </div>
@@ -232,7 +234,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                 Bench Slots: {league.settings.benchSlots}
               </div>
               <div className="mb-2">
-                FAAB Budget: ${league.settings.faabBudget}
+                Starting FAAB: ${league.settings.faabBudget}
               </div>
             </div>
           </div>
@@ -245,7 +247,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                     <h4>Your league isn't full!</h4>
                     <p className="mb-4">
                       {league.settings.teamsLimit -
-                        Object.keys(league.teams).length}{" "}
+                        Object.keys(teams).length}{" "}
                       spots remaining - Get your friends in on the action and
                       build your Fantasy TFT community!
                     </p>
@@ -429,6 +431,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
           league={league}
           userId={user.uid}
           userName={user.displayName || "Anonymous"}
+          teams={teams}
         />
       </div>
 

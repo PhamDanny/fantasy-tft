@@ -1,19 +1,21 @@
 import React, { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
-import type { League, LeagueSettings } from "../../types";
+import type { League, LeagueSettings, Team } from "../../types";
 import TeamEditor from "../../components/dialogs/TeamEditorDialog";
 
 interface LeagueSettingsTabProps {
   league: League;
   isCommissioner: boolean;
   leagueId: number;
+  teams: Record<string, Team>;
 }
 
 const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
   league,
   isCommissioner,
   leagueId,
+  teams,
 }) => {
   // Initialize settings with defaults for playoffs if not set
   const defaultSettings = {
@@ -47,8 +49,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
   };
 
   const validateSettings = (): boolean => {
-    // Basic validation rules
-    if (settings.teamsLimit < Object.keys(league.teams).length) {
+    if (settings.teamsLimit < Object.keys(teams).length) {
       setError("Teams limit cannot be less than current number of teams");
       return false;
     }
@@ -227,7 +228,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                         className="form-control"
                         value={settings.teamsLimit}
                         onChange={(e) => handleSettingChange(e, "teamsLimit")}
-                        min={Object.keys(league.teams).length}
+                        min={Object.keys(teams).length}
                         disabled={loading}
                       />
                     </div>
@@ -285,7 +286,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                         value={settings.playoffTeams}
                         onChange={(e) => {
                           const value = parseInt(e.target.value) || 2;
-                          const maxTeams = Object.keys(league.teams).length;
+                          const maxTeams = Object.keys(teams).length;
                           setSettings((prev) => ({
                             ...prev,
                             playoffTeams: Math.min(
@@ -295,11 +296,11 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                           }));
                         }}
                         min={2}
-                        max={Object.keys(league.teams).length}
+                        max={Object.keys(teams).length}
                         disabled={loading}
                       />
                       <small className="text-muted">
-                        Min: 2, Max: {Object.keys(league.teams).length} teams
+                        Min: 2, Max: {Object.keys(teams).length} teams
                       </small>
                     </div>
                   )}

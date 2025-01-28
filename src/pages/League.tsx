@@ -10,6 +10,8 @@ import PlayersTab from "./tabs/PlayersTab";
 import TradeTab from "./tabs/TradeTab";
 import TransactionHistoryTab from "./tabs/TransactionHistoryTab";
 import LeagueSettingsTab from "./tabs/LeagueSettingsTab";
+import { collection, onSnapshot, query } from "firebase/firestore";
+import { db } from "../firebase/config";
 
 const TABS = {
   STANDINGS: "Standings",
@@ -34,42 +36,51 @@ export const LeagueView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userTeam, setUserTeam] = useState<Team | null>(null);
+  const [teams, setTeams] = useState<Record<string, Team>>({});
 
   useEffect(() => {
     let leagueUnsubscribe: (() => void) | undefined;
+    let teamsUnsubscribe: (() => void) | undefined;
 
     const authUnsubscribe = useAuth((authUser) => {
       setUser(authUser);
       if (authUser) {
         setLoading(true);
 
+        // Subscribe to teams subcollection
+        const teamsQuery = query(collection(db, "leagues", numericLeagueId.toString(), "teams"));
+        teamsUnsubscribe = onSnapshot(teamsQuery, (snapshot) => {
+          const teamsData: Record<string, Team> = {};
+          snapshot.forEach((doc) => {
+            teamsData[doc.id] = doc.data() as Team;
+          });
+          setTeams(teamsData);
+          
+          // Move userTeam finding here where we know teams are loaded
+          const foundUserTeam = Object.values(teamsData).find(
+            (team) => team.ownerID === authUser.uid
+          );
+          setUserTeam(foundUserTeam || null);
+
+          // Move player fetching here where we have teams data
+          const playerIds = Array.from(
+            new Set(
+              Object.values(teamsData).flatMap(team => team.roster)
+            )
+          );
+
+          // Fetch players
+          fetchPlayers(playerIds).then((playersData) => {
+            setPlayers(playersData);
+            setLoading(false);
+          });
+        });
+
         leagueUnsubscribe = subscribeToLeague(
           numericLeagueId,
           (leagueData: League) => {
             setLeague(leagueData);
             setIsCommissioner(leagueData.commissioner === authUser.uid);
-
-            // Find user's team
-            const foundUserTeam = Object.values(leagueData.teams).find(
-              (team) => team.ownerID === authUser.uid
-            ) as Team | undefined;
-
-            setUserTeam(foundUserTeam || null);
-
-            // Get all unique player IDs from all teams
-            const playerIds = Array.from(
-              new Set(
-                Object.values(leagueData.teams).flatMap(
-                  (team) => (team as Team).roster
-                )
-              )
-            );
-
-            // Fetch players
-            fetchPlayers(playerIds).then((playersData) => {
-              setPlayers(playersData);
-              setLoading(false);
-            });
           },
           (error: Error) => {
             setError(error.message);
@@ -83,6 +94,9 @@ export const LeagueView: React.FC = () => {
       authUnsubscribe();
       if (leagueUnsubscribe) {
         leagueUnsubscribe();
+      }
+      if (teamsUnsubscribe) {
+        teamsUnsubscribe();
       }
     };
   }, [numericLeagueId]);
@@ -143,7 +157,7 @@ export const LeagueView: React.FC = () => {
           {/* Tab Content */}
           <div className="p-4">
             {activeTab === TABS.STANDINGS && (
-              <StandingsTab league={league} players={players} user={user} />
+              <StandingsTab league={league} players={players} user={user} teams={teams} />
             )}
             {activeTab === TABS.TEAM && (
               <TeamTab
@@ -151,6 +165,7 @@ export const LeagueView: React.FC = () => {
                 players={players}
                 userTeam={userTeam}
                 leagueId={numericLeagueId}
+                teams={teams}
               />
             )}
             {activeTab === TABS.PLAYERS && (
@@ -159,6 +174,7 @@ export const LeagueView: React.FC = () => {
                 players={players}
                 userTeam={userTeam}
                 leagueId={numericLeagueId}
+                teams={teams}
               />
             )}
             {activeTab === TABS.TRADE && (
@@ -167,16 +183,18 @@ export const LeagueView: React.FC = () => {
                 players={players}
                 userTeam={userTeam}
                 leagueId={numericLeagueId}
+                teams={teams}
               />
             )}
             {activeTab === TABS.TRANSACTIONS && (
-              <TransactionHistoryTab league={league} players={players} />
+              <TransactionHistoryTab league={league} players={players} teams={teams} />
             )}
             {activeTab === TABS.SETTINGS && (
               <LeagueSettingsTab
                 league={league}
                 isCommissioner={isCommissioner}
                 leagueId={numericLeagueId}
+                teams={teams}
               />
             )}
           </div>

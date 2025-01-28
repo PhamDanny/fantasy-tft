@@ -9,6 +9,7 @@ interface TeamTabProps {
   players: Record<string, Player>;
   userTeam: Team | null;
   leagueId: number;
+  teams: Record<string, Team>;
 }
 
 const TeamTab: React.FC<TeamTabProps> = ({
@@ -16,14 +17,17 @@ const TeamTab: React.FC<TeamTabProps> = ({
   players,
   userTeam,
   leagueId,
+  teams,
 }) => {
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(userTeam);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(userTeam?.teamId || "");
   const [selectedCup, setSelectedCup] = useState<number>(() => {
     const currentCup = league.settings?.currentCup ?? 0;
     return Math.min(currentCup + 1, 3);
   });
 
+  // Define selectedTeam from selectedTeamId
+  const selectedTeam = selectedTeamId ? teams[selectedTeamId] : userTeam;
   const canEdit = selectedTeam?.ownerID === userTeam?.ownerID;
 
   if (!userTeam) {
@@ -128,7 +132,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
     currentPlayer: string | null,
     slotIndex: number
   ) => {
-    if (isLineupLocked) return;
+    if (isLineupLocked || !canEdit) return;
 
     // If clicking the same player that's selected, deselect it
     if (selectedPlayer === currentPlayer) {
@@ -137,7 +141,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
     }
 
     // If no player is selected and this slot has a player, select it
-    if (!selectedPlayer && currentPlayer) {
+    if (!selectedPlayer && currentPlayer && canEdit) {
       setSelectedPlayer(currentPlayer);
       return;
     }
@@ -229,9 +233,11 @@ const TeamTab: React.FC<TeamTabProps> = ({
     slotIndex: number,
     showScore = false
   ) => {
-    const isSelected = selectedPlayer === currentPlayer;
+    // Only allow selection if user can edit
+    const isSelected = canEdit && selectedPlayer === currentPlayer;
     const isValidTarget =
       !isLineupLocked &&
+      canEdit &&
       selectedPlayer &&
       canPlayerFitSlot(selectedPlayer, slotType);
     const player = currentPlayer ? players[currentPlayer] : null;
@@ -246,10 +252,10 @@ const TeamTab: React.FC<TeamTabProps> = ({
     return (
       <div
         className={className}
-        onClick={() => handleSlotClick(slotType, currentPlayer, slotIndex)}
+        onClick={() => canEdit && handleSlotClick(slotType, currentPlayer, slotIndex)}
         style={{
-          cursor: isLineupLocked ? "default" : "pointer",
-          opacity: isLineupLocked ? 0.8 : 1,
+          cursor: isLineupLocked || !canEdit ? "default" : "pointer",
+          opacity: isLineupLocked || !canEdit ? 0.8 : 1,
         }}
       >
         {player ? (
@@ -260,20 +266,23 @@ const TeamTab: React.FC<TeamTabProps> = ({
                 {" "}
                 ({player.region})
               </small>
+            </div>
+            <div className="d-flex align-items-center gap-3">
               {showScore && (
-                <small className="ms-2">
-                  Score:{" "}
-                  {
-                    player.scores[
-                      `cup${selectedCup}` as keyof typeof player.scores
-                    ]
+                <span className="fw-bold fs-5">
+                  {slotType === "captain" 
+                    ? `${(player.scores[`cup${selectedCup}` as keyof typeof player.scores] * 1.5) % 1 === 0 
+                        ? Math.round(player.scores[`cup${selectedCup}` as keyof typeof player.scores] * 1.5)
+                        : (player.scores[`cup${selectedCup}` as keyof typeof player.scores] * 1.5).toFixed(1)
+                      }`
+                    : player.scores[`cup${selectedCup}` as keyof typeof player.scores]
                   }
-                </small>
+                </span>
+              )}
+              {!isLineupLocked && canEdit && !isSelected && (
+                <ArrowLeftRight size={18} />
               )}
             </div>
-            {!isLineupLocked && !isSelected && (
-              <ArrowLeftRight size={18} className="ms-2" />
-            )}
           </div>
         ) : (
           <span className="text-muted">Empty Slot</span>
@@ -292,16 +301,13 @@ const TeamTab: React.FC<TeamTabProps> = ({
             <label className="form-label">Select Team</label>
             <select
               className="form-select"
-              value={selectedTeam.teamId}
+              value={selectedTeam?.teamId || ""}
               onChange={(e) => {
-                const team = Object.values(league.teams).find(
-                  (t) => t.teamId === e.target.value
-                );
-                setSelectedTeam(team || null);
-                setSelectedPlayer(null);
+                const teamId = e.target.value;
+                setSelectedTeamId(teamId);
               }}
             >
-              {Object.values(league.teams).map((team) => (
+              {Object.values(teams).map((team) => (
                 <option key={team.teamId} value={team.teamId}>
                   {team.teamName}{" "}
                   {team.ownerID === userTeam.ownerID ? "(Your Team)" : ""}
@@ -311,7 +317,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
           </div>
           {!canEdit && (
             <div className="alert alert-info mb-0">
-              Viewing {selectedTeam.teamName}'s lineup (read-only)
+              Viewing {selectedTeam?.teamName}'s lineup (read-only)
             </div>
           )}
         </div>
@@ -390,75 +396,74 @@ const TeamTab: React.FC<TeamTabProps> = ({
           <div className="card-body">
             <div className="list-group">
               {/* Show temporary "Move to Bench" option when a starting player is selected */}
-              {selectedPlayer &&
-                getPlayerCurrentSlot(selectedPlayer, lineup) && (
-                  <div
-                    className="list-group-item list-group-item-action border-primary mb-2"
-                    onClick={() => {
-                      if (!isLineupLocked) {
-                        // Create new lineup with selected player removed from their current position
-                        const newLineup = {
-                          ...lineup,
-                          captains: lineup.captains.map((id) =>
-                            id === selectedPlayer ? null : id
-                          ),
-                          naSlots: lineup.naSlots.map((id) =>
-                            id === selectedPlayer ? null : id
-                          ),
-                          brLatamSlots: lineup.brLatamSlots.map((id) =>
-                            id === selectedPlayer ? null : id
-                          ),
-                          flexSlots: lineup.flexSlots.map((id) =>
-                            id === selectedPlayer ? null : id
-                          ),
-                          bench: [],
-                        };
+              {selectedPlayer && canEdit && getPlayerCurrentSlot(selectedPlayer, lineup) && (
+                <div
+                  className="list-group-item list-group-item-action border-primary mb-2"
+                  onClick={() => {
+                    if (!isLineupLocked && canEdit) {
+                      // Create new lineup with selected player removed from their current position
+                      const newLineup = {
+                        ...lineup,
+                        captains: lineup.captains.map((id) =>
+                          id === selectedPlayer ? null : id
+                        ),
+                        naSlots: lineup.naSlots.map((id) =>
+                          id === selectedPlayer ? null : id
+                        ),
+                        brLatamSlots: lineup.brLatamSlots.map((id) =>
+                          id === selectedPlayer ? null : id
+                        ),
+                        flexSlots: lineup.flexSlots.map((id) =>
+                          id === selectedPlayer ? null : id
+                        ),
+                        bench: [],
+                      };
 
-                        // Update Firebase
-                        const cupKey =
-                          `cup${selectedCup}` as keyof typeof userTeam.cupLineups;
-                        updateDoc(
-                          doc(
-                            db,
-                            "leagues",
-                            leagueId.toString(),
-                            "teams",
-                            userTeam.teamId
-                          ),
-                          {
-                            [`cupLineups.${cupKey}`]: newLineup,
-                          }
-                        )
-                          .then(() => {
-                            setSelectedPlayer(null);
-                          })
-                          .catch((error) => {
-                            console.error(
-                              "Failed to move player to bench:",
-                              error
-                            );
-                          });
-                      }
-                    }}
-                    style={{
-                      cursor: isLineupLocked ? "default" : "pointer",
-                      opacity: isLineupLocked ? 0.8 : 1,
-                    }}
-                  >
-                    <div className="d-flex justify-content-between align-items-center">
-                      <div>
-                        <span className="text-primary">Move to Bench</span>
-                      </div>
-                      {!isLineupLocked && <ArrowLeftRight size={18} />}
+                      // Update Firebase
+                      const cupKey =
+                        `cup${selectedCup}` as keyof typeof userTeam.cupLineups;
+                      updateDoc(
+                        doc(
+                          db,
+                          "leagues",
+                          leagueId.toString(),
+                          "teams",
+                          userTeam.teamId
+                        ),
+                        {
+                          [`cupLineups.${cupKey}`]: newLineup,
+                        }
+                      )
+                        .then(() => {
+                          setSelectedPlayer(null);
+                        })
+                        .catch((error) => {
+                          console.error(
+                            "Failed to move player to bench:",
+                            error
+                          );
+                        });
+                    }
+                  }}
+                  style={{
+                    cursor: isLineupLocked || !canEdit ? "default" : "pointer",
+                    opacity: isLineupLocked || !canEdit ? 0.8 : 1,
+                  }}
+                >
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <span className="text-primary">Move to Bench</span>
                     </div>
+                    {!isLineupLocked && canEdit && <ArrowLeftRight size={18} />}
                   </div>
-                )}
+                </div>
+              )}
 
               {benchPlayers.map((playerId) => {
                 const player = players[playerId];
                 if (!player) return null;
 
-                const isSelected = selectedPlayer === playerId;
+                const isSelected = canEdit && selectedPlayer === playerId;
 
                 return (
                   <button
@@ -468,35 +473,29 @@ const TeamTab: React.FC<TeamTabProps> = ({
                     }`}
                     onClick={() =>
                       !isLineupLocked &&
+                      canEdit &&
                       setSelectedPlayer(isSelected ? null : playerId)
                     }
-                    disabled={isLineupLocked}
+                    disabled={isLineupLocked || !canEdit}
                   >
                     <div className="d-flex justify-content-between align-items-center">
                       <div>
                         <span>{player.name}</span>
-                        <small
-                          className={
-                            isSelected ? "text-white-50" : "text-muted"
-                          }
-                        >
+                        <small className={isSelected ? "text-white-50" : "text-muted"}>
                           {" "}
                           ({player.region})
                         </small>
+                      </div>
+                      <div className="d-flex align-items-center gap-3">
                         {isLineupLocked && (
-                          <small className="ms-2">
-                            Score:{" "}
-                            {
-                              player.scores[
-                                `cup${selectedCup}` as keyof typeof player.scores
-                              ]
-                            }
-                          </small>
+                          <span className="fw-bold fs-5">
+                            {player.scores[`cup${selectedCup}` as keyof typeof player.scores]}
+                          </span>
+                        )}
+                        {!isLineupLocked && canEdit && !isSelected && (
+                          <ArrowLeftRight size={18} />
                         )}
                       </div>
-                      {!isLineupLocked && !isSelected && (
-                        <ArrowLeftRight size={18} />
-                      )}
                     </div>
                   </button>
                 );

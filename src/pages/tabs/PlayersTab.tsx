@@ -9,6 +9,7 @@ interface PlayersTabProps {
   players: Record<string, Player>;
   userTeam: Team | null;
   leagueId: number;
+  teams: Record<string, Team>;
 }
 
 const PlayersTab: React.FC<PlayersTabProps> = ({
@@ -16,6 +17,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   players,
   userTeam,
   leagueId,
+  teams,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +67,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
 
   const getAvailablePlayers = () => {
     const allRosteredPlayers = new Set(
-      Object.values(league.teams).flatMap((team) => team.roster)
+      Object.values(teams).flatMap((team) => team.roster)
     );
 
     return Object.entries(allPlayers)

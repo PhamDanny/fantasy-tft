@@ -12,7 +12,7 @@ import {
 import { db } from "../../firebase/config";
 import { format } from "date-fns";
 import { MessageCircle, Send } from "lucide-react";
-import type { League, Transaction } from "../../types";
+import type { League, Transaction, Team } from "../../types";
 
 interface ChatMessage {
   id: string;
@@ -28,9 +28,10 @@ interface LeagueChatProps {
   league: League;
   userId: string;
   userName: string;
+  teams: Record<string, Team>;
 }
 
-const LeagueChat = ({ league, userId, userName }: LeagueChatProps) => {
+const LeagueChat = ({ league, userId, userName, teams }: LeagueChatProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,7 +54,7 @@ const LeagueChat = ({ league, userId, userName }: LeagueChatProps) => {
       names[userId] = userName;
 
       // Fetch for all other team owners
-      for (const team of Object.values(league.teams)) {
+      for (const team of Object.values(teams)) {
         if (team.ownerID !== userId) {
           // Skip current user
           try {
@@ -69,7 +70,7 @@ const LeagueChat = ({ league, userId, userName }: LeagueChatProps) => {
     };
 
     fetchDisplayNames();
-  }, [league.teams, userId, userName]);
+  }, [teams, userId, userName]);
 
   // Subscribe to chat messages
   useEffect(() => {
@@ -120,10 +121,8 @@ const LeagueChat = ({ league, userId, userName }: LeagueChatProps) => {
     const timestamp = format(new Date(message.timestamp), "MMM d, h:mm a");
 
     // Find team name from league data
-    const senderTeam = Object.values(league.teams).find(
-      (team) => team.ownerID === message.userId
-    );
-    const displayName = senderTeam ? senderTeam.teamName : "Unknown Team";
+    const team = Object.values(teams).find(team => team.ownerID === message.userId);
+    const displayName = team ? team.teamName : "Unknown Team";
 
     switch (message.type) {
       case "message":

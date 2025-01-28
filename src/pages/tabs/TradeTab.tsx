@@ -15,6 +15,7 @@ interface TradeTabProps {
   players: Record<string, Player>;
   userTeam: Team | null;
   leagueId: number;
+  teams: Record<string, Team>;
 }
 
 const TradeTab: React.FC<TradeTabProps> = ({
@@ -22,6 +23,7 @@ const TradeTab: React.FC<TradeTabProps> = ({
   players,
   userTeam,
   leagueId,
+  teams,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,8 +67,8 @@ const TradeTab: React.FC<TradeTabProps> = ({
   };
 
   const getOtherTeams = () => {
-    return Object.values(league.teams).filter(
-      (team) => team.teamId !== userTeam.teamId
+    return Object.values(teams).filter(
+      (team) => team.teamId !== userTeam?.teamId
     );
   };
 
@@ -167,8 +169,8 @@ const TradeTab: React.FC<TradeTabProps> = ({
 
       if (accept) {
         // Get current teams
-        const proposerTeam = league.teams[trade.proposerId];
-        const receiverTeam = league.teams[trade.receiverId];
+        const proposerTeam = teams[trade.proposerId];
+        const receiverTeam = teams[trade.receiverId];
 
         // Calculate new roster sizes
         const proposerNewSize =
@@ -404,8 +406,8 @@ const TradeTab: React.FC<TradeTabProps> = ({
             ) : (
               <div className="list-group">
                 {getPendingTrades().map(([tradeId, trade]) => {
-                  const proposerTeam = league.teams[trade.proposerId];
-                  const receiverTeam = league.teams[trade.receiverId];
+                  const proposerTeam = teams[trade.proposerId];
+                  const receiverTeam = teams[trade.receiverId];
 
                   return (
                     <div key={tradeId} className="list-group-item">
@@ -475,7 +477,7 @@ const TradeTab: React.FC<TradeTabProps> = ({
                     <div key={transaction.id} className="list-group-item">
                       <small className="text-muted d-block mb-2">{date}</small>
                       {transaction.teamIds.map((teamId) => {
-                        const team = league.teams[teamId];
+                        const team = teams[teamId];
                         const addedPlayers = transaction.adds[teamId] || [];
                         const droppedPlayers = transaction.drops[teamId] || [];
 

@@ -93,7 +93,7 @@ const CreateLeagueDialog = ({
         pendingBids: [],
       };
 
-      // Create the league document with the commissioner's team included
+      // Create the league document without the teams field
       const leagueData = {
         id: leagueId,
         name: formState.name,
@@ -101,9 +101,6 @@ const CreateLeagueDialog = ({
         season: formState.season,
         settings: formState.settings,
         commissioner: userId,
-        teams: {
-          [teamId]: commissionerTeam,
-        },
         transactions: [],
       };
 
