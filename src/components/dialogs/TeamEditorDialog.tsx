@@ -15,7 +15,6 @@ const TeamEditor = ({ league, leagueId }: TeamEditorProps) => {
   const [selectedCup, setSelectedCup] = useState<number>(1);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [allPlayers, setAllPlayers] = useState<Record<string, Player>>({});
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -84,7 +83,6 @@ const TeamEditor = ({ league, leagueId }: TeamEditorProps) => {
     setError(null);
 
     try {
-      setLoading(true);
       const lineup = getCurrentLineup();
       const newLineup = { ...lineup };
 
@@ -150,7 +148,6 @@ const TeamEditor = ({ league, leagueId }: TeamEditorProps) => {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update lineup");
     } finally {
-      setLoading(false);
     }
   };
 
@@ -203,7 +200,6 @@ const TeamEditor = ({ league, leagueId }: TeamEditorProps) => {
     setError(null);
 
     try {
-      setLoading(true);
       const newRoster = [...selectedTeam.roster, playerId];
 
       await updateDoc(
@@ -222,8 +218,6 @@ const TeamEditor = ({ league, leagueId }: TeamEditorProps) => {
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add player");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -232,7 +226,6 @@ const TeamEditor = ({ league, leagueId }: TeamEditorProps) => {
     setError(null);
 
     try {
-      setLoading(true);
       const newRoster = selectedTeam.roster.filter((id) => id !== playerId);
 
       // Also remove from all lineups
@@ -274,8 +267,6 @@ const TeamEditor = ({ league, leagueId }: TeamEditorProps) => {
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove player");
-    } finally {
-      setLoading(false);
     }
   };
 

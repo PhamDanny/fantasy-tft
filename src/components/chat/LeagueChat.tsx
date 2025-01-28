@@ -34,9 +34,6 @@ const LeagueChat = ({ league, userId, userName }: LeagueChatProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [userDisplayNames, setUserDisplayNames] = useState<
-    Record<string, string>
-  >({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -69,7 +66,6 @@ const LeagueChat = ({ league, userId, userName }: LeagueChatProps) => {
           }
         }
       }
-      setUserDisplayNames(names);
     };
 
     fetchDisplayNames();
