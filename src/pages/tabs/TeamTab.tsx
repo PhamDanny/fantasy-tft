@@ -385,7 +385,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
       <div className="col-md-4">
         <div className="card">
           <div className="card-header">
-            <h4 className="card-title mb-0">Available Players</h4>
+            <h4 className="card-title mb-0">Bench</h4>
           </div>
           <div className="card-body">
             <div className="list-group">
@@ -447,13 +447,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                   >
                     <div className="d-flex justify-content-between align-items-center">
                       <div>
-                        <span className="text-primary">
-                          Move to Available Players
-                        </span>
-                        <small className="text-muted">
-                          {" "}
-                          (Remove from starting lineup)
-                        </small>
+                        <span className="text-primary">Move to Bench</span>
                       </div>
                       {!isLineupLocked && <ArrowLeftRight size={18} />}
                     </div>
