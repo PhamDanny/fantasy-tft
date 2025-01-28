@@ -47,6 +47,21 @@ export const JoinLeague = () => {
         throw new Error("Invalid invite code");
       }
 
+      // Check if user is already in the league by checking teams subcollection
+      const teamsSnapshot = await getDocs(
+        collection(db, "leagues", foundLeagueId, "teams")
+      );
+      
+      const userTeam = teamsSnapshot.docs.find(
+        doc => (doc.data() as any).ownerID === userId
+      );
+
+      if (userTeam) {
+        // User is already in the league, just redirect them
+        navigate(`/leagues/${foundLeagueId}`);
+        return;
+      }
+
       const targetLeague = foundLeague;
       const leagueId = foundLeagueId;
 
@@ -71,9 +86,6 @@ export const JoinLeague = () => {
         }
 
         // Check if league is full by counting teams in subcollection
-        const teamsSnapshot = await getDocs(
-          collection(db, "leagues", leagueId, "teams")
-        );
         const currentTeamCount = teamsSnapshot.size;
 
         if (currentTeamCount >= targetLeague.settings.teamsLimit) {
@@ -135,14 +147,11 @@ export const JoinLeague = () => {
           ...invite,
           usedCount: invite.usedCount + 1,
           usedBy: [...(invite.usedBy || []), userId],
-          status:
-            invite.maxUses && invite.usedCount + 1 >= invite.maxUses
-              ? "used"
-              : "active",
+          status: invite.maxUses && invite.usedCount + 1 >= invite.maxUses ? 'used' : 'active'
         };
 
-        // Only update the invite in the league document
-        transaction.update(doc(db, "leagues", leagueId), {
+        // Update the invite in the league document
+        transaction.update(doc(db, 'leagues', leagueId), {
           [`invites.${code}`]: updatedInvite,
         });
 

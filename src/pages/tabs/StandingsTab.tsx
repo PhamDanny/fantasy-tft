@@ -437,8 +437,8 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
 
       {showInviteDialog && (
         <InviteDialog
-          leagueId={league.id}
           league={league}
+          show={showInviteDialog}
           onClose={() => setShowInviteDialog(false)}
         />
       )}

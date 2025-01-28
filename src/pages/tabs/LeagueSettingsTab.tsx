@@ -3,6 +3,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import type { League, LeagueSettings, Team } from "../../types";
 import TeamEditor from "../../components/dialogs/TeamEditorDialog";
+import InviteDialog from '../../components/dialogs/InviteDialog';
 
 interface LeagueSettingsTabProps {
   league: League;
@@ -28,6 +29,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
 
   if (!isCommissioner) {
     return (
@@ -353,6 +355,13 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
 
       {/* Team Editor Section */}
       <TeamEditor league={league} leagueId={leagueId} />
+
+      {/* Invite Dialog */}
+      <InviteDialog 
+        league={league}
+        show={showInviteDialog}
+        onClose={() => setShowInviteDialog(false)}
+      />
     </>
   );
 };
