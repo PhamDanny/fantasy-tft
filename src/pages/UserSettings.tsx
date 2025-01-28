@@ -1,5 +1,5 @@
 const UserSettings = () => {
-  return <div>UserSettings</div>;
+  return <div>Page under construction, check back later.</div>;
 };
 
 export default UserSettings;

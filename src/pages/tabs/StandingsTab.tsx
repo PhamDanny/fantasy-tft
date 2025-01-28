@@ -247,7 +247,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                       {league.settings.teamsLimit -
                         Object.keys(league.teams).length}{" "}
                       spots remaining - Get your friends in on the action and
-                      build your fantasy TFT community!
+                      build your Fantasy TFT community!
                     </p>
                     {league.commissioner === user.uid ? (
                       <button

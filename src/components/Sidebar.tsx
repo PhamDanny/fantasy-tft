@@ -32,8 +32,8 @@ const NavItem = ({ Icon, text, path }: NavItemProps) => {
 
 const Sidebar = ({
   menuItems,
-  appName = "Header",
-  footerText = "Footer",
+  appName = "Fantasy TFT",
+  footerText = "Created by Dinodan",
   children,
 }: SidebarProps) => {
   return (
@@ -44,7 +44,15 @@ const Sidebar = ({
       >
         <div className="d-flex flex-column h-100">
           <div className="p-3 border-bottom border-secondary">
-            <h1 className="h5 mb-0 text-center">{appName}</h1>
+            <h1
+              className="h1 mb-0 text-center"
+              style={{
+                fontFamily: "'Smooch Sans', sans-serif",
+                fontWeight: 700,
+              }}
+            >
+              {appName}
+            </h1>
           </div>
           <nav className="nav flex-column flex-grow-1 overflow-auto py-3">
             {menuItems.map((item, index) => (
@@ -52,7 +60,7 @@ const Sidebar = ({
             ))}
           </nav>
           <div className="p-3 border-top border-secondary">
-            <p className="small text-muted mb-0">{footerText}</p>
+            <p className="small text-white mb-0">{footerText}</p>
           </div>
         </div>
       </div>

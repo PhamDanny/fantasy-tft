@@ -22,7 +22,7 @@ function App() {
       <Sidebar
         menuItems={sidebarMenuItems}
         appName="Fantasy TFT"
-        footerText="Created by Danny Pham"
+        footerText="Created by Dinodan"
       >
         <Routes>
           <Route path="/leagues" element={<MyLeagues />} />

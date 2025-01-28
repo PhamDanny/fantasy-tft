@@ -1,5 +1,5 @@
 const FindLeagues = () => {
-  return <p>FindLeagues</p>;
+  return <p>Page under construction, check back later.</p>;
 };
 
 export default FindLeagues;

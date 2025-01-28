@@ -1,0 +1,10 @@
+{
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/join/[code]", "dest": "/" },
+    { "src": "/leagues", "dest": "/" },
+    { "src": "/findleagues", "dest": "/" },
+    { "src": "/settings", "dest": "/" },
+    { "src": "/profile", "dest": "/" }
+  ]
+}
