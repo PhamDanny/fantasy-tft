@@ -65,7 +65,7 @@ const CoOwnerDialog: React.FC<CoOwnerDialogProps> = ({
       
       // Handle the "Never" option
       const expiresAtString = newInvite.expiresInDays === -1 
-        ? null 
+        ? undefined 
         : new Date(expiresAt.getTime() + (newInvite.expiresInDays * 24 * 60 * 60 * 1000)).toISOString();
 
       const invite: LeagueInvite = {
