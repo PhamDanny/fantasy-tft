@@ -12,7 +12,6 @@ interface TeamEditorProps {
 const TeamEditor = ({ league, leagueId }: TeamEditorProps) => {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
 
-  // Remove any dialog-related state since this is now a regular component
   const [selectedCup, setSelectedCup] = useState<number>(1);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [allPlayers, setAllPlayers] = useState<Record<string, Player>>({});

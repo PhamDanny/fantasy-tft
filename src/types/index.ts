@@ -103,7 +103,7 @@ export interface League {
   commissioner: string;
   teams: Record<string, Team>;
   trades?: Record<string, TradeOffer>;
-  transactions: Transaction[];  // Added transaction history
+  transactions: Transaction[];
   invites?: Record<string, LeagueInvite>;
 }
 
