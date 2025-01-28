@@ -311,21 +311,29 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                         </td>
                         {league.settings.currentCup >= 1 && (
                           <td className="text-center">
-                            {cupScores.cup1.toFixed(1)}
+                            {typeof cupScores.cup1 === "number"
+                              ? cupScores.cup1.toFixed(1)
+                              : "-"}
                           </td>
                         )}
                         {league.settings.currentCup >= 2 && (
                           <td className="text-center">
-                            {cupScores.cup2.toFixed(1)}
+                            {typeof cupScores.cup2 === "number"
+                              ? cupScores.cup2.toFixed(1)
+                              : "-"}
                           </td>
                         )}
                         {league.settings.currentCup >= 3 && (
                           <td className="text-center">
-                            {cupScores.cup3.toFixed(1)}
+                            {typeof cupScores.cup3 === "number"
+                              ? cupScores.cup3.toFixed(1)
+                              : "-"}
                           </td>
                         )}
                         <td className="text-center fw-bold">
-                          {cupScores.total.toFixed(1)}
+                          {typeof cupScores.total === "number"
+                            ? cupScores.total.toFixed(1)
+                            : "-"}
                         </td>
                       </tr>
 
