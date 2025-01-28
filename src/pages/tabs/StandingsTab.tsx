@@ -197,6 +197,26 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
     }))
     .sort((a, b) => b.cupScores.total - a.cupScores.total);
 
+  const getRankStyle = (rank: number): string => {
+    switch (rank) {
+      case 1:
+        return 'bg-warning text-dark';  // Gold
+      case 2:
+        return 'bg-secondary text-white';  // Silver
+      case 3:
+        return 'bg-bronze text-white';  // Bronze
+      default:
+        return 'bg-light text-dark';
+    }
+  };
+
+  const formatRank = (rank: number): string => {
+    if (rank === 1) return '1st';
+    if (rank === 2) return '2nd';
+    if (rank === 3) return '3rd';
+    return `${rank}th`;
+  };
+
   return (
     <div className="row">
       <div className="col-md-8">
@@ -275,6 +295,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
             <table className="table table-hover">
               <thead className="table-light">
                 <tr>
+                  <th className="text-center" style={{ width: '60px' }}>Rank</th>
                   <th>Team</th>
                   {league.settings.currentCup >= 1 && (
                     <th className="text-center">Cup 1</th>
@@ -289,9 +310,10 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {sortedTeams.map(({ teamId, team, cupScores }) => {
+                {sortedTeams.map(({ teamId, team, cupScores }, index) => {
                   const isExpanded = expandedTeams[teamId];
                   const contributions = getAllPlayerContributions(team);
+                  const rank = index + 1;
 
                   return (
                     <React.Fragment key={teamId}>
@@ -301,6 +323,17 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                         } cursor-pointer`}
                         onClick={() => toggleTeamExpanded(teamId)}
                       >
+                        <td className="text-center">
+                          <span 
+                            className={`badge ${getRankStyle(rank)} px-2 py-1`} 
+                            style={{ 
+                              minWidth: '42px',
+                              backgroundColor: rank === 3 ? '#CD7F32' : undefined 
+                            }}
+                          >
+                            {formatRank(rank)}
+                          </span>
+                        </td>
                         <td>
                           <div className="d-flex align-items-center gap-2">
                             {isExpanded ? (
@@ -308,7 +341,12 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                             ) : (
                               <ChevronDown size={16} />
                             )}
-                            <span className="fw-medium">{team.teamName}</span>
+                            <div>
+                              <span className="fw-medium">{team.teamName}</span>
+                              <div className="small text-muted">
+                                FAAB: ${team.faabBudget}
+                              </div>
+                            </div>
                           </div>
                         </td>
                         {league.settings.currentCup >= 1 && (
@@ -341,6 +379,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
 
                       {isExpanded && (
                         <tr>
+                          <td></td>
                           <td colSpan={league.settings.currentCup + 2}>
                             <div className="bg-light p-3">
                               <h6 className="mb-3">Player Contributions</h6>
@@ -370,16 +409,18 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                                       <tr key={contribution.playerId}>
                                         <td>
                                           <div className="d-flex align-items-center gap-2">
-                                            <span>{player.name}</span>
-                                            <small className="text-muted">
-                                              ({player.region})
-                                            </small>
-                                            {!contribution.isOnTeam &&
-                                              contribution.total > 0 && (
-                                                <span className="badge bg-danger">
-                                                  Off Roster
-                                                </span>
-                                              )}
+                                            <div>
+                                              <span>{player.name}</span>
+                                              <small className="text-muted">
+                                                ({player.region})
+                                              </small>
+                                              {!contribution.isOnTeam &&
+                                                contribution.total > 0 && (
+                                                  <span className="badge bg-danger">
+                                                    Off Roster
+                                                  </span>
+                                                )}
+                                            </div>
                                           </div>
                                         </td>
                                         {league.settings.currentCup >= 1 && (
@@ -445,4 +486,5 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
     </div>
   );
 };
+
 export default StandingsTab;
