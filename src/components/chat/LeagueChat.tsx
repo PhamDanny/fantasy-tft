@@ -189,14 +189,14 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
           case "trade":
             content = (
               <div>
-                <div className="text-muted mb-1">Trade completed</div>
-                <div className="d-flex justify-content-between align-items-start gap-4">
+                <div className="h5 mb-2 text-center">Trade Completed</div>
+                <div className="d-flex justify-content-between align-items-start gap-5">
                   {metadata.teamIds.map((teamId) => (
-                    <div key={teamId} className="flex-grow-1" style={{ minWidth: "40%" }}>
-                      <div className="fw-medium">{getTeamName(teamId)}</div>
+                    <div key={teamId} className="flex-grow-1 text-center">
+                      <div className="h6 mb-2">{getTeamName(teamId)}</div>
                       <div className="text-success">
-                        + Received: {getPlayerNames(metadata.adds[teamId] || []).map((name, i) => (
-                          <div key={i} className="ms-2">{name}</div>
+                        {getPlayerNames(metadata.adds[teamId] || []).map((name, i) => (
+                          <div key={i}>{name}</div>
                         ))}
                       </div>
                     </div>
@@ -270,10 +270,10 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
         }
 
         return (
-          <div className="d-flex justify-content-center mb-2">
-            <div className="bg-light px-3 py-2 rounded-3" style={{ maxWidth: "90%" }}>
+          <div className="d-flex justify-content-center mb-3">
+            <div className={`bg-light px-4 py-3 rounded-3 ${message.metadata?.type === 'trade' ? 'w-100' : 'w-75'}`}>
               {content}
-              <div className="text-muted small text-center mt-1">{timestamp}</div>
+              <div className="text-muted small text-center mt-2">{timestamp}</div>
             </div>
           </div>
         );

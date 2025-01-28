@@ -221,15 +221,55 @@ const TradeTab: React.FC<TradeTabProps> = ({
           .filter((playerId) => !trade.receiverPlayers.includes(playerId))
           .concat(trade.proposerPlayers);
 
+        // Update cup lineups for future cups only
+        const currentCup = league.settings.currentCup;
+        const updateCupLineups = (team: Team, oldRoster: string[], newRoster: string[]) => {
+          const updatedCupLineups = { ...team.cupLineups };
+          
+          // Only update future cups
+          for (let cupNum = currentCup + 1; cupNum <= 3; cupNum++) {
+            const cupKey = `cup${cupNum}` as keyof typeof updatedCupLineups;
+            const cupLineup = updatedCupLineups[cupKey];
+            
+            if (cupLineup) {
+              // Update each slot type
+              const updateSlots = (slots: (string | null)[]) => {
+                return slots.map(playerId => {
+                  if (!playerId) return null;
+                  // If player was traded away, remove them
+                  if (!newRoster.includes(playerId)) return null;
+                  return playerId;
+                });
+              };
+
+              updatedCupLineups[cupKey] = {
+                ...cupLineup,
+                captains: updateSlots(cupLineup.captains),
+                naSlots: updateSlots(cupLineup.naSlots),
+                brLatamSlots: updateSlots(cupLineup.brLatamSlots),
+                flexSlots: updateSlots(cupLineup.flexSlots),
+                bench: cupLineup.bench.filter(playerId => newRoster.includes(playerId))
+              };
+            }
+          }
+          return updatedCupLineups;
+        };
+
         // Update both teams, trade status, and add transaction
         await Promise.all([
           updateDoc(
             doc(db, "leagues", leagueId.toString(), "teams", trade.proposerId),
-            { roster: updatedProposerRoster }
+            { 
+              roster: updatedProposerRoster,
+              cupLineups: updateCupLineups(proposerTeam, proposerTeam.roster, updatedProposerRoster)
+            }
           ),
           updateDoc(
             doc(db, "leagues", leagueId.toString(), "teams", trade.receiverId),
-            { roster: updatedReceiverRoster }
+            { 
+              roster: updatedReceiverRoster,
+              cupLineups: updateCupLineups(receiverTeam, receiverTeam.roster, updatedReceiverRoster)
+            }
           ),
           updateDoc(doc(db, "leagues", leagueId.toString()), {
             [`trades.${tradeId}`]: {
