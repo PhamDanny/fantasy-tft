@@ -223,7 +223,7 @@ const TradeTab: React.FC<TradeTabProps> = ({
 
         // Update cup lineups for future cups only
         const currentCup = league.settings.currentCup;
-        const updateCupLineups = (team: Team, oldRoster: string[], newRoster: string[]) => {
+        const updateCupLineups = (team: Team, newRoster: string[]) => {
           const updatedCupLineups = { ...team.cupLineups };
           
           // Only update future cups
@@ -261,14 +261,14 @@ const TradeTab: React.FC<TradeTabProps> = ({
             doc(db, "leagues", leagueId.toString(), "teams", trade.proposerId),
             { 
               roster: updatedProposerRoster,
-              cupLineups: updateCupLineups(proposerTeam, proposerTeam.roster, updatedProposerRoster)
+              cupLineups: updateCupLineups(proposerTeam, updatedProposerRoster)
             }
           ),
           updateDoc(
             doc(db, "leagues", leagueId.toString(), "teams", trade.receiverId),
             { 
               roster: updatedReceiverRoster,
-              cupLineups: updateCupLineups(receiverTeam, receiverTeam.roster, updatedReceiverRoster)
+              cupLineups: updateCupLineups(receiverTeam, updatedReceiverRoster)
             }
           ),
           updateDoc(doc(db, "leagues", leagueId.toString()), {
