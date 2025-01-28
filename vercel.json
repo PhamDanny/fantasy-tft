@@ -1,7 +1,8 @@
 {
   "routes": [
     { "handle": "filesystem" },
-    { "src": "/join/[code]", "dest": "/" },
+    { "src": "/join/([^/]+)", "dest": "/" },
+    { "src": "/leagues/([^/]+)", "dest": "/" },
     { "src": "/leagues", "dest": "/" },
     { "src": "/findleagues", "dest": "/" },
     { "src": "/settings", "dest": "/" },
