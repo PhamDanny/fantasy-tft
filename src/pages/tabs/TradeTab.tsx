@@ -238,7 +238,7 @@ const TradeTab: React.FC<TradeTabProps> = ({
               transactionId,
             },
             transactions: [...(league.transactions || []), transaction],
-          }),
+          })
         ]);
       } else {
         await updateDoc(doc(db, "leagues", leagueId.toString()), {

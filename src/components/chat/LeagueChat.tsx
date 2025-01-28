@@ -12,7 +12,7 @@ import {
 import { db } from "../../firebase/config";
 import { format } from "date-fns";
 import { MessageCircle, Send } from "lucide-react";
-import type { League, Transaction, Team } from "../../types";
+import type { League, Transaction, Team, Player } from "../../types";
 
 interface ChatMessage {
   id: string;
@@ -29,9 +29,10 @@ interface LeagueChatProps {
   userId: string;
   userName: string;
   teams: Record<string, Team>;
+  players: Record<string, Player>;
 }
 
-const LeagueChat = ({ league, userId, userName, teams }: LeagueChatProps) => {
+const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -72,21 +73,39 @@ const LeagueChat = ({ league, userId, userName, teams }: LeagueChatProps) => {
     fetchDisplayNames();
   }, [teams, userId, userName]);
 
-  // Subscribe to chat messages
+  // Subscribe to chat messages and merge with transactions
   useEffect(() => {
     const chatRef = collection(db, "leagues", league.id.toString(), "chat");
     const q = query(chatRef, orderBy("timestamp", "desc"), limit(100));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newMessages: ChatMessage[] = [];
-      snapshot.forEach((doc) => {
-        newMessages.push({ id: doc.id, ...doc.data() } as ChatMessage);
-      });
-      setMessages(newMessages.reverse());
+      // Get regular chat messages
+      const chatMessages: ChatMessage[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data()
+      } as ChatMessage));
+
+      // Convert transactions to chat message format
+      const transactionMessages: ChatMessage[] = (league.transactions || []).map(transaction => ({
+        id: transaction.id,
+        userId: "system",
+        userName: "System",
+        content: "",
+        timestamp: transaction.timestamp,
+        type: "transaction",
+        metadata: transaction
+      }));
+
+      // Combine and sort all messages by timestamp
+      const allMessages = [...chatMessages, ...transactionMessages].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
+      setMessages(allMessages);
     });
 
     return () => unsubscribe();
-  }, [league.id]);
+  }, [league.id, league.transactions]); // Include league.transactions in dependencies
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,16 +180,100 @@ const LeagueChat = ({ league, userId, userName, teams }: LeagueChatProps) => {
 
       case "transaction":
         const metadata = message.metadata as Transaction;
+        const getTeamName = (teamId: string) => teams[teamId]?.teamName || "Unknown Team";
+        const getPlayerNames = (playerIds: string[]) => 
+          playerIds.map(id => players[id]?.name || "Unknown Player");
+
+        let content = null;
+        switch (metadata.type) {
+          case "trade":
+            content = (
+              <div>
+                <div className="text-muted mb-1">Trade completed</div>
+                <div className="d-flex justify-content-between align-items-start gap-4">
+                  {metadata.teamIds.map((teamId) => (
+                    <div key={teamId} className="flex-grow-1" style={{ minWidth: "40%" }}>
+                      <div className="fw-medium">{getTeamName(teamId)}</div>
+                      <div className="text-success">
+                        + Received: {getPlayerNames(metadata.adds[teamId] || []).map((name, i) => (
+                          <div key={i} className="ms-2">{name}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+            break;
+
+          case "waiver":
+            const team = getTeamName(metadata.teamIds[0]);
+            const addedPlayers = getPlayerNames(metadata.adds[metadata.teamIds[0]] || []);
+            const droppedPlayers = metadata.drops[metadata.teamIds[0]]?.length > 0
+              ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
+              : [];
+            const faabSpent = metadata.metadata.faabSpent?.[metadata.teamIds[0]] || 0;
+            
+            content = (
+              <div>
+                <div className="text-muted mb-1">Waiver claim by {team}</div>
+                <div className="d-flex justify-content-between align-items-start gap-4">
+                  <div className="flex-grow-1">
+                    <div className="text-success">
+                      + Added: {addedPlayers.map((name, i) => (
+                        <div key={i} className="ms-2">{name}</div>
+                      ))}
+                    </div>
+                    {droppedPlayers.length > 0 && (
+                      <div className="text-danger">
+                        - Dropped: {droppedPlayers.map((name, i) => (
+                          <div key={i} className="ms-2">{name}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-muted">FAAB: ${faabSpent}</div>
+                </div>
+              </div>
+            );
+            break;
+
+          case "free_agent":
+            const faTeam = getTeamName(metadata.teamIds[0]);
+            const faPlayers = getPlayerNames(metadata.adds[metadata.teamIds[0]] || []);
+            const faDrops = metadata.drops[metadata.teamIds[0]]?.length > 0
+              ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
+              : [];
+            
+            content = (
+              <div>
+                <div className="text-muted mb-1">Free agent pickup by {faTeam}</div>
+                <div className="d-flex justify-content-between align-items-start gap-4">
+                  <div className="flex-grow-1">
+                    <div className="text-success">
+                      + Added: {faPlayers.map((name, i) => (
+                        <div key={i} className="ms-2">{name}</div>
+                      ))}
+                    </div>
+                    {faDrops.length > 0 && (
+                      <div className="text-danger">
+                        - Dropped: {faDrops.map((name, i) => (
+                          <div key={i} className="ms-2">{name}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+            break;
+        }
+
         return (
           <div className="d-flex justify-content-center mb-2">
-            <div className="text-center small text-muted bg-light px-3 py-2 rounded-3">
-              <div className="mb-1">
-                {metadata.type === "trade" && "Trade completed"}
-                {metadata.type === "waiver" && "Waiver claim processed"}
-                {metadata.type === "free_agent" && "Free agent acquired"}
-                {metadata.type === "commissioner" && "Commissioner action"}
-              </div>
-              <div>{timestamp}</div>
+            <div className="bg-light px-3 py-2 rounded-3" style={{ maxWidth: "90%" }}>
+              {content}
+              <div className="text-muted small text-center mt-1">{timestamp}</div>
             </div>
           </div>
         );

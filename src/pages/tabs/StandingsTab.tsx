@@ -490,6 +490,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
           userId={user.uid}
           userName={user.displayName || "Anonymous"}
           teams={teams}
+          players={players}
         />
       </div>
 
