@@ -314,6 +314,8 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                   const isExpanded = expandedTeams[teamId];
                   const contributions = getAllPlayerContributions(team);
                   const rank = index + 1;
+                  const isLastPlayoffTeam = league.settings.playoffs && 
+                    rank === league.settings.playoffTeams;
 
                   return (
                     <React.Fragment key={teamId}>
@@ -454,6 +456,21 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                                   })}
                                 </tbody>
                               </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Modified separator with text */}
+                      {isLastPlayoffTeam && (
+                        <tr className="playoff-separator">
+                          <td colSpan={league.settings.currentCup + 3} className="p-0">
+                            <div className="d-flex align-items-center gap-2 my-2">
+                              <div className="border-bottom border-2 border-secondary flex-grow-1"></div>
+                              <div className="text-muted small px-2">
+                                Top {league.settings.playoffTeams} teams qualify for playoffs
+                              </div>
+                              <div className="border-bottom border-2 border-secondary flex-grow-1"></div>
                             </div>
                           </td>
                         </tr>
