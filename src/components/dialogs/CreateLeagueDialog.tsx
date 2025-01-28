@@ -82,6 +82,7 @@ const CreateLeagueDialog = ({
       const commissionerTeam = {
         teamId,
         ownerID: userId,
+        coOwners: [],
         teamName: userName,
         roster: [],
         cupLineups: {

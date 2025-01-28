@@ -121,7 +121,9 @@ const LeagueChat = ({ league, userId, userName, teams }: LeagueChatProps) => {
     const timestamp = format(new Date(message.timestamp), "MMM d, h:mm a");
 
     // Find team name from league data
-    const team = Object.values(teams).find(team => team.ownerID === message.userId);
+    const team = Object.values(teams).find(team => 
+      team.ownerID === message.userId || team.coOwners?.includes(message.userId)
+    );
     const displayName = team ? team.teamName : "Unknown Team";
 
     switch (message.type) {

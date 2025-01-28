@@ -3,8 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { collection, getDocs, runTransaction, doc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../firebase/auth";
-import { addUserToLeague } from "../firebase/queries";
-import type { League, LeagueInvite } from "../types";
+import type { League, Team } from "../types";
 
 export const JoinLeague = () => {
   const { inviteCode } = useParams();
@@ -85,85 +84,55 @@ export const JoinLeague = () => {
           throw new Error("This invite has reached its maximum uses");
         }
 
-        // Check if league is full by counting teams in subcollection
-        const currentTeamCount = teamsSnapshot.size;
-
-        if (currentTeamCount >= targetLeague.settings.teamsLimit) {
-          throw new Error("This league is full");
+        if (invite.type !== 'coowner' || !invite.teamId) {
+          throw new Error("Invalid co-owner invite");
         }
 
-        // Create new team
-        const teamId = `team_${Date.now()}_${Math.random()
-          .toString(36)
-          .substr(2, 9)}`;
+        // READS FIRST
+        const teamRef = doc(db, "leagues", foundLeagueId, "teams", invite.teamId);
+        const teamDoc = await transaction.get(teamRef);
+        if (!teamDoc.exists()) {
+          throw new Error("Team not found");
+        }
+        const team = teamDoc.data() as Team;
+
+        // Check if already a co-owner
+        if (team.coOwners?.includes(userId)) {
+          throw new Error("You are already a co-owner of this team");
+        }
+
+        // Get user display names
+        const newCoOwnerDoc = await transaction.get(doc(db, "users", userId));
+        const ownerDoc = await transaction.get(doc(db, "users", team.ownerID));
         const userDoc = await transaction.get(doc(db, "users", userId));
-        const userName = userDoc.exists()
-          ? userDoc.data().displayName
-          : "New Team";
 
-        const newTeam = {
-          teamId,
-          ownerID: userId,
-          teamName: userName,
-          roster: [],
-          cupLineups: {
-            cup1: {
-              captains: Array(targetLeague.settings.captainSlots).fill(null),
-              naSlots: Array(targetLeague.settings.naSlots).fill(null),
-              brLatamSlots: Array(targetLeague.settings.brLatamSlots).fill(
-                null
-              ),
-              flexSlots: Array(targetLeague.settings.flexSlots).fill(null),
-              bench: [],
-              locked: targetLeague.settings.currentCup >= 1,
-            },
-            cup2: {
-              captains: Array(targetLeague.settings.captainSlots).fill(null),
-              naSlots: Array(targetLeague.settings.naSlots).fill(null),
-              brLatamSlots: Array(targetLeague.settings.brLatamSlots).fill(
-                null
-              ),
-              flexSlots: Array(targetLeague.settings.flexSlots).fill(null),
-              bench: [],
-              locked: targetLeague.settings.currentCup >= 2,
-            },
-            cup3: {
-              captains: Array(targetLeague.settings.captainSlots).fill(null),
-              naSlots: Array(targetLeague.settings.naSlots).fill(null),
-              brLatamSlots: Array(targetLeague.settings.brLatamSlots).fill(
-                null
-              ),
-              flexSlots: Array(targetLeague.settings.flexSlots).fill(null),
-              bench: [],
-              locked: targetLeague.settings.currentCup >= 3,
-            },
-          },
-          faabBudget: targetLeague.settings.faabBudget,
-          pendingBids: [],
-        };
+        // Get display names from docs
+        const newCoOwnerName = newCoOwnerDoc.exists() ? newCoOwnerDoc.data().displayName : "Unknown";
+        const ownerName = ownerDoc.exists() ? ownerDoc.data().displayName : "Unknown";
+        const leagues = userDoc.exists() ? userDoc.data().leagues || [] : [];
 
-        // Update invite usage
-        const updatedInvite: LeagueInvite = {
-          ...invite,
-          usedCount: invite.usedCount + 1,
-          usedBy: [...(invite.usedBy || []), userId],
-          status: invite.maxUses && invite.usedCount + 1 >= invite.maxUses ? 'used' : 'active'
-        };
-
-        // Update the invite in the league document
-        transaction.update(doc(db, 'leagues', leagueId), {
-          [`invites.${code}`]: updatedInvite,
+        // THEN WRITES
+        transaction.update(teamRef, {
+          coOwners: [...(team.coOwners || []), userId],
+          teamName: `${ownerName}/${newCoOwnerName}`
         });
 
-        // Create team document in subcollection
-        transaction.set(doc(db, "leagues", leagueId, "teams", teamId), newTeam);
+        transaction.update(doc(db, 'leagues', leagueId), {
+          [`invites.${code}`]: {
+            ...invite,
+            usedCount: invite.usedCount + 1,
+            usedBy: [...(invite.usedBy || []), userId],
+            status: 'used'
+          }
+        });
 
-        // Add league to user's leagues
-        await addUserToLeague(userId, leagueId);
-
-        // Navigate to the league
-        navigate(`/leagues/${leagueId}`);
+        transaction.update(doc(db, 'users', userId), {
+          leagues: [...leagues, leagueId]
+        });
       });
+
+      // Navigate after transaction completes
+      navigate(`/leagues/${leagueId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to join league");
     } finally {

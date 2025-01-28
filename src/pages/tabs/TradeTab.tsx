@@ -16,6 +16,7 @@ interface TradeTabProps {
   userTeam: Team | null;
   leagueId: number;
   teams: Record<string, Team>;
+  user: any;
 }
 
 const TradeTab: React.FC<TradeTabProps> = ({
@@ -24,6 +25,7 @@ const TradeTab: React.FC<TradeTabProps> = ({
   userTeam,
   leagueId,
   teams,
+  user,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -252,146 +254,151 @@ const TradeTab: React.FC<TradeTabProps> = ({
     }
   };
 
+  const canManageTeam = userTeam?.ownerID === user.uid || 
+                       userTeam?.coOwners?.includes(user.uid);
+
   return (
     <div className="row">
-      {/* Propose Trade */}
-      <div className="col-md-7">
-        <div className="card">
-          <div className="card-header">
-            <h4 className="h5 mb-0">Propose Trade</h4>
-          </div>
-          <div className="card-body">
-            {error && <div className="alert alert-danger">{error}</div>}
-
-            <div className="mb-4">
-              <label className="form-label">Select Team to Trade With</label>
-              <select
-                className="form-select"
-                value={selectedTeam?.teamId || ""}
-                onChange={(e) => {
-                  const team = getOtherTeams().find(
-                    (t) => t.teamId === e.target.value
-                  );
-                  setSelectedTeam(team || null);
-                  setSelectedProposerPlayers([]);
-                  setSelectedReceiverPlayers([]);
-                }}
-              >
-                <option value="">Select a team...</option>
-                {getOtherTeams().map((team) => (
-                  <option key={team.teamId} value={team.teamId}>
-                    {team.teamName}
-                  </option>
-                ))}
-              </select>
+      {/* Only show trade proposal section if user can manage team */}
+      {canManageTeam && (
+        <div className="col-md-7">
+          <div className="card">
+            <div className="card-header">
+              <h4 className="h5 mb-0">Propose Trade</h4>
             </div>
+            <div className="card-body">
+              {error && <div className="alert alert-danger">{error}</div>}
 
-            {selectedTeam && (
-              <div className="row">
-                <div className="col-md-6">
-                  <h6>Your Players</h6>
-                  <div className="list-group mb-3">
-                    {userTeam.roster.map((playerId) => {
-                      const player = players[playerId];
-                      if (!player) return null;
-
-                      return (
-                        <button
-                          key={playerId}
-                          className={`list-group-item list-group-item-action ${
-                            selectedProposerPlayers.includes(playerId)
-                              ? "active"
-                              : ""
-                          }`}
-                          onClick={() => {
-                            setSelectedProposerPlayers((prev) =>
-                              prev.includes(playerId)
-                                ? prev.filter((id) => id !== playerId)
-                                : [...prev, playerId]
-                            );
-                          }}
-                        >
-                          <div className="d-flex justify-content-between align-items-center">
-                            <div>
-                              <span>{player.name}</span>
-                              <small
-                                className={`ms-2 ${
-                                  selectedProposerPlayers.includes(playerId)
-                                    ? "text-white"
-                                    : "text-muted"
-                                }`}
-                              >
-                                ({player.region})
-                              </small>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="col-md-6">
-                  <h6>{selectedTeam.teamName}'s Players</h6>
-                  <div className="list-group mb-3">
-                    {selectedTeam.roster.map((playerId) => {
-                      const player = players[playerId];
-                      if (!player) return null;
-
-                      return (
-                        <button
-                          key={playerId}
-                          className={`list-group-item list-group-item-action ${
-                            selectedReceiverPlayers.includes(playerId)
-                              ? "active"
-                              : ""
-                          }`}
-                          onClick={() => {
-                            setSelectedReceiverPlayers((prev) =>
-                              prev.includes(playerId)
-                                ? prev.filter((id) => id !== playerId)
-                                : [...prev, playerId]
-                            );
-                          }}
-                        >
-                          <div className="d-flex justify-content-between align-items-center">
-                            <div>
-                              <span>{player.name}</span>
-                              <small
-                                className={`ms-2 ${
-                                  selectedReceiverPlayers.includes(playerId)
-                                    ? "text-white"
-                                    : "text-muted"
-                                }`}
-                              >
-                                ({player.region})
-                              </small>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="col-12">
-                  <button
-                    className="btn btn-primary w-100"
-                    onClick={proposeTrade}
-                    disabled={
-                      loading ||
-                      selectedProposerPlayers.length === 0 ||
-                      selectedReceiverPlayers.length === 0
-                    }
-                  >
-                    {loading ? "Processing..." : "Propose Trade"}
-                  </button>
-                </div>
+              <div className="mb-4">
+                <label className="form-label">Select Team to Trade With</label>
+                <select
+                  className="form-select"
+                  value={selectedTeam?.teamId || ""}
+                  onChange={(e) => {
+                    const team = getOtherTeams().find(
+                      (t) => t.teamId === e.target.value
+                    );
+                    setSelectedTeam(team || null);
+                    setSelectedProposerPlayers([]);
+                    setSelectedReceiverPlayers([]);
+                  }}
+                >
+                  <option value="">Select a team...</option>
+                  {getOtherTeams().map((team) => (
+                    <option key={team.teamId} value={team.teamId}>
+                      {team.teamName}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+
+              {selectedTeam && (
+                <div className="row">
+                  <div className="col-md-6">
+                    <h6>Your Players</h6>
+                    <div className="list-group mb-3">
+                      {userTeam.roster.map((playerId) => {
+                        const player = players[playerId];
+                        if (!player) return null;
+
+                        return (
+                          <button
+                            key={playerId}
+                            className={`list-group-item list-group-item-action ${
+                              selectedProposerPlayers.includes(playerId)
+                                ? "active"
+                                : ""
+                            }`}
+                            onClick={() => {
+                              setSelectedProposerPlayers((prev) =>
+                                prev.includes(playerId)
+                                  ? prev.filter((id) => id !== playerId)
+                                  : [...prev, playerId]
+                              );
+                            }}
+                          >
+                            <div className="d-flex justify-content-between align-items-center">
+                              <div>
+                                <span>{player.name}</span>
+                                <small
+                                  className={`ms-2 ${
+                                    selectedProposerPlayers.includes(playerId)
+                                      ? "text-white"
+                                      : "text-muted"
+                                  }`}
+                                >
+                                  ({player.region})
+                                </small>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <h6>{selectedTeam.teamName}'s Players</h6>
+                    <div className="list-group mb-3">
+                      {selectedTeam.roster.map((playerId) => {
+                        const player = players[playerId];
+                        if (!player) return null;
+
+                        return (
+                          <button
+                            key={playerId}
+                            className={`list-group-item list-group-item-action ${
+                              selectedReceiverPlayers.includes(playerId)
+                                ? "active"
+                                : ""
+                            }`}
+                            onClick={() => {
+                              setSelectedReceiverPlayers((prev) =>
+                                prev.includes(playerId)
+                                  ? prev.filter((id) => id !== playerId)
+                                  : [...prev, playerId]
+                              );
+                            }}
+                          >
+                            <div className="d-flex justify-content-between align-items-center">
+                              <div>
+                                <span>{player.name}</span>
+                                <small
+                                  className={`ms-2 ${
+                                    selectedReceiverPlayers.includes(playerId)
+                                      ? "text-white"
+                                      : "text-muted"
+                                  }`}
+                                >
+                                  ({player.region})
+                                </small>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="col-12">
+                    <button
+                      className="btn btn-primary w-100"
+                      onClick={proposeTrade}
+                      disabled={
+                        loading ||
+                        selectedProposerPlayers.length === 0 ||
+                        selectedReceiverPlayers.length === 0
+                      }
+                    >
+                      {loading ? "Processing..." : "Propose Trade"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Pending Trades and Recent History */}
       <div className="col-md-5">
@@ -428,14 +435,14 @@ const TradeTab: React.FC<TradeTabProps> = ({
                             <button
                               className="btn btn-sm btn-success"
                               onClick={() => respondToTrade(tradeId, true)}
-                              disabled={loading}
+                              disabled={loading || !canManageTeam}
                             >
                               Accept
                             </button>
                             <button
                               className="btn btn-sm btn-danger"
                               onClick={() => respondToTrade(tradeId, false)}
-                              disabled={loading}
+                              disabled={loading || !canManageTeam}
                             >
                               Reject
                             </button>
@@ -444,7 +451,7 @@ const TradeTab: React.FC<TradeTabProps> = ({
                           <button
                             className="btn btn-sm btn-danger"
                             onClick={() => cancelTrade(tradeId)}
-                            disabled={loading}
+                            disabled={loading || !canManageTeam}
                           >
                             Cancel Trade
                           </button>

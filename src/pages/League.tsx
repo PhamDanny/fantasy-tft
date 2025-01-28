@@ -58,7 +58,7 @@ export const LeagueView: React.FC = () => {
           
           // Move userTeam finding here where we know teams are loaded
           const foundUserTeam = Object.values(teamsData).find(
-            (team) => team.ownerID === authUser.uid
+            (team) => team.ownerID === authUser.uid || team.coOwners?.includes(authUser.uid)
           );
           setUserTeam(foundUserTeam || null);
 
@@ -166,6 +166,7 @@ export const LeagueView: React.FC = () => {
                 userTeam={userTeam}
                 leagueId={numericLeagueId}
                 teams={teams}
+                user={user}
               />
             )}
             {activeTab === TABS.PLAYERS && (
@@ -175,6 +176,7 @@ export const LeagueView: React.FC = () => {
                 userTeam={userTeam}
                 leagueId={numericLeagueId}
                 teams={teams}
+                user={user}
               />
             )}
             {activeTab === TABS.TRADE && (
@@ -184,6 +186,7 @@ export const LeagueView: React.FC = () => {
                 userTeam={userTeam}
                 leagueId={numericLeagueId}
                 teams={teams}
+                user={user}
               />
             )}
             {activeTab === TABS.TRANSACTIONS && (

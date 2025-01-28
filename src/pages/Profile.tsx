@@ -112,7 +112,7 @@ export const Profile = () => {
               <ul className="list-group">
                 {leagues.map((league) => {
                   const userTeam = Object.values(league.teams).find(
-                    (team) => team.ownerID === user.uid
+                    (team) => team.ownerID === user.uid || team.coOwners?.includes(user.uid)
                   );
                   return (
                     <li key={league.id} className="list-group-item">

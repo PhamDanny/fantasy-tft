@@ -10,6 +10,7 @@ interface PlayersTabProps {
   userTeam: Team | null;
   leagueId: number;
   teams: Record<string, Team>;
+  user: any;
 }
 
 const PlayersTab: React.FC<PlayersTabProps> = ({
@@ -18,6 +19,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   userTeam,
   leagueId,
   teams,
+  user,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -221,6 +223,9 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
     }
   };
 
+  const canManageTeam = userTeam?.ownerID === user.uid || 
+                       userTeam?.coOwners?.includes(user.uid);
+
   return (
     <div className="row">
       <div className="col-md-8">
@@ -339,7 +344,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                               onClick={() =>
                                 cancelBid(pendingBids.indexOf(existingBid))
                               }
-                              disabled={loading}
+                              disabled={loading || !canManageTeam}
                             >
                               Cancel Bid
                             </button>
@@ -347,7 +352,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                             <button
                               className="btn btn-sm btn-primary"
                               onClick={() => setSelectedPlayer(playerId)}
-                              disabled={loading}
+                              disabled={loading || !canManageTeam}
                             >
                               Place Bid
                             </button>

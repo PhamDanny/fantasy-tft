@@ -48,6 +48,7 @@ export interface PendingBid {
 export interface Team {
   teamId: string;
   ownerID: string;
+  coOwners: string[];  // Add this field for co-owners
   teamName: string;
   roster: string[];
   cupLineups: {
@@ -116,4 +117,6 @@ export interface LeagueInvite {
   usedCount: number;
   status: 'active' | 'used' | 'expired';
   usedBy?: string[];
+  type: 'team' | 'coowner';  // Add this field to distinguish invite types
+  teamId?: string;  // Add this field for co-owner invites
 }

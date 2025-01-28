@@ -35,7 +35,8 @@ const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) =>
         usedCount: 0,
         status: 'active' as const,
         usedBy: [],
-        createdBy: league.commissioner
+        createdBy: league.commissioner,
+        type: 'team'
       };
 
       await updateDoc(doc(db, 'leagues', league.id.toString()), {

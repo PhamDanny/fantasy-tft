@@ -70,7 +70,7 @@ const MyLeagues = () => {
           <div className="list-group mb-4">
             {leagues.map((league) => {
               const userTeam = Object.values(league.teams).find(
-                (team) => team.ownerID === user.uid
+                (team) => team.ownerID === user.uid || team.coOwners?.includes(user.uid)
               );
 
               return (
