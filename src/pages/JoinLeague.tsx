@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { collection, getDocs, doc, serverTimestamp, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../firebase/auth";
-import type { League, Team } from "../types";
+import type { League, Team, Draft } from "../types";
 
 export const JoinLeague = () => {
   const { inviteCode } = useParams();
@@ -25,11 +25,23 @@ export const JoinLeague = () => {
 
   const handleJoin = async (userId: string, code: string) => {
     try {
-      // Query all leagues
+      // First try to find a draft with this invite code
+      const draftsCol = collection(db, "drafts");
+      const draftsSnapshot = await getDocs(draftsCol);
+      
+      for (const draftDoc of draftsSnapshot.docs) {
+        const invitesSnapshot = await getDocs(collection(draftDoc.ref, "invites"));
+        const invite = invitesSnapshot.docs.find(doc => doc.id === code);
+        
+        if (invite) {
+          return handleJoinDraft(userId, code, draftDoc.id, draftDoc.data() as Draft, invite.data());
+        }
+      }
+
+      // If no draft found, try leagues
       const leaguesCol = collection(db, "leagues");
       const leaguesSnapshot = await getDocs(leaguesCol);
 
-      // Find the league with this invite code
       let foundLeague: League | null = null;
       let foundLeagueId: string | null = null;
 
@@ -46,157 +58,200 @@ export const JoinLeague = () => {
         throw new Error("Invalid invite code");
       }
 
-      // Get user display name first
-      const userDoc = await getDoc(doc(db, "users", userId));
-      const userName = userDoc.exists() ? userDoc.data().displayName : "Unknown";
-      const leagues = userDoc.exists() ? userDoc.data().leagues || [] : [];
-
-      const invite = foundLeague.invites?.[code];
-      if (!invite) {
-        throw new Error("Invalid invite code");
-      }
-
-      // Validate invite
-      if (invite.status !== "active") {
-        throw new Error("This invite has expired or been used");
-      }
-
-      if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
-        throw new Error("This invite has expired");
-      }
-
-      if (invite.maxUses && invite.usedCount >= invite.maxUses) {
-        throw new Error("This invite has reached its maximum uses");
-      }
-
-      if (invite.type === 'coowner') {
-        if (!invite.teamId) {
-          throw new Error("Invalid co-owner invite");
-        }
-
-        // Get team data first
-        const teamRef = doc(db, "leagues", foundLeagueId, "teams", invite.teamId);
-        const teamDoc = await getDoc(teamRef);
-        
-        if (!teamDoc.exists()) {
-          throw new Error("Team not found");
-        }
-        
-        const team = teamDoc.data() as Team;
-
-        // Check if already a co-owner
-        if (team.coOwners?.includes(userId)) {
-          throw new Error("You are already a co-owner of this team");
-        }
-
-        // Get owner display name
-        const ownerDoc = await getDoc(doc(db, "users", team.ownerID));
-        const ownerName = ownerDoc.exists() ? ownerDoc.data().displayName : "Unknown";
-
-        // Update team first
-        await updateDoc(teamRef, {
-          coOwners: [...(team.coOwners || []), userId],
-          teamName: `${ownerName}/${userName}`
-        });
-
-        // Then update invite
-        await updateDoc(doc(db, 'leagues', foundLeagueId), {
-          [`invites.${code}`]: {
-            ...invite,
-            usedCount: invite.usedCount + 1,
-            usedBy: [...(invite.usedBy || []), userId],
-            status: invite.maxUses && invite.usedCount + 1 >= invite.maxUses ? 'used' : 'active'
-          }
-        });
-
-        // Update user's leagues
-        await updateDoc(doc(db, 'users', userId), {
-          leagues: [...leagues, foundLeagueId]
-        });
-
-        // Add chat message
-        const chatRef = doc(
-          db, 
-          'leagues', 
-          foundLeagueId, 
-          'chat', 
-          `-${Date.now()}-${crypto.randomUUID()}`
-        );
-        await setDoc(chatRef, {
-          type: 'system',
-          content: `${userName} joined as a co-owner`,
-          timestamp: serverTimestamp(),
-          userId: 'system',
-          userName: 'System',
-          sortOrder: -Date.now()
-        });
-
-      } else {
-        // Handle regular team invite
-        // Create new team
-        const teamId = Math.random().toString(36).substring(2, 10);
-        const teamRef = doc(db, "leagues", foundLeagueId, "teams", teamId);
-
-        const newTeam: Team = {
-          teamId,
-          ownerID: userId,
-          coOwners: [],
-          teamName: userName,
-          roster: [],
-          cupLineups: {},
-          faabBudget: foundLeague.settings.faabBudget,
-          pendingBids: []
-        };
-
-        await setDoc(teamRef, newTeam);
-
-        // Update invite status
-        await updateDoc(doc(db, 'leagues', foundLeagueId), {
-          [`invites.${code}`]: {
-            ...invite,
-            usedCount: invite.usedCount + 1,
-            usedBy: [...(invite.usedBy || []), userId],
-            status: invite.maxUses && invite.usedCount + 1 >= invite.maxUses ? 'used' : 'active'
-          }
-        });
-
-        // Update user's leagues
-        await updateDoc(doc(db, 'users', userId), {
-          leagues: [...leagues, foundLeagueId]
-        });
-
-        // Add chat message about the new join
-        const chatRef = doc(
-          db, 
-          'leagues', 
-          foundLeagueId, 
-          'chat', 
-          `-${Date.now()}-${crypto.randomUUID()}`
-        );
-        await setDoc(chatRef, {
-          type: 'system',
-          content: `${userName} joined the league`,
-          timestamp: serverTimestamp(),
-          userId: 'system',
-          userName: 'System',
-          sortOrder: -Date.now()
-        });
-      }
-
-      // Navigate after all updates complete
-      navigate(`/leagues/${foundLeagueId}`);
+      await handleJoinLeague(userId, code, foundLeagueId, foundLeague);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to join league");
+      setError(err instanceof Error ? err.message : "Failed to join");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleJoinDraft = async (
+    userId: string,
+    code: string,
+    draftId: string,
+    draft: Draft,
+    invite: any
+  ) => {
+    // Get user display name
+    const userDoc = await getDoc(doc(db, "users", userId));
+    const userName = userDoc.exists() ? userDoc.data().displayName : "Unknown";
+
+    // Validate invite
+    if (invite.status !== "active") {
+      throw new Error("This invite has expired or been used");
+    }
+
+    if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+      throw new Error("This invite has expired");
+    }
+
+    if (invite.maxUses && invite.usedCount >= invite.maxUses) {
+      throw new Error("This invite has reached its maximum uses");
+    }
+
+    // Create new team in the draft
+    const teamId = `team_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newTeam = {
+      teamId,
+      ownerID: userId,
+      coOwners: [],
+      teamName: userName,
+      roster: [],
+      faabBudget: draft.settings.faabBudget,
+    };
+
+    // Update draft with new team
+    await updateDoc(doc(db, "drafts", draftId), {
+      teams: {
+        ...draft.teams,
+        [teamId]: newTeam,
+      },
+      settings: {
+        ...draft.settings,
+        draftOrder: [...draft.settings.draftOrder, teamId],
+      },
+    });
+
+    // Update invite status
+    await updateDoc(doc(db, "drafts", draftId, "invites", code), {
+      ...invite,
+      usedCount: invite.usedCount + 1,
+      usedBy: [...(invite.usedBy || []), userId],
+      status: invite.maxUses && invite.usedCount + 1 >= invite.maxUses ? "used" : "active",
+    });
+
+    // Navigate to draft
+    navigate(`/drafts/${draftId}`);
+  };
+
+  const handleJoinLeague = async (
+    userId: string,
+    code: string,
+    leagueId: string,
+    league: League
+  ) => {
+    // Get user display name
+    const userDoc = await getDoc(doc(db, "users", userId));
+    const userName = userDoc.exists() ? userDoc.data().displayName : "Unknown";
+    const leagues = userDoc.exists() ? userDoc.data().leagues || [] : [];
+
+    const invite = league.invites?.[code];
+    if (!invite) {
+      throw new Error("Invalid invite code");
+    }
+
+    // Rest of the existing league join logic
+    if (invite.type === 'coowner') {
+      if (!invite.teamId) {
+        throw new Error("Invalid co-owner invite");
+      }
+
+      const teamRef = doc(db, "leagues", leagueId, "teams", invite.teamId);
+      const teamDoc = await getDoc(teamRef);
+      
+      if (!teamDoc.exists()) {
+        throw new Error("Team not found");
+      }
+      
+      const team = teamDoc.data() as Team;
+
+      if (team.coOwners?.includes(userId)) {
+        throw new Error("You are already a co-owner of this team");
+      }
+
+      const ownerDoc = await getDoc(doc(db, "users", team.ownerID));
+      const ownerName = ownerDoc.exists() ? ownerDoc.data().displayName : "Unknown";
+
+      await updateDoc(teamRef, {
+        coOwners: [...(team.coOwners || []), userId],
+        teamName: `${ownerName}/${userName}`
+      });
+
+      await updateDoc(doc(db, 'leagues', leagueId), {
+        [`invites.${code}`]: {
+          ...invite,
+          usedCount: invite.usedCount + 1,
+          usedBy: [...(invite.usedBy || []), userId],
+          status: invite.maxUses && invite.usedCount + 1 >= invite.maxUses ? 'used' : 'active'
+        }
+      });
+
+      await updateDoc(doc(db, 'users', userId), {
+        leagues: [...leagues, leagueId]
+      });
+
+      const chatRef = doc(
+        db, 
+        'leagues', 
+        leagueId, 
+        'chat', 
+        `-${Date.now()}-${crypto.randomUUID()}`
+      );
+      await setDoc(chatRef, {
+        type: 'system',
+        content: `${userName} joined as a co-owner`,
+        timestamp: serverTimestamp(),
+        userId: 'system',
+        userName: 'System',
+        sortOrder: -Date.now()
+      });
+
+    } else {
+      const teamId = Math.random().toString(36).substring(2, 10);
+      const teamRef = doc(db, "leagues", leagueId, "teams", teamId);
+
+      const newTeam: Team = {
+        teamId,
+        ownerID: userId,
+        coOwners: [],
+        teamName: userName,
+        roster: [],
+        cupLineups: {},
+        faabBudget: league.settings.faabBudget,
+        pendingBids: []
+      };
+
+      await setDoc(teamRef, newTeam);
+
+      await updateDoc(doc(db, 'leagues', leagueId), {
+        [`invites.${code}`]: {
+          ...invite,
+          usedCount: invite.usedCount + 1,
+          usedBy: [...(invite.usedBy || []), userId],
+          status: invite.maxUses && invite.usedCount + 1 >= invite.maxUses ? 'used' : 'active'
+        }
+      });
+
+      await updateDoc(doc(db, 'users', userId), {
+        leagues: [...leagues, leagueId]
+      });
+
+      const chatRef = doc(
+        db, 
+        'leagues', 
+        leagueId, 
+        'chat', 
+        `-${Date.now()}-${crypto.randomUUID()}`
+      );
+      await setDoc(chatRef, {
+        type: 'system',
+        content: `${userName} joined the league`,
+        timestamp: serverTimestamp(),
+        userId: 'system',
+        userName: 'System',
+        sortOrder: -Date.now()
+      });
+    }
+
+    navigate(`/leagues/${leagueId}`);
   };
 
   if (!user) {
     return (
       <div className="container mt-4">
         <div className="alert alert-warning">
-          Please log in to join this league
+          Please log in to join
         </div>
       </div>
     );
@@ -209,7 +264,7 @@ export const JoinLeague = () => {
           <div className="spinner-border" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <p className="mt-2">Joining league...</p>
+          <p className="mt-2">Joining...</p>
         </div>
       </div>
     );

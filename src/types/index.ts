@@ -107,6 +107,19 @@ export interface League {
   trades?: Record<string, TradeOffer>;
   transactions: Transaction[];
   invites?: Record<string, LeagueInvite>;
+  draftId?: string;  // ID of the draft this league was created from
+  draftData?: {
+    settings: {
+      draftOrder: string[];
+    };
+    picks: {
+      teamId: string;
+      playerId: string;
+      round: number;
+      pick: number;
+      timestamp: string;
+    }[];
+  };
 }
 
 export interface LeagueInvite {
@@ -120,4 +133,32 @@ export interface LeagueInvite {
   usedBy?: string[];
   type: 'team' | 'coowner';  // Add this field to distinguish invite types
   teamId?: string;  // Add this field for co-owner invites
+}
+
+export interface DraftSettings extends LeagueSettings {
+  draftType: 'snake' | 'auction';
+  draftOrder: string[];  // Array of team IDs in draft order
+}
+
+export interface DraftPick {
+  teamId: string;
+  playerId: string;
+  round: number;
+  pick: number;
+  timestamp: string;
+}
+
+export interface Draft {
+  id: string;
+  name: string;
+  creationDate: string;
+  season: string;
+  settings: DraftSettings;
+  commissioner: string;
+  teams: Record<string, Team>;
+  status: 'pending' | 'in_progress' | 'completed';
+  currentRound: number;
+  currentPick: number;
+  picks: DraftPick[];
+  invites?: Record<string, LeagueInvite>;
 }

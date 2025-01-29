@@ -3,6 +3,7 @@ import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { addUserToLeague } from "../../firebase/queries";
 import type { LeagueSettings, CupLineup } from "../../types";
+import { Link } from "react-router-dom";
 
 const generateEmptyLineup = (settings: LeagueSettings): CupLineup => {
   return {
@@ -241,6 +242,15 @@ const CreateLeagueDialog = ({
 
               <div className="modal-body">
                 {error && <div className="alert alert-danger">{error}</div>}
+
+                <div className="alert alert-info">
+                  <i className="bi bi-info-circle me-2"></i>
+                  This is for creating a league from scratch, you will need to manually import rosters. Want to draft rosters with your league members? Consider{" "}
+                  <Link to="/drafts" className="alert-link" onClick={() => setShow(false)}>
+                    creating a draft
+                  </Link>{" "}
+                  instead. You can convert it to a league after the draft is complete.
+                </div>
 
                 <div className="mb-3">
                   <label className="form-label">League Name</label>

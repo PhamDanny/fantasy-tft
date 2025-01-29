@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
-import { Swords, Search, Settings, User, LogIn } from "lucide-react";
+import { Swords, Search, Settings, User, LogIn, FileText } from "lucide-react";
 import Home from "./pages/Home";
 import MyLeagues from "./pages/MyLeagues";
 import LeagueView from "./pages/League";
@@ -9,6 +9,9 @@ import UserSettings from "./pages/UserSettings";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import { JoinLeague } from "./pages/JoinLeague";
+import MyDrafts from "./pages/MyDrafts";
+import Draft from "./pages/Draft";
+import JoinDraft from './pages/JoinDraft';
 import { useEffect, useState } from "react";
 import { useAuth } from "./firebase/auth";
 
@@ -23,7 +26,8 @@ function App() {
   }, []);
 
   const authenticatedMenuItems = [
-    { Icon: Swords, text: "My Leagues", path: "/leagues" },
+    { Icon: Swords, text: "Leagues", path: "/leagues" },
+    { Icon: FileText, text: "Drafts", path: "/drafts" },
     { Icon: Search, text: "Find Leagues", path: "/findleagues" },
     { Icon: Settings, text: "Settings", path: "/settings" },
     { Icon: User, text: "Profile", path: "/profile" },
@@ -43,14 +47,17 @@ function App() {
         footerText="Created by Dinodan"
       >
         <Routes>
+          <Route path="/" element={<Home />} />
           <Route path="/leagues" element={<MyLeagues />} />
           <Route path="/leagues/:leagueId" element={<LeagueView />} />
+          <Route path="/drafts" element={<MyDrafts />} />
+          <Route path="/drafts/:draftId" element={<Draft />} />
+          <Route path="/drafts/join/:inviteCode" element={<JoinDraft />} />
           <Route path="/join/:inviteCode" element={<JoinLeague />} />
           <Route path="/findleagues" element={<FindLeagues />} />
           <Route path="/settings" element={<UserSettings />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Home />} />
         </Routes>
       </Sidebar>
     </BrowserRouter>

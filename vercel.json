@@ -1,11 +1,43 @@
 {
   "routes": [
-    { "handle": "filesystem" },
-    { "src": "/join/([^/]+)", "dest": "/" },
-    { "src": "/leagues/([^/]+)", "dest": "/" },
-    { "src": "/leagues", "dest": "/" },
-    { "src": "/findleagues", "dest": "/" },
-    { "src": "/settings", "dest": "/" },
-    { "src": "/profile", "dest": "/" }
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/join/([^/]+)",
+      "dest": "/"
+    },
+    {
+      "src": "/drafts/join/([^/]+)",
+      "dest": "/"
+    },
+    {
+      "src": "/drafts/([^/]+)",
+      "dest": "/"
+    },
+    {
+      "src": "/drafts",
+      "dest": "/"
+    },
+    {
+      "src": "/leagues/([^/]+)",
+      "dest": "/"
+    },
+    {
+      "src": "/leagues",
+      "dest": "/"
+    },
+    {
+      "src": "/findleagues",
+      "dest": "/"
+    },
+    {
+      "src": "/settings",
+      "dest": "/"
+    },
+    {
+      "src": "/profile",
+      "dest": "/"
+    }
   ]
 }

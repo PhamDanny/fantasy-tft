@@ -12,12 +12,14 @@ import TransactionHistoryTab from "./tabs/TransactionHistoryTab";
 import LeagueSettingsTab from "./tabs/LeagueSettingsTab";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { db } from "../firebase/config";
+import DraftTab from "./tabs/DraftTab";
 
 const TABS = {
   STANDINGS: "Standings",
   TEAM: "Team",
   PLAYERS: "Players",
   TRADE: "Trade",
+  DRAFT: "Draft",
   TRANSACTIONS: "Transaction History",
   SETTINGS: "Edit League Settings",
 } as const;
@@ -197,6 +199,13 @@ export const LeagueView: React.FC = () => {
                 league={league}
                 isCommissioner={isCommissioner}
                 leagueId={numericLeagueId}
+                teams={teams}
+              />
+            )}
+            {activeTab === TABS.DRAFT && (
+              <DraftTab 
+                league={league} 
+                players={players}
                 teams={teams}
               />
             )}

@@ -52,7 +52,7 @@ const MyLeagues = () => {
   return (
     <div className="container mt-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>My Leagues</h2>
+        <h2>Leagues</h2>
       </div>
 
       {leagues.length === 0 ? (
