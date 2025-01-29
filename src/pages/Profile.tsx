@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { signOut, useAuth } from "../firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
@@ -79,6 +79,7 @@ export const Profile = () => {
       </div>
 
       <div className="card-body">
+        {error && <div className="alert alert-danger mb-3">{error}</div>}
         <div className="mb-3">
           <label className="fw-bold">Display Name</label>
           <p className="mb-0">{userData.displayName}</p>
