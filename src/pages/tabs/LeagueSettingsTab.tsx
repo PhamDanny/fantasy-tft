@@ -40,13 +40,13 @@ const LeagueMemberRow: React.FC<LeagueMemberRowProps> = ({
         className="btn btn-sm btn-primary me-2"
         onClick={() => onEditRoster(teamId)}
       >
-        Edit
+        Edit Roster
       </button>
       <button
         className="btn btn-sm btn-danger"
         onClick={() => onRemoveOwner(teamId, team)}
       >
-        Remove
+        Kick
       </button>
     </div>
     {team.coOwners && team.coOwners.length > 0 && (
@@ -188,7 +188,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
   };
 
   const handleRemoveOwner = async (teamId: string, team: Team) => {
-    if (!window.confirm(`Are you sure you want to remove the owner of ${team.teamName}?`)) {
+    if (!window.confirm(`Are you sure you want to kick the owner of ${team.teamName} from the league? This cannot be undone.`)) {
       return;
     }
 
@@ -207,7 +207,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
           const teamRef = doc(db, "leagues", leagueId.toString(), "teams", teamId);
           transaction.delete(teamRef);
           
-          chatMessage = `Team "${team.teamName}" has been disbanded as ${userName} was removed from the league.`;
+          chatMessage = `${userName} was kicked from the league. Their team was disbanded. `;
         } else {
           const newOwner = team.coOwners[Math.floor(Math.random() * team.coOwners.length)];
           const newOwnerDoc = await transaction.get(doc(db, "users", newOwner));
@@ -222,7 +222,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
             coOwners: updatedCoOwners
           });
           
-          chatMessage = `${userName} has been removed from the league. ${newOwnerName} is now the owner of team "${team.teamName}".`;
+          chatMessage = `${userName} was kicked from the league. ${newOwnerName} is now the owner of team.`;
         }
 
         // Update user's leagues array

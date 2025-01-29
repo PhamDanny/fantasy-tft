@@ -10,17 +10,12 @@ interface InviteDialogProps {
   onClose: () => void;
 }
 
-// Add this type definition at the top of the file
-type InviteType = 'team' | 'coowner';
-
 const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newInvite, setNewInvite] = useState({
     maxUses: 1,
     expiresInDays: 7,
-    type: 'team' as InviteType,
-    teamId: '',
   });
 
   // Calculate remaining team slots
@@ -43,8 +38,7 @@ const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) =>
       expiresAt.setDate(expiresAt.getDate() + newInvite.expiresInDays);
       const expiresAtString = expiresAt.toISOString();
 
-      // Create base invite object without teamId
-      const invite: Omit<LeagueInvite, 'teamId'> = {
+      const invite: LeagueInvite = {
         code: inviteCode,
         createdAt: new Date().toISOString(),
         expiresAt: expiresAtString,
@@ -53,19 +47,14 @@ const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) =>
         status: 'active',
         usedBy: [],
         createdBy: league.commissioner,
-        type: newInvite.type,
+        type: 'team',
       };
 
-      // Add teamId only for co-owner invites
-      const inviteWithTeamId = newInvite.type === 'coowner' 
-        ? { ...invite, teamId: newInvite.teamId }
-        : invite;
-
       await updateDoc(doc(db, 'leagues', league.id.toString()), {
-        [`invites.${inviteCode}`]: inviteWithTeamId,
+        [`invites.${inviteCode}`]: invite,
       });
 
-      setNewInvite({ maxUses: 1, expiresInDays: 7, type: 'team' as InviteType, teamId: '' });
+      setNewInvite({ maxUses: 1, expiresInDays: 7 });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create invite');
     } finally {
@@ -104,15 +93,9 @@ const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) =>
   const activeInvites = Object.entries(league.invites || {}).filter(
     ([_, invite]) => 
       invite.status === 'active' && 
-      invite.expiresAt && // Check that expiresAt exists before using it
-      new Date(invite.expiresAt) > new Date()
-  );
-
-  const teamInvites = activeInvites.filter(([_, invite]) => 
-    !invite.type || invite.type === 'team'
-  );
-  const coOwnerInvites = activeInvites.filter(([_, invite]) => 
-    invite.type === 'coowner'
+      invite.expiresAt &&
+      new Date(invite.expiresAt) > new Date() &&
+      (!invite.type || invite.type === 'team')
   );
 
   if (!show) return null;
@@ -130,11 +113,11 @@ const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) =>
             {error && <div className="alert alert-danger">{error}</div>}
 
             <h6 className="mb-3">Active Team Invites</h6>
-            {teamInvites.length === 0 ? (
+            {activeInvites.length === 0 ? (
               <p className="text-muted">No active team invites</p>
             ) : (
               <div className="list-group mb-4">
-                {teamInvites.map(([code, invite]) => (
+                {activeInvites.map(([code, invite]) => (
                   <div key={code} className="list-group-item">
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <div>
@@ -170,76 +153,22 @@ const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) =>
               </div>
             )}
 
-            <h6 className="mb-3">Active Co-Owner Invites</h6>
-            {coOwnerInvites.length === 0 ? (
-              <p className="text-muted">No active co-owner invites</p>
-            ) : (
-              <div className="list-group mb-4">
-                {coOwnerInvites.map(([code, invite]) => (
-                  <div key={code} className="list-group-item">
-                    <div>
-                      For team: {league.teams[invite.teamId!]?.teamName}
-                      <span className="mx-2">•</span>
-                      Expires: {invite.expiresAt ? getTimeRemaining(invite.expiresAt) : 'Never'}
-                    </div>
-                    <div className="small text-muted">
-                      {`${window.location.origin}/join/${code}`}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
             <h6 className="mb-3">Create New Invite</h6>
             <div className="mb-3">
-              <label className="form-label">Invite Type</label>
+              <label className="form-label">Maximum Uses</label>
               <select
                 className="form-select"
-                value={newInvite.type}
+                value={newInvite.maxUses}
                 onChange={(e) => setNewInvite(prev => ({ 
                   ...prev, 
-                  type: e.target.value as InviteType,
-                  teamId: '' 
+                  maxUses: parseInt(e.target.value) 
                 }))}
               >
-                <option value="team">New Team</option>
-                <option value="coowner">Co-Owner</option>
+                {Array.from({ length: remainingSlots }, (_, i) => i + 1).map(num => (
+                  <option key={num} value={num}>{num}</option>
+                ))}
               </select>
             </div>
-
-            {newInvite.type === 'coowner' && (
-              <div className="mb-3">
-                <label className="form-label">Team</label>
-                <select
-                  className="form-select"
-                  value={newInvite.teamId}
-                  onChange={(e) => setNewInvite(prev => ({ ...prev, teamId: e.target.value }))}
-                >
-                  <option value="">Select a team...</option>
-                  {Object.entries(league.teams || {}).map(([id, team]) => (
-                    <option key={id} value={id}>{team.teamName}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {newInvite.type === 'team' && (
-              <div className="mb-3">
-                <label className="form-label">Maximum Uses</label>
-                <select
-                  className="form-select"
-                  value={newInvite.maxUses}
-                  onChange={(e) => setNewInvite(prev => ({ 
-                    ...prev, 
-                    maxUses: parseInt(e.target.value) 
-                  }))}
-                >
-                  {Array.from({ length: remainingSlots }, (_, i) => i + 1).map(num => (
-                    <option key={num} value={num}>{num}</option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             <div className="mb-3">
               <label className="form-label">Expires In</label>
@@ -268,7 +197,7 @@ const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) =>
               type="button"
               className="btn btn-primary"
               onClick={createInvite}
-              disabled={loading || (newInvite.type === 'coowner' && !newInvite.teamId)}
+              disabled={loading}
             >
               {loading ? 'Creating...' : 'Create New Invite'}
             </button>
