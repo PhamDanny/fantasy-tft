@@ -1,8 +1,7 @@
 const Home = () => {
   return (
     <p>
-      Welcome to Fantasy TFT! I promise this will look better later, for now
-      click on "Profile" to sign up or log in.
+      Welcome to Fantasy TFT! Sign up or log in to get started.
     </p>
   );
 };
