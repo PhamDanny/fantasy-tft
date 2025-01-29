@@ -1,5 +1,6 @@
 import React from 'react';
 import type { League, Player } from '../../types';
+import { Link } from 'react-router-dom';
 
 interface DraftTabProps {
   league: League;
@@ -12,7 +13,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
   if (!league.draftId || !league.draftData) {
     return (
       <div className="text-center text-muted py-5">
-        This league did not have a draft on Fantasy TFT.
+        This league did not have a draft on Fantasy TFT. If you want to draft rosters instead of importing them manually, please <Link to="/drafts">create a draft</Link>, then convert it to a league.
       </div>
     );
   }
