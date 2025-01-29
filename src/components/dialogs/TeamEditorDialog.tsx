@@ -1,15 +1,20 @@
 import { useState, useEffect } from "react";
 import { doc, updateDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase/config";
-import { ArrowLeftRight, AlertTriangle } from "lucide-react";
+import { ArrowLeftRight } from "lucide-react";
 import type { League, Team, Player, CupLineup } from "../../types";
 
 interface TeamEditorProps {
   league: League;
   leagueId: number;
+  onClose: () => void;
 }
 
-const TeamEditor = ({ league, leagueId }: TeamEditorProps) => {
+const TeamEditor: React.FC<TeamEditorProps> = ({
+  league,
+  leagueId,
+  onClose
+}) => {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
 
   const [selectedCup, setSelectedCup] = useState<number>(1);
@@ -271,229 +276,238 @@ const TeamEditor = ({ league, leagueId }: TeamEditorProps) => {
   };
 
   return (
-    <div className="card border-danger mt-4">
-      <div className="card-header bg-danger text-white d-flex align-items-center gap-2">
-        <AlertTriangle size={20} />
-        <h4 className="h5 mb-0">Edit Rosters</h4>
-      </div>
+    <div className="modal show d-block" tabIndex={-1}>
+      <div className="modal-dialog">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">Edit Team Roster</h5>
+            <button
+              type="button"
+              className="btn-close"
+              onClick={onClose}
+              aria-label="Close"
+            ></button>
+          </div>
+          <div className="modal-body">
+            {error && <div className="alert alert-danger">{error}</div>}
 
-      <div className="card-body">
-        {error && <div className="alert alert-danger">{error}</div>}
-
-        <div className="alert alert-warning">
-          <strong>Warning:</strong> Changes made here directly modify team
-          rosters and lineups. Any changes made will be retroactively applied to
-          results.
-        </div>
-
-        <div className="row">
-          <div className="col-md-3">
-            {/* Team Selection */}
-            <div className="mb-4">
-              <label className="form-label">Select Team to Edit</label>
-              <select
-                className="form-select"
-                value={selectedTeam?.teamId || ""}
-                onChange={(e) => {
-                  const team = Object.values(league.teams).find(
-                    (t) => t.teamId === e.target.value
-                  );
-                  setSelectedTeam(team || null);
-                  setSelectedPlayer(null);
-                }}
-              >
-                <option value="">Choose a team...</option>
-                {Object.values(league.teams).map((team) => (
-                  <option key={team.teamId} value={team.teamId}>
-                    {team.teamName}
-                  </option>
-                ))}
-              </select>
+            <div className="alert alert-warning">
+              <strong>Warning:</strong> Changes made here directly modify team
+              rosters and lineups. Any changes made will be retroactively applied to
+              results.
             </div>
 
-            {selectedTeam && (
-              <>
-                {/* Current Roster */}
+            <div className="row">
+              <div className="col-md-3">
+                {/* Team Selection */}
                 <div className="mb-4">
-                  <h6>Current Roster</h6>
-                  <div className="list-group">
-                    {selectedTeam.roster.map((playerId) => {
-                      const player = allPlayers[playerId];
-                      if (!player) return null;
-
-                      return (
-                        <button
-                          key={playerId}
-                          className={`list-group-item list-group-item-action ${
-                            selectedPlayer === playerId ? "active" : ""
-                          }`}
-                          onClick={() =>
-                            setSelectedPlayer(
-                              selectedPlayer === playerId ? null : playerId
-                            )
-                          }
-                        >
-                          <div className="d-flex justify-content-between align-items-center">
-                            <div>
-                              <span>{player.name}</span>
-                              <small
-                                className={
-                                  selectedPlayer === playerId
-                                    ? "text-white-50"
-                                    : "text-muted"
-                                }
-                              >
-                                {" "}
-                                ({player.region})
-                              </small>
-                            </div>
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveFromRoster(playerId);
-                              }}
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </button>
+                  <label className="form-label">Select Team to Edit</label>
+                  <select
+                    className="form-select"
+                    value={selectedTeam?.teamId || ""}
+                    onChange={(e) => {
+                      const team = Object.values(league.teams).find(
+                        (t) => t.teamId === e.target.value
                       );
-                    })}
-                  </div>
+                      setSelectedTeam(team || null);
+                      setSelectedPlayer(null);
+                    }}
+                  >
+                    <option value="">Choose a team...</option>
+                    {Object.values(league.teams).map((team) => (
+                      <option key={team.teamId} value={team.teamId}>
+                        {team.teamName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Available Players */}
-                <div>
-                  <h6>Add Players</h6>
-                  <input
-                    type="text"
-                    className="form-control mb-2"
-                    placeholder="Search players..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  <div
-                    className="list-group"
-                    style={{ maxHeight: "300px", overflowY: "auto" }}
-                  >
-                    {Object.entries(allPlayers)
-                      .filter(
-                        ([playerId, player]) =>
-                          !selectedTeam.roster.includes(playerId) &&
-                          player.name
-                            .toLowerCase()
-                            .includes(searchQuery.toLowerCase())
-                      )
-                      .map(([playerId, player]) => (
-                        <button
-                          key={playerId}
-                          className="list-group-item list-group-item-action"
-                          onClick={() => handleAddToRoster(playerId)}
-                        >
-                          <div className="d-flex justify-content-between align-items-center">
-                            <div>
-                              <span>{player.name}</span>
-                              <small className="text-muted">
-                                {" "}
-                                ({player.region})
-                              </small>
-                            </div>
-                            <button className="btn btn-sm btn-primary">
-                              Add
+                {selectedTeam && (
+                  <>
+                    {/* Current Roster */}
+                    <div className="mb-4">
+                      <h6>Current Roster</h6>
+                      <div className="list-group">
+                        {selectedTeam.roster.map((playerId) => {
+                          const player = allPlayers[playerId];
+                          if (!player) return null;
+
+                          return (
+                            <button
+                              key={playerId}
+                              className={`list-group-item list-group-item-action ${
+                                selectedPlayer === playerId ? "active" : ""
+                              }`}
+                              onClick={() =>
+                                setSelectedPlayer(
+                                  selectedPlayer === playerId ? null : playerId
+                                )
+                              }
+                            >
+                              <div className="d-flex justify-content-between align-items-center">
+                                <div>
+                                  <span>{player.name}</span>
+                                  <small
+                                    className={
+                                      selectedPlayer === playerId
+                                        ? "text-white-50"
+                                        : "text-muted"
+                                    }
+                                  >
+                                    {" "}
+                                    ({player.region})
+                                  </small>
+                                </div>
+                                <button
+                                  className="btn btn-sm btn-danger"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveFromRoster(playerId);
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             </button>
-                          </div>
-                        </button>
-                      ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-          {selectedTeam && (
-            <div className="col-md-9">
-              {/* Cup Selection */}
-              <div className="btn-group mb-4">
-                {[1, 2, 3].map((cupNumber) => (
-                  <button
-                    key={cupNumber}
-                    className={`btn btn-${
-                      selectedCup === cupNumber ? "primary" : "outline-primary"
-                    }`}
-                    onClick={() => setSelectedCup(cupNumber)}
-                  >
-                    Cup {cupNumber}
-                  </button>
-                ))}
+                    {/* Available Players */}
+                    <div>
+                      <h6>Add Players</h6>
+                      <input
+                        type="text"
+                        className="form-control mb-2"
+                        placeholder="Search players..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                      <div
+                        className="list-group"
+                        style={{ maxHeight: "300px", overflowY: "auto" }}
+                      >
+                        {Object.entries(allPlayers)
+                          .filter(
+                            ([playerId, player]) =>
+                              !selectedTeam.roster.includes(playerId) &&
+                              player.name
+                                .toLowerCase()
+                                .includes(searchQuery.toLowerCase())
+                          )
+                          .map(([playerId, player]) => (
+                            <button
+                              key={playerId}
+                              className="list-group-item list-group-item-action"
+                              onClick={() => handleAddToRoster(playerId)}
+                            >
+                              <div className="d-flex justify-content-between align-items-center">
+                                <div>
+                                  <span>{player.name}</span>
+                                  <small className="text-muted">
+                                    {" "}
+                                    ({player.region})
+                                  </small>
+                                </div>
+                                <button className="btn btn-sm btn-primary">
+                                  Add
+                                </button>
+                              </div>
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* Lineup Editor */}
-              <div className="row">
-                <div className="col-md-8">
-                  <div className="mb-4">
-                    <label className="form-label">Captain Slots</label>
-                    {getCurrentLineup().captains.map((playerId, index) => (
-                      <div key={index} className="mb-2">
-                        {renderSlot("captain", playerId, index)}
-                      </div>
+              {selectedTeam && (
+                <div className="col-md-9">
+                  {/* Cup Selection */}
+                  <div className="btn-group mb-4">
+                    {[1, 2, 3].map((cupNumber) => (
+                      <button
+                        key={cupNumber}
+                        className={`btn btn-${
+                          selectedCup === cupNumber ? "primary" : "outline-primary"
+                        }`}
+                        onClick={() => setSelectedCup(cupNumber)}
+                      >
+                        Cup {cupNumber}
+                      </button>
                     ))}
                   </div>
 
-                  <div className="mb-4">
-                    <label className="form-label">NA Slots</label>
-                    {getCurrentLineup().naSlots.map((playerId, index) => (
-                      <div key={index} className="mb-2">
-                        {renderSlot("na", playerId, index)}
+                  {/* Lineup Editor */}
+                  <div className="row">
+                    <div className="col-md-8">
+                      <div className="mb-4">
+                        <label className="form-label">Captain Slots</label>
+                        {getCurrentLineup().captains.map((playerId, index) => (
+                          <div key={index} className="mb-2">
+                            {renderSlot("captain", playerId, index)}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
 
-                  <div className="mb-4">
-                    <label className="form-label">BR/LATAM Slots</label>
-                    {getCurrentLineup().brLatamSlots.map((playerId, index) => (
-                      <div key={index} className="mb-2">
-                        {renderSlot("brLatam", playerId, index)}
+                      <div className="mb-4">
+                        <label className="form-label">NA Slots</label>
+                        {getCurrentLineup().naSlots.map((playerId, index) => (
+                          <div key={index} className="mb-2">
+                            {renderSlot("na", playerId, index)}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
 
-                  <div className="mb-4">
-                    <label className="form-label">Flex Slots</label>
-                    {getCurrentLineup().flexSlots.map((playerId, index) => (
-                      <div key={index} className="mb-2">
-                        {renderSlot("flex", playerId, index)}
+                      <div className="mb-4">
+                        <label className="form-label">BR/LATAM Slots</label>
+                        {getCurrentLineup().brLatamSlots.map((playerId, index) => (
+                          <div key={index} className="mb-2">
+                            {renderSlot("brLatam", playerId, index)}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
 
-                <div className="col-md-4">
-                  <div className="mb-4">
-                    <label className="form-label">Bench</label>
-                    <div className="list-group">
-                      {getCurrentLineup().bench.map((playerId, index) => (
-                        <div key={index} className="mb-2">
-                          {renderSlot("bench", playerId, index)}
-                        </div>
-                      ))}
-                      {selectedPlayer && (
-                        <div className="mb-2">
-                          {renderSlot(
-                            "bench",
-                            null,
-                            getCurrentLineup().bench.length
+                      <div className="mb-4">
+                        <label className="form-label">Flex Slots</label>
+                        {getCurrentLineup().flexSlots.map((playerId, index) => (
+                          <div key={index} className="mb-2">
+                            {renderSlot("flex", playerId, index)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="col-md-4">
+                      <div className="mb-4">
+                        <label className="form-label">Bench</label>
+                        <div className="list-group">
+                          {getCurrentLineup().bench.map((playerId, index) => (
+                            <div key={index} className="mb-2">
+                              {renderSlot("bench", playerId, index)}
+                            </div>
+                          ))}
+                          {selectedPlayer && (
+                            <div className="mb-2">
+                              {renderSlot(
+                                "bench",
+                                null,
+                                getCurrentLineup().bench.length
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
+      <div className="modal-backdrop show"></div>
     </div>
   );
 };

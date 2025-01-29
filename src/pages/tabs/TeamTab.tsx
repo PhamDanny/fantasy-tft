@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import type { League, Player, Team, CupLineup } from "../../types";
-import { updateDoc, doc } from "firebase/firestore";
+import { updateDoc, doc, runTransaction, collection, addDoc, deleteField } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { ArrowLeftRight } from "lucide-react";
 import CoOwnerDialog from "../../components/dialogs/CoOwnerDialog";
+import { useNavigate } from "react-router-dom";
 
 interface TeamTabProps {
   league: League;
@@ -16,6 +17,12 @@ interface TeamTabProps {
 
 const TWO_CUP_SETS = ["Set 13"] as const;
 type TwoCupSet = typeof TWO_CUP_SETS[number];
+
+// Add interface for user data
+interface UserData {
+  displayName: string;
+  leagues: string[];
+}
 
 const TeamTab: React.FC<TeamTabProps> = ({
   league,
@@ -33,6 +40,8 @@ const TeamTab: React.FC<TeamTabProps> = ({
     return Math.min(currentCup + 1, maxCups);
   });
   const [showCoOwnerDialog, setShowCoOwnerDialog] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   // Define selectedTeam from selectedTeamId
   const selectedTeam = selectedTeamId ? teams[selectedTeamId] : userTeam;
@@ -302,6 +311,124 @@ const TeamTab: React.FC<TeamTabProps> = ({
 
   const benchPlayers = getBenchPlayers();
 
+  const handleLeaveLeague = async () => {
+    const confirmLeagueName = prompt(
+      `To confirm leaving ${league.name}, please type the league name below:`
+    );
+
+    if (!confirmLeagueName || confirmLeagueName !== league.name) {
+      alert("League name did not match. Action cancelled.");
+      return;
+    }
+
+    const team = Object.entries(league.teams).find(([_, t]) => 
+      t.ownerID === user.uid || t.coOwners?.includes(user.uid)
+    );
+
+    if (!team) return;
+
+    setLoading(true);
+    const [teamId, teamData] = team;
+    const isOwner = teamData.ownerID === user.uid;
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const leagueRef = doc(db, "leagues", leagueId.toString());
+        const chatRef = collection(db, "leagues", leagueId.toString(), "chat");
+
+        // Get user display names
+        const userDoc = await transaction.get(doc(db, "users", user.uid));
+        const userData = userDoc.exists() ? userDoc.data() as UserData : null;
+        const userName = userData?.displayName || "Unknown User";
+
+        if (isOwner) {
+          if (!teamData.coOwners || teamData.coOwners.length === 0) {
+            // Delete the team if no co-owners
+            transaction.update(leagueRef, {
+              [`teams.${teamId}`]: deleteField()
+            });
+
+            await addDoc(chatRef, {
+              userId: "system",
+              userName: "System",
+              content: `Team "${teamData.teamName}" has been disbanded as ${userName} left the league.`,
+              timestamp: new Date().toISOString(),
+              type: "system"
+            });
+          } else {
+            // Promote random co-owner to owner
+            const newOwner = teamData.coOwners[Math.floor(Math.random() * teamData.coOwners.length)];
+            const newOwnerDoc = await transaction.get(doc(db, "users", newOwner));
+            const newOwnerName = newOwnerDoc.exists() ? newOwnerDoc.data().displayName : "Unknown User";
+            const updatedCoOwners = teamData.coOwners.filter(id => id !== newOwner);
+
+            transaction.update(leagueRef, {
+              [`teams.${teamId}.ownerID`]: newOwner,
+              [`teams.${teamId}.coOwners`]: updatedCoOwners
+            });
+
+            await addDoc(chatRef, {
+              userId: "system",
+              userName: "System",
+              content: `${userName} has left the league. ${newOwnerName} is now the owner of team "${teamData.teamName}".`,
+              timestamp: new Date().toISOString(),
+              type: "system"
+            });
+          }
+        } else {
+          // Handle leaving as co-owner
+          const updatedCoOwners = teamData.coOwners.filter(id => id !== user.uid);
+          
+          transaction.update(leagueRef, {
+            [`teams.${teamId}.coOwners`]: updatedCoOwners
+          });
+
+          await addDoc(chatRef, {
+            userId: "system",
+            userName: "System",
+            content: `${userName} has left as co-owner of team "${teamData.teamName}".`,
+            timestamp: new Date().toISOString(),
+            type: "system"
+          });
+        }
+
+        // Update user's leagues array
+        const userRef = doc(db, "users", user.uid);
+        const userLeagues = userData?.leagues || [];
+        transaction.update(userRef, {
+          leagues: userLeagues.filter((id: string) => id !== leagueId.toString())
+        });
+
+        // Add to transaction history
+        const transactionDoc = {
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          teamIds: [teamId],
+          adds: {},
+          drops: {},
+          type: 'commissioner' as const,
+          metadata: {
+            reason: `${userName} left the league`,
+            action: isOwner ? 'member_left' : 'member_left',
+          }
+        };
+
+        transaction.update(leagueRef, {
+          transactions: [
+            ...(league.transactions || []),
+            transactionDoc
+          ]
+        });
+      });
+
+      navigate('/my-leagues');
+    } catch (error) {
+      console.error("Failed to leave league:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="row">
       <div className="col-12 mb-4">
@@ -335,7 +462,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
           {/* Cup Selection and Manage Co-Owners */}
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div className="btn-group">
-              {[1, 2, 3].map((cupNumber) => (
+              {Array.from({ length: TWO_CUP_SETS.includes(league.season as TwoCupSet) ? 2 : 3 }, (_, i) => i + 1).map((cupNumber) => (
                 <button
                   key={cupNumber}
                   className={`btn btn-${
@@ -533,6 +660,16 @@ const TeamTab: React.FC<TeamTabProps> = ({
           onClose={() => setShowCoOwnerDialog(false)}
           user={user}
         />
+      )}
+
+      {user && (
+        <button
+          className="btn btn-danger"
+          onClick={handleLeaveLeague}
+          disabled={loading}
+        >
+          Leave League
+        </button>
       )}
     </div>
   );

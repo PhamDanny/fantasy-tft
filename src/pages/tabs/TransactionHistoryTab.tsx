@@ -91,11 +91,11 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
         return transaction.teamIds.map((teamId) => ({
           team: getTeamName(teamId),
           added: (transaction.adds[teamId] || []).map(getPlayerName).join(", "),
-          dropped: (transaction.drops[teamId] || [])
-            .map(getPlayerName)
-            .join(", "),
+          dropped: (transaction.drops[teamId] || []).map(getPlayerName).join(", "),
           reason: transaction.metadata.reason,
-          commissioner: getTeamName(transaction.metadata.commissioner || ""),
+          commissioner: transaction.metadata.commissioner 
+            ? getTeamName(transaction.metadata.commissioner)
+            : "System"
         }));
 
       default:

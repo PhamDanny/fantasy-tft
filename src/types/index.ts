@@ -92,6 +92,7 @@ export interface Transaction {
     faabSpent?: Record<string, number>;  // For waiver/free_agent transactions
     reason?: string;  // For commissioner transactions
     commissioner?: string;  // For commissioner transactions
+    action?: 'roster_edit' | 'member_removed' | 'member_left';
   }
 }
 

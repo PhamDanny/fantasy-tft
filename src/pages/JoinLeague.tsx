@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { collection, getDocs, runTransaction, doc } from "firebase/firestore";
+import { collection, getDocs, runTransaction, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../firebase/auth";
 import type { League, Team } from "../types";
@@ -84,50 +84,82 @@ export const JoinLeague = () => {
           throw new Error("This invite has reached its maximum uses");
         }
 
-        if (invite.type !== 'coowner' || !invite.teamId) {
-          throw new Error("Invalid co-owner invite");
-        }
-
-        // READS FIRST
-        const teamRef = doc(db, "leagues", foundLeagueId, "teams", invite.teamId);
-        const teamDoc = await transaction.get(teamRef);
-        if (!teamDoc.exists()) {
-          throw new Error("Team not found");
-        }
-        const team = teamDoc.data() as Team;
-
-        // Check if already a co-owner
-        if (team.coOwners?.includes(userId)) {
-          throw new Error("You are already a co-owner of this team");
-        }
-
-        // Get user display names
-        const newCoOwnerDoc = await transaction.get(doc(db, "users", userId));
-        const ownerDoc = await transaction.get(doc(db, "users", team.ownerID));
+        // Get user display name
         const userDoc = await transaction.get(doc(db, "users", userId));
-
-        // Get display names from docs
-        const newCoOwnerName = newCoOwnerDoc.exists() ? newCoOwnerDoc.data().displayName : "Unknown";
-        const ownerName = ownerDoc.exists() ? ownerDoc.data().displayName : "Unknown";
+        const userName = userDoc.exists() ? userDoc.data().displayName : "Unknown";
         const leagues = userDoc.exists() ? userDoc.data().leagues || [] : [];
 
-        // THEN WRITES
-        transaction.update(teamRef, {
-          coOwners: [...(team.coOwners || []), userId],
-          teamName: `${ownerName}/${newCoOwnerName}`
-        });
+        if (invite.type === 'coowner') {
+          if (!invite.teamId) {
+            throw new Error("Invalid co-owner invite");
+          }
 
+          // Handle co-owner invite
+          const teamRef = doc(db, "leagues", foundLeagueId, "teams", invite.teamId);
+          const teamDoc = await transaction.get(teamRef);
+          if (!teamDoc.exists()) {
+            throw new Error("Team not found");
+          }
+          const team = teamDoc.data() as Team;
+
+          // Check if already a co-owner
+          if (team.coOwners?.includes(userId)) {
+            throw new Error("You are already a co-owner of this team");
+          }
+
+          // Get owner display name
+          const ownerDoc = await transaction.get(doc(db, "users", team.ownerID));
+          const ownerName = ownerDoc.exists() ? ownerDoc.data().displayName : "Unknown";
+
+          // Update team
+          transaction.update(teamRef, {
+            coOwners: [...(team.coOwners || []), userId],
+            teamName: `${ownerName}/${userName}`
+          });
+        } else {
+          // Handle team invite
+          // Create new team
+          const teamId = Math.random().toString(36).substring(2, 10);
+          const teamRef = doc(db, "leagues", foundLeagueId, "teams", teamId);
+
+          const newTeam: Team = {
+            teamId,
+            ownerID: userId,
+            coOwners: [],
+            teamName: userName,
+            roster: [],
+            cupLineups: {},
+            faabBudget: targetLeague.settings.faabBudget,
+            pendingBids: []
+          };
+
+          transaction.set(teamRef, newTeam);
+        }
+
+        // Update invite status
         transaction.update(doc(db, 'leagues', leagueId), {
           [`invites.${code}`]: {
             ...invite,
             usedCount: invite.usedCount + 1,
             usedBy: [...(invite.usedBy || []), userId],
-            status: 'used'
+            status: invite.maxUses && invite.usedCount + 1 >= invite.maxUses ? 'used' : 'active'
           }
         });
 
+        // Update user's leagues
         transaction.update(doc(db, 'users', userId), {
           leagues: [...leagues, leagueId]
+        });
+
+        // Add chat message about the new join
+        const chatRef = doc(db, 'leagues', leagueId, 'chat', Date.now().toString());
+        transaction.set(chatRef, {
+          type: 'system',
+          content: invite.type === 'coowner' 
+            ? `${userName} joined as a co-owner`
+            : `${userName} joined the league`,
+          timestamp: serverTimestamp(),
+          userId: 'system'
         });
       });
 

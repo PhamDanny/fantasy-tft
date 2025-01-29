@@ -15,6 +15,14 @@ const generateEmptyLineup = (settings: LeagueSettings): CupLineup => {
   };
 };
 
+// Add a type for slot settings
+type SlotSetting = 'captainSlots' | 'naSlots' | 'brLatamSlots' | 'flexSlots';
+
+// Helper function to check if a setting is a slot setting
+const isSlotSetting = (setting: string): setting is SlotSetting => {
+  return ['captainSlots', 'naSlots', 'brLatamSlots', 'flexSlots'].includes(setting);
+};
+
 const CreateLeagueDialog = ({
   userId,
   onLeagueCreated,
@@ -45,14 +53,44 @@ const CreateLeagueDialog = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     if (name.startsWith("settings.")) {
-      const settingName = name.split(".")[1];
-      setFormState((prev) => ({
-        ...prev,
-        settings: {
-          ...prev.settings,
-          [settingName]: parseInt(value) || 0,
-        },
-      }));
+      const settingName = name.split(".")[1] as keyof typeof formState.settings;
+      
+      // Handle numeric slot settings
+      if (isSlotSetting(settingName)) {
+        const currentValue = formState.settings[settingName];
+        const validatedValue = validateSlotInput(
+          value,
+          currentValue,
+          settingName
+        );
+        setFormState((prev) => ({
+          ...prev,
+          settings: {
+            ...prev.settings,
+            [settingName]: validatedValue,
+          },
+        }));
+      } 
+      // Handle boolean settings
+      else if (settingName === "playoffs") {
+        setFormState((prev) => ({
+          ...prev,
+          settings: {
+            ...prev.settings,
+            [settingName]: e.target.checked,
+          },
+        }));
+      }
+      // Handle other numeric settings
+      else {
+        setFormState((prev) => ({
+          ...prev,
+          settings: {
+            ...prev.settings,
+            [settingName]: parseInt(value) || 0,
+          },
+        }));
+      }
     } else {
       setFormState((prev) => ({
         ...prev,
@@ -66,6 +104,21 @@ const CreateLeagueDialog = ({
     setError(null);
 
     try {
+      // Validate total slots
+      const totalStartingSlots = 
+        formState.settings.captainSlots +
+        formState.settings.naSlots +
+        formState.settings.brLatamSlots +
+        formState.settings.flexSlots;
+
+      if (totalStartingSlots > 20) {
+        throw new Error("Total number of starting slots cannot exceed 20");
+      }
+
+      if (totalStartingSlots === 0) {
+        throw new Error("There must be at least one starting slot");
+      }
+
       // Get user's display name from their document
       const userDoc = await getDoc(doc(db, "users", userId));
       const userName = userDoc.exists()
@@ -141,6 +194,26 @@ const CreateLeagueDialog = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Update the validateSlotInput function to use the SlotSetting type
+  const validateSlotInput = (
+    value: string,
+    currentValue: number,
+    field: SlotSetting
+  ): number => {
+    const newValue = parseInt(value) || 0;
+    const otherSlots = 
+      formState.settings.captainSlots +
+      formState.settings.naSlots +
+      formState.settings.brLatamSlots +
+      formState.settings.flexSlots -
+      formState.settings[field];
+    
+    if (otherSlots + newValue > 20) {
+      return currentValue;
+    }
+    return newValue;
   };
 
   return (
@@ -303,15 +376,7 @@ const CreateLeagueDialog = ({
                         type="checkbox"
                         id="playoffsEnabled"
                         checked={formState.settings.playoffs}
-                        onChange={(e) =>
-                          setFormState((prev) => ({
-                            ...prev,
-                            settings: {
-                              ...prev.settings,
-                              playoffs: e.target.checked,
-                            },
-                          }))
-                        }
+                        onChange={handleInputChange}
                       />
                       <label
                         className="form-check-label"

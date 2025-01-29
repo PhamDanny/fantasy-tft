@@ -10,7 +10,6 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase/config";
-import { format } from "date-fns";
 import { MessageCircle, Send } from "lucide-react";
 import type { League, Transaction, Team, Player } from "../../types";
 
@@ -19,7 +18,7 @@ interface ChatMessage {
   userId: string;
   userName: string;
   content: string;
-  timestamp: string;
+  timestamp: string | { toDate: () => Date };
   type: "message" | "transaction" | "system";
   metadata?: any;
 }
@@ -31,6 +30,23 @@ interface LeagueChatProps {
   teams: Record<string, Team>;
   players: Record<string, Player>;
 }
+
+const formatTimestamp = (timestamp: any): string => {
+  if (!timestamp) return '';
+  
+  // Handle Firestore Timestamp objects
+  if (timestamp?.toDate) {
+    return timestamp.toDate().toLocaleString();
+  }
+  
+  // Handle ISO strings
+  try {
+    return new Date(timestamp).toLocaleString();
+  } catch (e) {
+    console.warn('Invalid timestamp:', timestamp);
+    return '';
+  }
+};
 
 const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -76,7 +92,7 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
   // Subscribe to chat messages and merge with transactions
   useEffect(() => {
     const chatRef = collection(db, "leagues", league.id.toString(), "chat");
-    const q = query(chatRef, orderBy("timestamp", "desc"), limit(100));
+    const q = query(chatRef, orderBy("timestamp", "asc"), limit(100));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       // Get regular chat messages
@@ -96,16 +112,24 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
         metadata: transaction
       }));
 
-      // Combine and sort all messages by timestamp
+      // Combine and sort all messages by timestamp in ascending order
       const allMessages = [...chatMessages, ...transactionMessages].sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        (a, b) => {
+          const timeA = typeof a.timestamp === 'object' && 'toDate' in a.timestamp 
+            ? a.timestamp.toDate() 
+            : new Date(a.timestamp);
+          const timeB = typeof b.timestamp === 'object' && 'toDate' in b.timestamp
+            ? b.timestamp.toDate()
+            : new Date(b.timestamp);
+          return timeA.getTime() - timeB.getTime();
+        }
       );
 
       setMessages(allMessages);
     });
 
     return () => unsubscribe();
-  }, [league.id, league.transactions]); // Include league.transactions in dependencies
+  }, [league.id, league.transactions]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +161,7 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
 
   const renderMessage = (message: ChatMessage) => {
     const isOwnMessage = message.userId === userId;
-    const timestamp = format(new Date(message.timestamp), "MMM d, h:mm a");
+    const timestamp = formatTimestamp(message.timestamp);
 
     // Find team name from league data
     const team = Object.values(teams).find(team => 

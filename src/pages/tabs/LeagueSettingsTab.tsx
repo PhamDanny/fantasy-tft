@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import type { League, LeagueSettings, Team } from "../../types";
-import TeamEditor from "../../components/dialogs/TeamEditorDialog";
 import InviteDialog from '../../components/dialogs/InviteDialog';
+import CommissionerTeamEditDialog from "../../components/dialogs/CommissionerTeamEditDialog";
 
 interface LeagueSettingsTabProps {
   league: League;
@@ -11,6 +11,51 @@ interface LeagueSettingsTabProps {
   leagueId: number;
   teams: Record<string, Team>;
 }
+
+interface UserData {
+  displayName: string;
+  leagues: string[];
+}
+
+interface LeagueMemberRowProps {
+  teamId: string;
+  team: Team;
+  onEditRoster: (teamId: string) => void;
+  onRemoveOwner: (teamId: string, team: Team) => void;
+  onRemoveCoOwner: (teamId: string, team: Team, coOwnerId: string) => void;
+}
+
+const LeagueMemberRow: React.FC<LeagueMemberRowProps> = ({
+  teamId,
+  team,
+  onEditRoster,
+  onRemoveOwner,
+}) => (
+  <div className="border-bottom">
+    <div className="d-flex align-items-center p-3">
+      <div className="flex-grow-1">
+        <strong>{team.teamName}</strong>
+      </div>
+      <button
+        className="btn btn-sm btn-primary me-2"
+        onClick={() => onEditRoster(teamId)}
+      >
+        Edit
+      </button>
+      <button
+        className="btn btn-sm btn-danger"
+        onClick={() => onRemoveOwner(teamId, team)}
+      >
+        Remove
+      </button>
+    </div>
+    {team.coOwners && team.coOwners.length > 0 && (
+      <div className="small text-muted px-3 pb-2">
+        Co-owners: {team.coOwners.length}
+      </div>
+    )}
+  </div>
+);
 
 const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
   league,
@@ -30,6 +75,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
   if (!isCommissioner) {
     return (
@@ -75,6 +121,11 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
 
     if (totalStartingSlots === 0) {
       setError("There must be at least one starting slot");
+      return false;
+    }
+
+    if (totalStartingSlots > 20) {
+      setError("Total number of starting slots cannot exceed 20");
       return false;
     }
 
@@ -134,6 +185,154 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRemoveOwner = async (teamId: string, team: Team) => {
+    if (!window.confirm(`Are you sure you want to remove the owner of ${team.teamName}?`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const userDoc = await transaction.get(doc(db, "users", team.ownerID));
+        const userData = userDoc.data() as UserData | undefined;
+        const userName = userData?.displayName || "Unknown User";
+        const leagueRef = doc(db, "leagues", leagueId.toString());
+        const chatRef = doc(db, "leagues", leagueId.toString(), "chat", Date.now().toString());
+
+        if (!team.coOwners || team.coOwners.length === 0) {
+          // Delete the team document
+          const teamRef = doc(db, "leagues", leagueId.toString(), "teams", teamId);
+          transaction.delete(teamRef);
+
+          transaction.set(chatRef, {
+            userId: "system",
+            userName: "System",
+            content: `Team "${team.teamName}" has been disbanded as ${userName} was removed from the league.`,
+            timestamp: serverTimestamp(),
+            type: "system"
+          });
+        } else {
+          const newOwner = team.coOwners[Math.floor(Math.random() * team.coOwners.length)];
+          const newOwnerDoc = await transaction.get(doc(db, "users", newOwner));
+          const newOwnerData = newOwnerDoc.data() as UserData | undefined;
+          const newOwnerName = newOwnerData?.displayName || "Unknown User";
+          const updatedCoOwners = team.coOwners.filter(id => id !== newOwner);
+
+          // Update the team document
+          const teamRef = doc(db, "leagues", leagueId.toString(), "teams", teamId);
+          transaction.update(teamRef, {
+            ownerID: newOwner,
+            coOwners: updatedCoOwners
+          });
+
+          transaction.set(chatRef, {
+            userId: "system",
+            userName: "System",
+            content: `${userName} has been removed from the league. ${newOwnerName} is now the owner of team "${team.teamName}".`,
+            timestamp: serverTimestamp(),
+            type: "system"
+          });
+        }
+
+        // Update user's leagues array
+        const userRef = doc(db, "users", team.ownerID);
+        const userLeagues = userData?.leagues || [];
+        transaction.update(userRef, {
+          leagues: userLeagues.filter((id: string) => id !== leagueId.toString())
+        });
+
+        // Add to transaction history
+        const transactionDoc = {
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          teamIds: [teamId],
+          adds: {},
+          drops: {},
+          type: 'commissioner' as const,
+          metadata: {
+            reason: `${userName} was removed from the league`,
+            action: 'member_removed' as const,
+            commissioner: league.commissioner
+          }
+        };
+
+        transaction.update(leagueRef, {
+          transactions: [...(league.transactions || []), transactionDoc]
+        });
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove member");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveCoOwner = async (teamId: string, team: Team, coOwnerId: string) => {
+    if (!window.confirm(`Are you sure you want to remove this co-owner from ${team.teamName}?`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const userDoc = await transaction.get(doc(db, "users", coOwnerId));
+        const userData = userDoc.data() as UserData | undefined;
+        const userName = userData?.displayName || "Unknown User";
+        const leagueRef = doc(db, "leagues", leagueId.toString());
+        const chatRef = doc(db, "leagues", leagueId.toString(), "chat", Date.now().toString());
+
+        // Update the team document
+        const teamRef = doc(db, "leagues", leagueId.toString(), "teams", teamId);
+        const updatedCoOwners = team.coOwners.filter(id => id !== coOwnerId);
+        transaction.update(teamRef, {
+          coOwners: updatedCoOwners
+        });
+
+        transaction.set(chatRef, {
+          userId: "system",
+          userName: "System",
+          content: `${userName} has been removed as co-owner of team "${team.teamName}".`,
+          timestamp: serverTimestamp(),
+          type: "system"
+        });
+
+        // Update user's leagues array
+        const userRef = doc(db, "users", coOwnerId);
+        const userLeagues = userData?.leagues || [];
+        transaction.update(userRef, {
+          leagues: userLeagues.filter((id: string) => id !== leagueId.toString())
+        });
+
+        // Add to transaction history
+        const transactionDoc = {
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          teamIds: [teamId],
+          adds: {},
+          drops: {},
+          type: 'commissioner' as const,
+          metadata: {
+            reason: `${userName} was removed as co-owner`,
+            action: 'member_removed' as const,
+            commissioner: league.commissioner
+          }
+        };
+
+        transaction.update(leagueRef, {
+          transactions: [...(league.transactions || []), transactionDoc]
+        });
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove co-owner");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditRoster = (teamId: string) => {
+    setSelectedTeamId(teamId);
   };
 
   return (
@@ -321,7 +520,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
         </div>
 
         <div className="col-md-4">
-          <div className="card">
+          <div className="card mb-3">
             <div className="card-header">
               <h4 className="h5 mb-0">Season Progress</h4>
             </div>
@@ -350,11 +549,36 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
               )}
             </div>
           </div>
+
+          <div className="card">
+            <div className="card-header">
+              <h4 className="h5 mb-0">Manage League Members</h4>
+            </div>
+            <div className="card-body p-0">
+              {Object.entries(teams).map(([teamId, team]) => (
+                <LeagueMemberRow
+                  key={teamId}
+                  teamId={teamId}
+                  team={team}
+                  onEditRoster={handleEditRoster}
+                  onRemoveOwner={handleRemoveOwner}
+                  onRemoveCoOwner={handleRemoveCoOwner}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Team Editor Section */}
-      <TeamEditor league={league} leagueId={leagueId} />
+      {/* Team Editor Dialog */}
+      {selectedTeamId && (
+        <CommissionerTeamEditDialog 
+          league={league}
+          leagueId={leagueId}
+          teamId={selectedTeamId}
+          onClose={() => setSelectedTeamId(null)}
+        />
+      )}
 
       {/* Invite Dialog */}
       <InviteDialog 

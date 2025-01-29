@@ -126,6 +126,19 @@ const CoOwnerDialog: React.FC<CoOwnerDialogProps> = ({
     navigator.clipboard.writeText(link);
   };
 
+  const deleteInvite = async (code: string) => {
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'leagues', league.id.toString(), 'invites', code), {
+        status: 'inactive' as const,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete invite');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const activeInvites = Object.entries(league.invites || {}).filter(
     ([_, invite]) => 
       invite.status === 'active' && 
@@ -134,6 +147,13 @@ const CoOwnerDialog: React.FC<CoOwnerDialogProps> = ({
       invite.expiresAt &&
       new Date(invite.expiresAt) > new Date()
   );
+
+  const getTimeRemaining = (expiresAt: string) => {
+    const remaining = new Date(expiresAt).getTime() - new Date().getTime();
+    const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    return `${days}d ${hours}h`;
+  };
 
   if (!show) return null;
 
@@ -175,17 +195,30 @@ const CoOwnerDialog: React.FC<CoOwnerDialogProps> = ({
             ) : (
               <div className="list-group mb-4">
                 {activeInvites.map(([code, invite]) => (
-                  <div key={code} className="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                      <div className="small text-muted">Code: {code}</div>
-                      <div>Expires in: {invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : 'N/A'}</div>
+                  <div key={code} className="list-group-item">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <div>Expires in: {invite.expiresAt ? getTimeRemaining(invite.expiresAt) : 'Never'}</div>
+                      </div>
+                      <div>
+                        <button
+                          className="btn btn-outline-primary btn-sm me-2"
+                          onClick={() => copyInviteLink(code)}
+                        >
+                          Copy Link
+                        </button>
+                        <button
+                          className="btn btn-outline-danger btn-sm"
+                          onClick={() => deleteInvite(code)}
+                          disabled={loading}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      className="btn btn-outline-primary btn-sm"
-                      onClick={() => copyInviteLink(code)}
-                    >
-                      Copy Link
-                    </button>
+                    <div className="small text-muted">
+                      {`${window.location.origin}/join/${code}`}
+                    </div>
                   </div>
                 ))}
               </div>
