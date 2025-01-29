@@ -192,7 +192,7 @@ const TradeTab: React.FC<TradeTabProps> = ({
           return;
         }
 
-        // Create transaction record
+        // Step 1: Create transaction and mark trade as accepted
         const transactionId = generateTransactionId();
         const transaction: Transaction = {
           id: transactionId,
@@ -212,7 +212,16 @@ const TradeTab: React.FC<TradeTabProps> = ({
           },
         };
 
-        // Update rosters
+        await updateDoc(doc(db, "leagues", leagueId.toString()), {
+          [`trades.${tradeId}`]: {
+            ...trade,
+            status: "accepted",
+            transactionId,
+          },
+          transactions: [...(league.transactions || []), transaction],
+        });
+
+        // Step 2: Update team rosters
         const updatedProposerRoster = proposerTeam.roster
           .filter((playerId) => !trade.proposerPlayers.includes(playerId))
           .concat(trade.receiverPlayers);
@@ -255,7 +264,6 @@ const TradeTab: React.FC<TradeTabProps> = ({
           return updatedCupLineups;
         };
 
-        // Update both teams, trade status, and add transaction
         await Promise.all([
           updateDoc(
             doc(db, "leagues", leagueId.toString(), "teams", trade.proposerId),
@@ -271,14 +279,6 @@ const TradeTab: React.FC<TradeTabProps> = ({
               cupLineups: updateCupLineups(receiverTeam, updatedReceiverRoster)
             }
           ),
-          updateDoc(doc(db, "leagues", leagueId.toString()), {
-            [`trades.${tradeId}`]: {
-              ...trade,
-              status: "accepted",
-              transactionId,
-            },
-            transactions: [...(league.transactions || []), transaction],
-          })
         ]);
       } else {
         await updateDoc(doc(db, "leagues", leagueId.toString()), {
