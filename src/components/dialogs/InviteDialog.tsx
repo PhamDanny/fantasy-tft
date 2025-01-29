@@ -27,7 +27,6 @@ const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) =>
   const remainingSlots = league.settings.teamsLimit - Object.keys(league.teams || {}).length;
 
   const expirationOptions = [
-    { label: "Never", value: -1 },
     { label: "12 Hours", value: 0.5 },
     { label: "1 Day", value: 1 },
     { label: "3 Days", value: 3 },
@@ -40,11 +39,9 @@ const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) =>
     
     try {
       const inviteCode = Math.random().toString(36).substring(2, 10);
-      
-      // Handle the "Never" option
-      const expiresAtString = newInvite.expiresInDays === -1 
-        ? undefined 
-        : new Date(Date.now() + (newInvite.expiresInDays * 24 * 60 * 60 * 1000)).toISOString();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + newInvite.expiresInDays);
+      const expiresAtString = expiresAt.toISOString();
 
       // Create base invite object without teamId
       const invite: Omit<LeagueInvite, 'teamId'> = {
@@ -107,7 +104,8 @@ const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) =>
   const activeInvites = Object.entries(league.invites || {}).filter(
     ([_, invite]) => 
       invite.status === 'active' && 
-      (!invite.expiresAt || new Date(invite.expiresAt) > new Date())
+      invite.expiresAt && // Check that expiresAt exists before using it
+      new Date(invite.expiresAt) > new Date()
   );
 
   const teamInvites = activeInvites.filter(([_, invite]) => 

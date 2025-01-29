@@ -27,7 +27,6 @@ const CoOwnerDialog: React.FC<CoOwnerDialogProps> = ({
   const [coOwnerNames, setCoOwnerNames] = useState<Record<string, string>>({});
 
   const expirationOptions = [
-    { label: "Never", value: -1 },
     { label: "12 Hours", value: 0.5 },
     { label: "1 Day", value: 1 },
     { label: "3 Days", value: 3 },
@@ -62,12 +61,9 @@ const CoOwnerDialog: React.FC<CoOwnerDialogProps> = ({
     try {
       const inviteCode = Math.random().toString(36).substring(2, 10);
       const expiresAt = new Date();
-      
-      // Handle the "Never" option
-      const expiresAtString = newInvite.expiresInDays === -1 
-        ? undefined 
-        : new Date(expiresAt.getTime() + (newInvite.expiresInDays * 24 * 60 * 60 * 1000)).toISOString();
-
+      expiresAt.setDate(expiresAt.getDate() + newInvite.expiresInDays);
+      const expiresAtString = expiresAt.toISOString();
+     
       const invite: LeagueInvite = {
         code: inviteCode,
         createdAt: new Date().toISOString(),

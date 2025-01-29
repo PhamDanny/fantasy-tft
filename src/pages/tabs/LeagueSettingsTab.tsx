@@ -199,20 +199,15 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
         const userData = userDoc.data() as UserData | undefined;
         const userName = userData?.displayName || "Unknown User";
         const leagueRef = doc(db, "leagues", leagueId.toString());
-        const chatRef = doc(db, "leagues", leagueId.toString(), "chat", Date.now().toString());
-
+        
+        let chatMessage = '';
+        
         if (!team.coOwners || team.coOwners.length === 0) {
-          // Delete the team document
+          // Delete the team document first
           const teamRef = doc(db, "leagues", leagueId.toString(), "teams", teamId);
           transaction.delete(teamRef);
-
-          transaction.set(chatRef, {
-            userId: "system",
-            userName: "System",
-            content: `Team "${team.teamName}" has been disbanded as ${userName} was removed from the league.`,
-            timestamp: serverTimestamp(),
-            type: "system"
-          });
+          
+          chatMessage = `Team "${team.teamName}" has been disbanded as ${userName} was removed from the league.`;
         } else {
           const newOwner = team.coOwners[Math.floor(Math.random() * team.coOwners.length)];
           const newOwnerDoc = await transaction.get(doc(db, "users", newOwner));
@@ -226,14 +221,8 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
             ownerID: newOwner,
             coOwners: updatedCoOwners
           });
-
-          transaction.set(chatRef, {
-            userId: "system",
-            userName: "System",
-            content: `${userName} has been removed from the league. ${newOwnerName} is now the owner of team "${team.teamName}".`,
-            timestamp: serverTimestamp(),
-            type: "system"
-          });
+          
+          chatMessage = `${userName} has been removed from the league. ${newOwnerName} is now the owner of team "${team.teamName}".`;
         }
 
         // Update user's leagues array
@@ -261,6 +250,16 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
         transaction.update(leagueRef, {
           transactions: [...(league.transactions || []), transactionDoc]
         });
+
+        // Create chat message last
+        const chatRef = doc(db, "leagues", leagueId.toString(), "chat", `${Date.now()}-${crypto.randomUUID()}`);
+        transaction.set(chatRef, {
+          userId: "system",
+          userName: "System",
+          content: chatMessage,
+          timestamp: serverTimestamp(),
+          type: "system"
+        });
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove member");
@@ -281,21 +280,12 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
         const userData = userDoc.data() as UserData | undefined;
         const userName = userData?.displayName || "Unknown User";
         const leagueRef = doc(db, "leagues", leagueId.toString());
-        const chatRef = doc(db, "leagues", leagueId.toString(), "chat", Date.now().toString());
 
-        // Update the team document
+        // Update the team document first
         const teamRef = doc(db, "leagues", leagueId.toString(), "teams", teamId);
         const updatedCoOwners = team.coOwners.filter(id => id !== coOwnerId);
         transaction.update(teamRef, {
           coOwners: updatedCoOwners
-        });
-
-        transaction.set(chatRef, {
-          userId: "system",
-          userName: "System",
-          content: `${userName} has been removed as co-owner of team "${team.teamName}".`,
-          timestamp: serverTimestamp(),
-          type: "system"
         });
 
         // Update user's leagues array
@@ -322,6 +312,16 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
 
         transaction.update(leagueRef, {
           transactions: [...(league.transactions || []), transactionDoc]
+        });
+
+        // Create chat message last
+        const chatRef = doc(db, "leagues", leagueId.toString(), "chat", `${Date.now()}-${crypto.randomUUID()}`);
+        transaction.set(chatRef, {
+          userId: "system",
+          userName: "System",
+          content: `${userName} has been removed as co-owner of team "${team.teamName}".`,
+          timestamp: serverTimestamp(),
+          type: "system"
         });
       });
     } catch (err) {

@@ -115,12 +115,20 @@ export const JoinLeague = () => {
         });
 
         // Add chat message
-        const chatRef = doc(db, 'leagues', foundLeagueId, 'chat', Date.now().toString());
+        const chatRef = doc(
+          db, 
+          'leagues', 
+          foundLeagueId, 
+          'chat', 
+          `-${Date.now()}-${crypto.randomUUID()}`
+        );
         await setDoc(chatRef, {
           type: 'system',
           content: `${userName} joined as a co-owner`,
           timestamp: serverTimestamp(),
-          userId: 'system'
+          userId: 'system',
+          userName: 'System',
+          sortOrder: -Date.now()
         });
 
       } else {
@@ -158,12 +166,20 @@ export const JoinLeague = () => {
         });
 
         // Add chat message about the new join
-        const chatRef = doc(db, 'leagues', foundLeagueId, 'chat', Date.now().toString());
+        const chatRef = doc(
+          db, 
+          'leagues', 
+          foundLeagueId, 
+          'chat', 
+          `-${Date.now()}-${crypto.randomUUID()}`
+        );
         await setDoc(chatRef, {
           type: 'system',
           content: `${userName} joined the league`,
           timestamp: serverTimestamp(),
-          userId: 'system'
+          userId: 'system',
+          userName: 'System',
+          sortOrder: -Date.now()
         });
       }
 
