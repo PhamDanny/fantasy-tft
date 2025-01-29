@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { collection, getDocs, runTransaction, doc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, doc, serverTimestamp, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../firebase/auth";
 import type { League, Team } from "../types";
@@ -46,98 +46,61 @@ export const JoinLeague = () => {
         throw new Error("Invalid invite code");
       }
 
-      // Check if user is already in the league by checking teams subcollection
-      const teamsSnapshot = await getDocs(
-        collection(db, "leagues", foundLeagueId, "teams")
-      );
-      
-      const userTeam = teamsSnapshot.docs.find(
-        doc => (doc.data() as any).ownerID === userId
-      );
+      // Get user display name first
+      const userDoc = await getDoc(doc(db, "users", userId));
+      const userName = userDoc.exists() ? userDoc.data().displayName : "Unknown";
+      const leagues = userDoc.exists() ? userDoc.data().leagues || [] : [];
 
-      if (userTeam) {
-        // User is already in the league, just redirect them
-        navigate(`/leagues/${foundLeagueId}`);
-        return;
+      const invite = foundLeague.invites?.[code];
+      if (!invite) {
+        throw new Error("Invalid invite code");
       }
 
-      const targetLeague = foundLeague;
-      const leagueId = foundLeagueId;
+      // Validate invite
+      if (invite.status !== "active") {
+        throw new Error("This invite has expired or been used");
+      }
 
-      // Use transaction for the join process
-      await runTransaction(db, async (transaction) => {
-        const invite = targetLeague.invites?.[code];
-        if (!invite) {
-          throw new Error("Invalid invite code");
+      if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+        throw new Error("This invite has expired");
+      }
+
+      if (invite.maxUses && invite.usedCount >= invite.maxUses) {
+        throw new Error("This invite has reached its maximum uses");
+      }
+
+      if (invite.type === 'coowner') {
+        if (!invite.teamId) {
+          throw new Error("Invalid co-owner invite");
         }
 
-        // Validate invite
-        if (invite.status !== "active") {
-          throw new Error("This invite has expired or been used");
+        // Get team data first
+        const teamRef = doc(db, "leagues", foundLeagueId, "teams", invite.teamId);
+        const teamDoc = await getDoc(teamRef);
+        
+        if (!teamDoc.exists()) {
+          throw new Error("Team not found");
+        }
+        
+        const team = teamDoc.data() as Team;
+
+        // Check if already a co-owner
+        if (team.coOwners?.includes(userId)) {
+          throw new Error("You are already a co-owner of this team");
         }
 
-        if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
-          throw new Error("This invite has expired");
-        }
+        // Get owner display name
+        const ownerDoc = await getDoc(doc(db, "users", team.ownerID));
+        const ownerName = ownerDoc.exists() ? ownerDoc.data().displayName : "Unknown";
 
-        if (invite.maxUses && invite.usedCount >= invite.maxUses) {
-          throw new Error("This invite has reached its maximum uses");
-        }
+        // Update team first
+        await updateDoc(teamRef, {
+          coOwners: [...(team.coOwners || []), userId],
+          teamName: `${ownerName}/${userName}`
+        });
 
-        // Get user display name
-        const userDoc = await transaction.get(doc(db, "users", userId));
-        const userName = userDoc.exists() ? userDoc.data().displayName : "Unknown";
-        const leagues = userDoc.exists() ? userDoc.data().leagues || [] : [];
-
-        if (invite.type === 'coowner') {
-          if (!invite.teamId) {
-            throw new Error("Invalid co-owner invite");
-          }
-
-          // Handle co-owner invite
-          const teamRef = doc(db, "leagues", foundLeagueId, "teams", invite.teamId);
-          const teamDoc = await transaction.get(teamRef);
-          if (!teamDoc.exists()) {
-            throw new Error("Team not found");
-          }
-          const team = teamDoc.data() as Team;
-
-          // Check if already a co-owner
-          if (team.coOwners?.includes(userId)) {
-            throw new Error("You are already a co-owner of this team");
-          }
-
-          // Get owner display name
-          const ownerDoc = await transaction.get(doc(db, "users", team.ownerID));
-          const ownerName = ownerDoc.exists() ? ownerDoc.data().displayName : "Unknown";
-
-          // Update team
-          transaction.update(teamRef, {
-            coOwners: [...(team.coOwners || []), userId],
-            teamName: `${ownerName}/${userName}`
-          });
-        } else {
-          // Handle team invite
-          // Create new team
-          const teamId = Math.random().toString(36).substring(2, 10);
-          const teamRef = doc(db, "leagues", foundLeagueId, "teams", teamId);
-
-          const newTeam: Team = {
-            teamId,
-            ownerID: userId,
-            coOwners: [],
-            teamName: userName,
-            roster: [],
-            cupLineups: {},
-            faabBudget: targetLeague.settings.faabBudget,
-            pendingBids: []
-          };
-
-          transaction.set(teamRef, newTeam);
-        }
-
-        // Update invite status
-        transaction.update(doc(db, 'leagues', leagueId), {
+        // Then update invite
+        await updateDoc(doc(db, 'leagues', foundLeagueId), {
           [`invites.${code}`]: {
             ...invite,
             usedCount: invite.usedCount + 1,
@@ -147,24 +110,65 @@ export const JoinLeague = () => {
         });
 
         // Update user's leagues
-        transaction.update(doc(db, 'users', userId), {
-          leagues: [...leagues, leagueId]
+        await updateDoc(doc(db, 'users', userId), {
+          leagues: [...leagues, foundLeagueId]
         });
 
-        // Add chat message about the new join
-        const chatRef = doc(db, 'leagues', leagueId, 'chat', Date.now().toString());
-        transaction.set(chatRef, {
+        // Add chat message
+        const chatRef = doc(db, 'leagues', foundLeagueId, 'chat', Date.now().toString());
+        await setDoc(chatRef, {
           type: 'system',
-          content: invite.type === 'coowner' 
-            ? `${userName} joined as a co-owner`
-            : `${userName} joined the league`,
+          content: `${userName} joined as a co-owner`,
           timestamp: serverTimestamp(),
           userId: 'system'
         });
-      });
 
-      // Navigate after transaction completes
-      navigate(`/leagues/${leagueId}`);
+      } else {
+        // Handle regular team invite
+        // Create new team
+        const teamId = Math.random().toString(36).substring(2, 10);
+        const teamRef = doc(db, "leagues", foundLeagueId, "teams", teamId);
+
+        const newTeam: Team = {
+          teamId,
+          ownerID: userId,
+          coOwners: [],
+          teamName: userName,
+          roster: [],
+          cupLineups: {},
+          faabBudget: foundLeague.settings.faabBudget,
+          pendingBids: []
+        };
+
+        await setDoc(teamRef, newTeam);
+
+        // Update invite status
+        await updateDoc(doc(db, 'leagues', foundLeagueId), {
+          [`invites.${code}`]: {
+            ...invite,
+            usedCount: invite.usedCount + 1,
+            usedBy: [...(invite.usedBy || []), userId],
+            status: invite.maxUses && invite.usedCount + 1 >= invite.maxUses ? 'used' : 'active'
+          }
+        });
+
+        // Update user's leagues
+        await updateDoc(doc(db, 'users', userId), {
+          leagues: [...leagues, foundLeagueId]
+        });
+
+        // Add chat message about the new join
+        const chatRef = doc(db, 'leagues', foundLeagueId, 'chat', Date.now().toString());
+        await setDoc(chatRef, {
+          type: 'system',
+          content: `${userName} joined the league`,
+          timestamp: serverTimestamp(),
+          userId: 'system'
+        });
+      }
+
+      // Navigate after all updates complete
+      navigate(`/leagues/${foundLeagueId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to join league");
     } finally {

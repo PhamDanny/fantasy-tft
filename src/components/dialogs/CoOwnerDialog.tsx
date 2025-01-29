@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { doc, updateDoc, getDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import type { League, Team, LeagueInvite } from "../../types";
 import { User } from "firebase/auth";
@@ -100,20 +100,41 @@ const CoOwnerDialog: React.FC<CoOwnerDialogProps> = ({
       const ownerDoc = await getDoc(doc(db, "users", team.ownerID));
       const ownerName = ownerDoc.exists() ? ownerDoc.data().displayName : "Unknown";
 
+      // Get removed co-owner's name and data
+      const coOwnerDoc = await getDoc(doc(db, "users", coOwnerId));
+      const coOwnerName = coOwnerDoc.exists() ? coOwnerDoc.data().displayName : "Unknown";
+      const coOwnerLeagues = coOwnerDoc.exists() ? coOwnerDoc.data().leagues || [] : [];
+
       // Get remaining co-owner names
       const remainingCoOwners = team.coOwners.filter(id => id !== coOwnerId);
       let newTeamName = ownerName;
 
       if (remainingCoOwners.length > 0) {
-        const coOwnerDoc = await getDoc(doc(db, "users", remainingCoOwners[0]));
-        const coOwnerName = coOwnerDoc.exists() ? coOwnerDoc.data().displayName : "Unknown";
-        newTeamName = `${ownerName}/${coOwnerName}`;
+        const remainingCoOwnerDoc = await getDoc(doc(db, "users", remainingCoOwners[0]));
+        const remainingCoOwnerName = remainingCoOwnerDoc.exists() ? remainingCoOwnerDoc.data().displayName : "Unknown";
+        newTeamName = `${ownerName}/${remainingCoOwnerName}`;
       }
 
+      // Update team
       await updateDoc(doc(db, 'leagues', league.id.toString(), 'teams', team.teamId), {
         coOwners: remainingCoOwners,
         teamName: newTeamName
       });
+
+      // Update co-owner's leagues array
+      await updateDoc(doc(db, 'users', coOwnerId), {
+        leagues: coOwnerLeagues.filter((id: string) => id !== league.id.toString())
+      });
+
+      // Add chat message about the removal
+      const chatRef = doc(db, 'leagues', league.id.toString(), 'chat', Date.now().toString());
+      await setDoc(chatRef, {
+        type: 'system',
+        content: `${coOwnerName} was removed as co-owner`,
+        timestamp: serverTimestamp(),
+        userId: 'system'
+      });
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove co-owner');
     } finally {
@@ -129,8 +150,8 @@ const CoOwnerDialog: React.FC<CoOwnerDialogProps> = ({
   const deleteInvite = async (code: string) => {
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'leagues', league.id.toString(), 'invites', code), {
-        status: 'inactive' as const,
+      await updateDoc(doc(db, 'leagues', league.id.toString()), {
+        [`invites.${code}.status`]: 'inactive'
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete invite');
