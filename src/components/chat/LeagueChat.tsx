@@ -32,23 +32,29 @@ interface LeagueChatProps {
 }
 
 const formatTimestamp = (timestamp: any): string => {
-  if (!timestamp) return '';
-  
+  if (!timestamp) return "";
+
   // Handle Firestore Timestamp objects
   if (timestamp?.toDate) {
     return timestamp.toDate().toLocaleString();
   }
-  
+
   // Handle ISO strings
   try {
     return new Date(timestamp).toLocaleString();
   } catch (e) {
-    console.warn('Invalid timestamp:', timestamp);
-    return '';
+    console.warn("Invalid timestamp:", timestamp);
+    return "";
   }
 };
 
-const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProps) => {
+const LeagueChat = ({
+  league,
+  userId,
+  userName,
+  teams,
+  players,
+}: LeagueChatProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -96,31 +102,38 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       // Get regular chat messages
-      const chatMessages: ChatMessage[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      } as ChatMessage));
+      const chatMessages: ChatMessage[] = snapshot.docs.map(
+        (doc) =>
+          ({
+            id: doc.id,
+            ...doc.data(),
+          } as ChatMessage)
+      );
 
       // Convert transactions to chat message format
-      const transactionMessages: ChatMessage[] = (league.transactions || []).map(transaction => ({
+      const transactionMessages: ChatMessage[] = (
+        league.transactions || []
+      ).map((transaction) => ({
         id: transaction.id,
         userId: "system",
         userName: "System",
         content: "",
         timestamp: transaction.timestamp,
         type: "transaction",
-        metadata: transaction
+        metadata: transaction,
       }));
 
       // Combine and sort all messages by timestamp in ascending order
       const allMessages = [...chatMessages, ...transactionMessages].sort(
         (a, b) => {
-          const timeA = typeof a.timestamp === 'object' && 'toDate' in a.timestamp 
-            ? a.timestamp.toDate() 
-            : new Date(a.timestamp);
-          const timeB = typeof b.timestamp === 'object' && 'toDate' in b.timestamp
-            ? b.timestamp.toDate()
-            : new Date(b.timestamp);
+          const timeA =
+            typeof a.timestamp === "object" && "toDate" in a.timestamp
+              ? a.timestamp.toDate()
+              : new Date(a.timestamp);
+          const timeB =
+            typeof b.timestamp === "object" && "toDate" in b.timestamp
+              ? b.timestamp.toDate()
+              : new Date(b.timestamp);
           return timeA.getTime() - timeB.getTime();
         }
       );
@@ -164,8 +177,10 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
     const timestamp = formatTimestamp(message.timestamp);
 
     // Find team name from league data
-    const team = Object.values(teams).find(team => 
-      team.ownerID === message.userId || team.coOwners?.includes(message.userId)
+    const team = Object.values(teams).find(
+      (team) =>
+        team.ownerID === message.userId ||
+        team.coOwners?.includes(message.userId)
     );
     const displayName = team ? team.teamName : "Unknown Team";
 
@@ -204,9 +219,10 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
 
       case "transaction":
         const metadata = message.metadata as Transaction;
-        const getTeamName = (teamId: string) => teams[teamId]?.teamName || "Unknown Team";
-        const getPlayerNames = (playerIds: string[]) => 
-          playerIds.map(id => players[id]?.name || "Unknown Player");
+        const getTeamName = (teamId: string) =>
+          teams[teamId]?.teamName || "Unknown Team";
+        const getPlayerNames = (playerIds: string[]) =>
+          playerIds.map((id) => players[id]?.name || "Unknown Player");
 
         let content = null;
         switch (metadata.type) {
@@ -217,11 +233,15 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
                 <div className="d-flex justify-content-between align-items-start gap-5">
                   {metadata.teamIds.map((teamId) => (
                     <div key={teamId} className="flex-grow-1 text-center">
-                      <div className="h6 mb-2">{getTeamName(teamId)}</div>
+                      <div className="h6 mb-2">
+                        {getTeamName(teamId)} receives
+                      </div>
                       <div className="text-success">
-                        {getPlayerNames(metadata.adds[teamId] || []).map((name, i) => (
-                          <div key={i}>{name}</div>
-                        ))}
+                        {getPlayerNames(metadata.adds[teamId] || []).map(
+                          (name, i) => (
+                            <div key={i}>{name}</div>
+                          )
+                        )}
                       </div>
                     </div>
                   ))}
@@ -232,26 +252,36 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
 
           case "waiver":
             const team = getTeamName(metadata.teamIds[0]);
-            const addedPlayers = getPlayerNames(metadata.adds[metadata.teamIds[0]] || []);
-            const droppedPlayers = metadata.drops[metadata.teamIds[0]]?.length > 0
-              ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
-              : [];
-            const faabSpent = metadata.metadata.faabSpent?.[metadata.teamIds[0]] || 0;
-            
+            const addedPlayers = getPlayerNames(
+              metadata.adds[metadata.teamIds[0]] || []
+            );
+            const droppedPlayers =
+              metadata.drops[metadata.teamIds[0]]?.length > 0
+                ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
+                : [];
+            const faabSpent =
+              metadata.metadata.faabSpent?.[metadata.teamIds[0]] || 0;
+
             content = (
               <div>
                 <div className="text-muted mb-1">Waiver claim by {team}</div>
                 <div className="d-flex justify-content-between align-items-start gap-4">
                   <div className="flex-grow-1">
                     <div className="text-success">
-                      + Added: {addedPlayers.map((name, i) => (
-                        <div key={i} className="ms-2">{name}</div>
+                      + Added:{" "}
+                      {addedPlayers.map((name, i) => (
+                        <div key={i} className="ms-2">
+                          {name}
+                        </div>
                       ))}
                     </div>
                     {droppedPlayers.length > 0 && (
                       <div className="text-danger">
-                        - Dropped: {droppedPlayers.map((name, i) => (
-                          <div key={i} className="ms-2">{name}</div>
+                        - Dropped:{" "}
+                        {droppedPlayers.map((name, i) => (
+                          <div key={i} className="ms-2">
+                            {name}
+                          </div>
                         ))}
                       </div>
                     )}
@@ -264,25 +294,36 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
 
           case "free_agent":
             const faTeam = getTeamName(metadata.teamIds[0]);
-            const faPlayers = getPlayerNames(metadata.adds[metadata.teamIds[0]] || []);
-            const faDrops = metadata.drops[metadata.teamIds[0]]?.length > 0
-              ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
-              : [];
-            
+            const faPlayers = getPlayerNames(
+              metadata.adds[metadata.teamIds[0]] || []
+            );
+            const faDrops =
+              metadata.drops[metadata.teamIds[0]]?.length > 0
+                ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
+                : [];
+
             content = (
               <div>
-                <div className="text-muted mb-1">Free agent pickup by {faTeam}</div>
+                <div className="text-muted mb-1">
+                  Free agent pickup by {faTeam}
+                </div>
                 <div className="d-flex justify-content-between align-items-start gap-4">
                   <div className="flex-grow-1">
                     <div className="text-success">
-                      + Added: {faPlayers.map((name, i) => (
-                        <div key={i} className="ms-2">{name}</div>
+                      + Added:{" "}
+                      {faPlayers.map((name, i) => (
+                        <div key={i} className="ms-2">
+                          {name}
+                        </div>
                       ))}
                     </div>
                     {faDrops.length > 0 && (
                       <div className="text-danger">
-                        - Dropped: {faDrops.map((name, i) => (
-                          <div key={i} className="ms-2">{name}</div>
+                        - Dropped:{" "}
+                        {faDrops.map((name, i) => (
+                          <div key={i} className="ms-2">
+                            {name}
+                          </div>
                         ))}
                       </div>
                     )}
@@ -295,9 +336,15 @@ const LeagueChat = ({ league, userId, userName, teams, players }: LeagueChatProp
 
         return (
           <div className="d-flex justify-content-center mb-3">
-            <div className={`bg-light px-4 py-3 rounded-3 ${message.metadata?.type === 'trade' ? 'w-100' : 'w-75'}`}>
+            <div
+              className={`bg-light px-4 py-3 rounded-3 ${
+                message.metadata?.type === "trade" ? "w-100" : "w-75"
+              }`}
+            >
               {content}
-              <div className="text-muted small text-center mt-2">{timestamp}</div>
+              <div className="text-muted small text-center mt-2">
+                {timestamp}
+              </div>
             </div>
           </div>
         );
