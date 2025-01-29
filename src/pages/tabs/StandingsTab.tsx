@@ -346,7 +346,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                             <div>
                               <span className="fw-medium">{team.teamName}</span>
                               <div className="small text-muted">
-                                FAAB: ${team.faabBudget}
+                                ${team.faabBudget}
                               </div>
                             </div>
                           </div>
