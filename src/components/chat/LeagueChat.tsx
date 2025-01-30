@@ -34,17 +34,33 @@ interface LeagueChatProps {
 const formatTimestamp = (timestamp: any): string => {
   if (!timestamp) return "";
 
+  let date: Date;
+  
   // Handle Firestore Timestamp objects
   if (timestamp?.toDate) {
-    return timestamp.toDate().toLocaleString();
+    date = timestamp.toDate();
+  } else {
+    // Handle ISO strings
+    try {
+      date = new Date(timestamp);
+    } catch (e) {
+      console.warn("Invalid timestamp:", timestamp);
+      return "";
+    }
   }
 
-  // Handle ISO strings
-  try {
-    return new Date(timestamp).toLocaleString();
-  } catch (e) {
-    console.warn("Invalid timestamp:", timestamp);
-    return "";
+  const today = new Date();
+  const isToday = date.toDateString() === today.toDateString();
+  
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } else {
+    return date.toLocaleDateString([], { 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   }
 };
 

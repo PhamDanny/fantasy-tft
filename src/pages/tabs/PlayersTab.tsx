@@ -15,6 +15,10 @@ interface PlayersTabProps {
   user: any;
 }
 
+const formatScore = (score: number): string => {
+  return score % 1 === 0 ? score.toFixed(0) : score.toFixed(1);
+};
+
 const PlayersTab: React.FC<PlayersTabProps> = ({
   league,
   players,
@@ -562,10 +566,18 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                           <td>{player.name}</td>
                           <td>{player.region}</td>
                           <td>{teamName}</td>
-                          <td>{player.scores.cup1}</td>
-                          <td>{player.scores.cup2}</td>
-                          <td>{player.scores.cup3}</td>
-                          <td>{getPlayerTotalScore(player)}</td>
+                          <td className="text-center">
+                            {player.scores.cup1 > 0 ? formatScore(player.scores.cup1) : "-"}
+                          </td>
+                          <td className="text-center">
+                            {player.scores.cup2 > 0 ? formatScore(player.scores.cup2) : "-"}
+                          </td>
+                          <td className="text-center">
+                            {player.scores.cup3 > 0 ? formatScore(player.scores.cup3) : "-"}
+                          </td>
+                          <td className="text-center fw-bold">
+                            {getPlayerTotalScore(player) > 0 ? formatScore(getPlayerTotalScore(player)) : "-"}
+                          </td>
                           <td>{existingBid ? `$${existingBid.amount}` : "-"}</td>
                           <td>
                             {existingBid ? (

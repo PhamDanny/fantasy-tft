@@ -217,6 +217,10 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
     return `${rank}th`;
   };
 
+  const formatScore = (score: number): string => {
+    return score % 1 === 0 ? score.toFixed(0) : score.toFixed(1);
+  };
+
   return (
     <div className="row">
       <div className="col-md-8">
@@ -354,27 +358,27 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                         {league.settings.currentCup >= 1 && (
                           <td className="text-center">
                             {typeof cupScores.cup1 === "number"
-                              ? cupScores.cup1.toFixed(1)
+                              ? formatScore(cupScores.cup1)
                               : "-"}
                           </td>
                         )}
                         {league.settings.currentCup >= 2 && (
                           <td className="text-center">
                             {typeof cupScores.cup2 === "number"
-                              ? cupScores.cup2.toFixed(1)
+                              ? formatScore(cupScores.cup2)
                               : "-"}
                           </td>
                         )}
                         {league.settings.currentCup >= 3 && (
                           <td className="text-center">
                             {typeof cupScores.cup3 === "number"
-                              ? cupScores.cup3.toFixed(1)
+                              ? formatScore(cupScores.cup3)
                               : "-"}
                           </td>
                         )}
                         <td className="text-center fw-bold">
                           {typeof cupScores.total === "number"
-                            ? cupScores.total.toFixed(1)
+                            ? formatScore(cupScores.total)
                             : "-"}
                         </td>
                       </tr>
@@ -428,27 +432,27 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                                         {league.settings.currentCup >= 1 && (
                                           <td className="text-center">
                                             {contribution.cup1 > 0
-                                              ? contribution.cup1.toFixed(1)
+                                              ? formatScore(contribution.cup1)
                                               : "-"}
                                           </td>
                                         )}
                                         {league.settings.currentCup >= 2 && (
                                           <td className="text-center">
                                             {contribution.cup2 > 0
-                                              ? contribution.cup2.toFixed(1)
+                                              ? formatScore(contribution.cup2)
                                               : "-"}
                                           </td>
                                         )}
                                         {league.settings.currentCup >= 3 && (
                                           <td className="text-center">
                                             {contribution.cup3 > 0
-                                              ? contribution.cup3.toFixed(1)
+                                              ? formatScore(contribution.cup3)
                                               : "-"}
                                           </td>
                                         )}
                                         <td className="text-center fw-bold">
                                           {contribution.total > 0
-                                            ? contribution.total.toFixed(1)
+                                            ? formatScore(contribution.total)
                                             : "-"}
                                         </td>
                                       </tr>

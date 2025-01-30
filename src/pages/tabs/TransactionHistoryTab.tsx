@@ -104,6 +104,23 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
     }
   };
 
+  const formatTimestamp = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const isToday = date.toDateString() === today.toDateString();
+    
+    if (isToday) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else {
+      return date.toLocaleDateString([], { 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+  };
+
   const filteredTransactions = transactions
     .filter((transaction) => {
       // Filter by selected types
@@ -223,10 +240,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
                   const formattedDetails = formatTransaction(
                     transaction
                   ) as TransactionDetail[];
-                  const date = format(
-                    new Date(transaction.timestamp),
-                    "MMM d, yyyy h:mm a"
-                  );
+                  const date = formatTimestamp(transaction.timestamp);
 
                   return (
                     <div key={transaction.id} className="list-group-item">
