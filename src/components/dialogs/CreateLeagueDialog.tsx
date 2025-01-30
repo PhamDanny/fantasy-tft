@@ -133,6 +133,20 @@ const CreateLeagueDialog = ({
         .substr(2, 9)}`;
 
       // Create the commissioner's team
+      const settings = {
+        captainSlots: formState.settings.captainSlots,
+        naSlots: formState.settings.naSlots,
+        brLatamSlots: formState.settings.brLatamSlots,
+        flexSlots: formState.settings.flexSlots,
+        benchSlots: formState.settings.benchSlots,
+        teamsLimit: formState.settings.teamsLimit,
+        faabBudget: formState.settings.faabBudget,
+        currentCup: formState.settings.currentCup,
+        playoffs: formState.settings.playoffs,
+        playoffTeams: formState.settings.playoffTeams,
+        waiversEnabled: true
+      };
+
       const commissionerTeam = {
         teamId,
         ownerID: userId,
@@ -140,11 +154,11 @@ const CreateLeagueDialog = ({
         teamName: userName,
         roster: [],
         cupLineups: {
-          cup1: generateEmptyLineup(formState.settings),
-          cup2: generateEmptyLineup(formState.settings),
-          cup3: generateEmptyLineup(formState.settings),
+          cup1: generateEmptyLineup(settings),
+          cup2: generateEmptyLineup(settings),
+          cup3: generateEmptyLineup(settings),
         },
-        faabBudget: formState.settings.faabBudget,
+        faabBudget: settings.faabBudget,
         pendingBids: [],
       };
 

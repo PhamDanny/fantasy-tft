@@ -20,10 +20,11 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
   const transactions = league.transactions || [];
 
   const transactionTypes = {
-    trade: "Trades",
-    waiver: "Waiver Claims",
-    free_agent: "Free Agent Adds",
-    commissioner: "Commissioner Actions",
+    trade: "Trade",
+    waiver: "Waiver Claim",
+    free_agent: "Free Agent",
+    commissioner: "Commissioner Action",
+    drop: "Drop"
   };
 
   const getTeamName = (teamId: string) =>
