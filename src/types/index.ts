@@ -66,6 +66,7 @@ export interface LeagueSettings extends RosterSlots {
   currentCup: number;  // 0 for preseason, 1-3 for active cups
   playoffs: boolean;   // Whether playoffs are enabled
   playoffTeams: number; // Number of teams that make playoffs
+  waiversEnabled: boolean;  // When false, players can be added instantly as free agents
 }
 
 export interface TradeOffer {
@@ -78,21 +79,35 @@ export interface TradeOffer {
   transactionId?: string;  // Reference to the transaction when completed
 }
 
-export type TransactionType = 'trade' | 'waiver' | 'free_agent' | 'commissioner';
+export type TransactionType = 'trade' | 'waiver' | 'free_agent' | 'commissioner' | 'drop';
 
 export interface Transaction {
   id: string;
   timestamp: string;
+  type: TransactionType;
   teamIds: string[];
   adds: Record<string, string[]>;  // teamId -> playerIds[]
   drops: Record<string, string[]>; // teamId -> playerIds[]
-  type: TransactionType;
   metadata: {
+    type?: TransactionType;  // Add this field
     tradeId?: string;  // For trade transactions
     faabSpent?: Record<string, number>;  // For waiver/free_agent transactions
     reason?: string;  // For commissioner transactions
     commissioner?: string;  // For commissioner transactions
     action?: 'roster_edit' | 'member_removed' | 'member_left';
+    waiver?: {
+      bidAmount: number;
+      losingBids?: Array<{
+        teamId: string;
+        teamName: string;
+        bidAmount: number;
+        failureReason?: string;
+      }>;
+    };
+    playerNames?: Record<string, {
+      name: string;
+      region: string;
+    }>;
   }
 }
 

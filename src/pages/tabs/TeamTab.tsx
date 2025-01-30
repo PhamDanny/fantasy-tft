@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import type { League, Player, Team, CupLineup } from "../../types";
 import { updateDoc, doc, runTransaction, collection, addDoc, deleteField } from "firebase/firestore";
 import { db } from "../../firebase/config";
-import { ArrowLeftRight } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import CoOwnerDialog from "../../components/dialogs/CoOwnerDialog";
 import { useNavigate } from "react-router-dom";
 
@@ -41,6 +41,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
   });
   const [showCoOwnerDialog, setShowCoOwnerDialog] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Define selectedTeam from selectedTeamId
@@ -54,6 +55,11 @@ const TeamTab: React.FC<TeamTabProps> = ({
 
   if (!selectedTeam) {
     return <div>Team not found.</div>;
+  }
+
+  // Add error display here
+  if (error) {
+    return <div className="alert alert-danger">{error}</div>;
   }
 
   // Initialize cupLineups if it doesn't exist
@@ -298,7 +304,16 @@ const TeamTab: React.FC<TeamTabProps> = ({
                 </span>
               )}
               {!isLineupLocked && canEdit && !isSelected && (
-                <ArrowLeftRight size={18} />
+                <button
+                  className="btn btn-sm btn-outline-danger"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDropPlayer(currentPlayer!);
+                  }}
+                  disabled={loading}
+                >
+                  <Trash2 size={16} />
+                </button>
               )}
             </div>
           </div>
@@ -310,6 +325,55 @@ const TeamTab: React.FC<TeamTabProps> = ({
   };
 
   const benchPlayers = getBenchPlayers();
+
+  const handleDropPlayer = async (playerId: string) => {
+    if (!window.confirm(`Are you sure you want to drop ${players[playerId]?.name}?`)) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const teamRef = doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId);
+      const newRoster = [...selectedTeam.roster];
+      const dropIndex = newRoster.indexOf(playerId);
+      if (dropIndex !== -1) {
+        newRoster.splice(dropIndex, 1);
+      }
+
+      // Create drop transaction
+      const transaction = {
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        type: 'drop' as const,
+        teamIds: [selectedTeam.teamId],
+        adds: {},
+        drops: { [selectedTeam.teamId]: [playerId] },
+        metadata: {
+          type: 'drop',
+          playerNames: {
+            [playerId]: {
+              name: players[playerId]?.name || 'Unknown Player',
+              region: players[playerId]?.region || 'Unknown Region'
+            }
+          }
+        }
+      };
+
+      await updateDoc(doc(db, "leagues", leagueId.toString()), {
+        transactions: [...league.transactions, transaction]
+      });
+
+      await updateDoc(teamRef, {
+        roster: newRoster
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to drop player");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLeaveLeague = async () => {
     const confirmLeagueName = prompt(
@@ -598,7 +662,6 @@ const TeamTab: React.FC<TeamTabProps> = ({
                           <div>
                             <span className="text-primary">Move to Bench</span>
                           </div>
-                          {!isLineupLocked && canEdit && <ArrowLeftRight size={18} />}
                         </div>
                       </div>
                     )}
@@ -637,7 +700,16 @@ const TeamTab: React.FC<TeamTabProps> = ({
                                 </span>
                               )}
                               {!isLineupLocked && canEdit && !isSelected && (
-                                <ArrowLeftRight size={18} />
+                                <button
+                                  className="btn btn-sm btn-outline-danger"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDropPlayer(playerId);
+                                  }}
+                                  disabled={loading}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
                               )}
                             </div>
                           </div>

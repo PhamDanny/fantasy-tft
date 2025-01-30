@@ -184,184 +184,192 @@ const LeagueChat = ({
     );
     const displayName = team ? team.teamName : "Unknown Team";
 
-    switch (message.type) {
-      case "message":
-        return (
-          <div
-            className={`d-flex mb-2 ${
-              isOwnMessage ? "justify-content-end" : "justify-content-start"
-            }`}
-          >
-            <div
-              className={`px-3 py-2 rounded-3 ${
-                isOwnMessage ? "bg-primary text-white" : "bg-light"
-              }`}
-              style={{ maxWidth: "75%" }}
-            >
-              <div
-                className={`fw-medium small mb-1 ${
-                  isOwnMessage ? "text-white-50" : ""
-                }`}
-              >
-                {displayName}
-              </div>
-              <div className="mb-1">{message.content}</div>
-              <div
-                className={`small ${
-                  isOwnMessage ? "text-white-50" : "text-muted"
-                }`}
-              >
-                {timestamp}
-              </div>
+    if (message.type === "message") {
+      return (
+        <div className={`d-flex mb-2 ${isOwnMessage ? "justify-content-end" : "justify-content-start"}`}>
+          <div className={`px-3 py-2 rounded-3 ${isOwnMessage ? "bg-primary text-white" : "bg-light"}`}
+            style={{ maxWidth: "75%" }}>
+            <div className={`fw-medium small mb-1 ${isOwnMessage ? "text-white-50" : ""}`}>
+              {displayName}
+            </div>
+            <div className="mb-1">{message.content}</div>
+            <div className={`small ${isOwnMessage ? "text-white-50" : "text-muted"}`}>
+              {timestamp}
             </div>
           </div>
-        );
+        </div>
+      );
+    }
 
-      case "transaction":
-        const metadata = message.metadata as Transaction;
-        const getTeamName = (teamId: string) =>
-          teams[teamId]?.teamName || "Unknown Team";
-        const getPlayerNames = (playerIds: string[]) =>
-          playerIds.map((id) => players[id]?.name || "Unknown Player");
+    if (message.type === "transaction") {
+      const metadata = message.metadata as Transaction;
+      const getTeamName = (teamId: string) => {
+        const team = teams[teamId];
+        return team?.teamName || "Unknown Team";
+      };
+      const getPlayerNames = (playerIds: string[]) =>
+        playerIds.map((id) => {
+          // First try to get name from transaction metadata
+          const storedPlayer = metadata.metadata?.playerNames?.[id];
+          if (storedPlayer) {
+            return storedPlayer.name;
+          }
+          // Fall back to current players list
+          return players[id]?.name || "Unknown Player";
+        });
 
-        let content = null;
-        switch (metadata.type) {
-          case "trade":
+      let content = null;
+      switch (metadata.type) {
+        case "trade":
+          content = (
+            <div>
+              <div className="h5 mb-2 text-center">Trade Completed</div>
+              <div className="d-flex justify-content-between align-items-start gap-5">
+                {metadata.teamIds.map((teamId) => (
+                  <div key={teamId} className="flex-grow-1 text-center">
+                    <div className="h6 mb-2">
+                      {getTeamName(teamId)} receives
+                    </div>
+                    <div className="text-success">
+                      {getPlayerNames(metadata.adds[teamId] || []).map(
+                        (name, i) => (
+                          <div key={i}>{name}</div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+          break;
+
+        case "commissioner":
+          if (metadata.metadata?.action === 'roster_edit' && metadata.metadata.commissioner) {
             content = (
               <div>
-                <div className="h5 mb-2 text-center">Trade Completed</div>
-                <div className="d-flex justify-content-between align-items-start gap-5">
-                  {metadata.teamIds.map((teamId) => (
-                    <div key={teamId} className="flex-grow-1 text-center">
-                      <div className="h6 mb-2">
-                        {getTeamName(teamId)} receives
-                      </div>
-                      <div className="text-success">
-                        {getPlayerNames(metadata.adds[teamId] || []).map(
-                          (name, i) => (
-                            <div key={i}>{name}</div>
-                          )
-                        )}
-                      </div>
+                <div className="h5 mb-2 text-center">Commissioner Action</div>
+                <div className="text-center">
+                  <div className="fw-medium mb-2">{getTeamName(metadata.teamIds[0])}</div>
+                  <div className="text-danger">
+                    {getPlayerNames(metadata.drops[metadata.teamIds[0]] || []).map((name, i) => (
+                      <div key={i} className="fs-5">- {name}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          break;
+
+        case "waiver":
+          const waiverTeam = getTeamName(metadata.teamIds[0]);
+          const waiverAdds = getPlayerNames(metadata.adds[metadata.teamIds[0]] || []);
+          const waiverDrops = metadata.drops[metadata.teamIds[0]]?.length > 0
+            ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
+            : [];
+          const losingBids = metadata.metadata.waiver?.losingBids || [];
+
+          content = (
+            <div>
+              <div className="h5 mb-2 text-center">Waiver Claim</div>
+              <div className="text-center">
+                <div className="fw-medium mb-2">{waiverTeam}</div>
+                <div className="text-success mb-2">
+                  {waiverAdds.map((name, i) => (
+                    <div key={i} className="fs-5">
+                      + {name}
+                      {metadata.metadata.waiver?.bidAmount && (
+                        <span className="text-muted ms-2">(${metadata.metadata.waiver.bidAmount} FAAB)</span>
+                      )}
                     </div>
                   ))}
                 </div>
-              </div>
-            );
-            break;
-
-          case "waiver":
-            const team = getTeamName(metadata.teamIds[0]);
-            const addedPlayers = getPlayerNames(
-              metadata.adds[metadata.teamIds[0]] || []
-            );
-            const droppedPlayers =
-              metadata.drops[metadata.teamIds[0]]?.length > 0
-                ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
-                : [];
-            const faabSpent =
-              metadata.metadata.faabSpent?.[metadata.teamIds[0]] || 0;
-
-            content = (
-              <div>
-                <div className="text-muted mb-1">Waiver claim by {team}</div>
-                <div className="d-flex justify-content-between align-items-start gap-4">
-                  <div className="flex-grow-1">
-                    <div className="text-success">
-                      + Added:{" "}
-                      {addedPlayers.map((name, i) => (
-                        <div key={i} className="ms-2">
-                          {name}
-                        </div>
-                      ))}
-                    </div>
-                    {droppedPlayers.length > 0 && (
-                      <div className="text-danger">
-                        - Dropped:{" "}
-                        {droppedPlayers.map((name, i) => (
-                          <div key={i} className="ms-2">
-                            {name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                {waiverDrops.length > 0 && (
+                  <div className="text-danger">
+                    {waiverDrops.map((name, i) => (
+                      <div key={i} className="fs-5">- {name}</div>
+                    ))}
                   </div>
-                  <div className="text-muted">FAAB: ${faabSpent}</div>
-                </div>
-              </div>
-            );
-            break;
-
-          case "free_agent":
-            const faTeam = getTeamName(metadata.teamIds[0]);
-            const faPlayers = getPlayerNames(
-              metadata.adds[metadata.teamIds[0]] || []
-            );
-            const faDrops =
-              metadata.drops[metadata.teamIds[0]]?.length > 0
-                ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
-                : [];
-
-            content = (
-              <div>
-                <div className="text-muted mb-1">
-                  Free agent pickup by {faTeam}
-                </div>
-                <div className="d-flex justify-content-between align-items-start gap-4">
-                  <div className="flex-grow-1">
-                    <div className="text-success">
-                      + Added:{" "}
-                      {faPlayers.map((name, i) => (
-                        <div key={i} className="ms-2">
-                          {name}
-                        </div>
-                      ))}
-                    </div>
-                    {faDrops.length > 0 && (
-                      <div className="text-danger">
-                        - Dropped:{" "}
-                        {faDrops.map((name, i) => (
-                          <div key={i} className="ms-2">
-                            {name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                )}
+                {losingBids.length > 0 && (
+                  <div className="text-muted small mt-2">
+                    Losing bids: {losingBids.map((b: { teamId: string, bidAmount: number, failureReason?: string }) => 
+                      `${getTeamName(b.teamId)} ($${b.bidAmount})${b.failureReason ? ` - ${b.failureReason}` : ''}`
+                    ).join(', ')}
                   </div>
-                </div>
-              </div>
-            );
-            break;
-        }
-
-        return (
-          <div className="d-flex justify-content-center mb-3">
-            <div
-              className={`bg-light px-4 py-3 rounded-3 ${
-                message.metadata?.type === "trade" ? "w-100" : "w-75"
-              }`}
-            >
-              {content}
-              <div className="text-muted small text-center mt-2">
-                {timestamp}
+                )}
               </div>
             </div>
-          </div>
-        );
+          );
+          break;
 
-      case "system":
-        return (
-          <div className="d-flex justify-content-center mb-2">
-            <div className="text-center small text-muted bg-light px-3 py-2 rounded-3">
-              <div className="mb-1">{message.content}</div>
-              <div>{timestamp}</div>
+        case "free_agent":
+          const faTeam = getTeamName(metadata.teamIds[0]);
+          const faPlayers = getPlayerNames(metadata.adds[metadata.teamIds[0]] || []);
+          const faDrops = metadata.drops[metadata.teamIds[0]]?.length > 0
+            ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
+            : [];
+
+          content = (
+            <div>
+              <div className="h5 mb-2 text-center">Free Agent Adds/Drops</div>
+              <div className="text-center">
+                <div className="fw-medium mb-2">{faTeam}</div>
+                <div className="text-success mb-2">
+                  {faPlayers.map((name, i) => (
+                    <div key={i} className="fs-5">+ {name}</div>
+                  ))}
+                </div>
+                {faDrops.length > 0 && (
+                  <div className="text-danger">
+                    {faDrops.map((name, i) => (
+                      <div key={i} className="fs-5">- {name}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+          break;
+
+        case "drop":
+          const dropTeam = getTeamName(metadata.teamIds[0]);
+          const droppedPlayers = getPlayerNames(metadata.drops[metadata.teamIds[0]] || []);
+
+          content = (
+            <div>
+              <div className="h5 mb-2 text-center">Player Drop</div>
+              <div className="text-center">
+                <div className="fw-medium mb-2">{dropTeam}</div>
+                <div className="text-danger">
+                  {droppedPlayers.map((name, i) => (
+                    <div key={i} className="fs-5">- {name}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+          break;
+      }
+
+      return (
+        <div className="d-flex justify-content-center mb-3">
+          <div
+            className={`bg-light px-4 py-3 rounded-3 ${
+              message.metadata?.type === "trade" ? "w-100" : "w-75"
+            }`}
+          >
+            {content}
+            <div className="text-muted small text-center mt-2">
+              {timestamp}
             </div>
           </div>
-        );
-
-      default:
-        return null;
+        </div>
+      );
     }
+
+    return null;
   };
 
   return (

@@ -4,6 +4,7 @@ import { db } from "../../firebase/config";
 import type { League, LeagueSettings, Team } from "../../types";
 import InviteDialog from '../../components/dialogs/InviteDialog';
 import CommissionerTeamEditDialog from "../../components/dialogs/CommissionerTeamEditDialog";
+import { processWaivers } from '../../utils/waiverUtils';
 
 interface LeagueSettingsTabProps {
   league: League;
@@ -68,6 +69,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
     ...league.settings,
     playoffs: league.settings.playoffs ?? true,
     playoffTeams: league.settings.playoffTeams ?? 4,
+    waiversEnabled: league.settings.waiversEnabled ?? true,
   };
 
   const [settings, setSettings] = useState<LeagueSettings>(defaultSettings);
@@ -504,6 +506,53 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                         Min: 2, Max: {Object.keys(teams).length} teams
                       </small>
                     </div>
+                  )}
+                </div>
+
+                <h5 className="mb-3">Waiver Settings</h5>
+                <div className="mb-4">
+                  <div className="form-check form-switch mb-3">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="waiversEnabled"
+                      checked={settings.waiversEnabled}
+                      onChange={(e) => {
+                        setSettings((prev) => ({
+                          ...prev,
+                          waiversEnabled: e.target.checked,
+                        }));
+                      }}
+                      disabled={loading}
+                    />
+                    <label className="form-check-label" htmlFor="waiversEnabled">
+                      Enable Waivers
+                    </label>
+                  </div>
+                  <small className="text-muted d-block mb-3">
+                    When disabled, players can be added instantly as free agents
+                  </small>
+
+                  {settings.waiversEnabled && (
+                    <button
+                      className="btn btn-warning"
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to process all pending waiver claims?')) {
+                          setLoading(true);
+                          processWaivers(leagueId.toString())
+                            .then(() => {
+                              setSuccess('Waivers processed successfully');
+                            })
+                            .catch((err) => {
+                              setError(err instanceof Error ? err.message : 'Failed to process waivers');
+                            })
+                            .finally(() => setLoading(false));
+                        }
+                      }}
+                      disabled={loading}
+                    >
+                      Process Waivers
+                    </button>
                   )}
                 </div>
 
