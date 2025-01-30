@@ -35,6 +35,9 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
   const [searchQuery, setSearchQuery] = useState("");
   const [showWaiverHelpDialog, setShowWaiverHelpDialog] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [playersPerPage] = useState(20);
+  const [hideRostered, setHideRostered] = useState(true);
 
   const isCommissioner = league.commissioner === user.uid;
 
@@ -57,6 +60,10 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
     fetchAllPlayers();
   }, []);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [hideRostered, searchQuery]);
+
   if (!userTeam) {
     return <div>You don't have a team in this league.</div>;
   }
@@ -73,17 +80,21 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   };
 
   const getAvailablePlayers = () => {
-    const allRosteredPlayers = new Set(
-      Object.values(teams).flatMap((team) => team.roster)
-    );
+    const rosteredPlayersMap = new Map<string, string>();
+    Object.entries(teams).forEach(([_, team]) => {
+      team.roster.forEach(playerId => {
+        rosteredPlayersMap.set(playerId, team.teamName || "Unnamed Team");
+      });
+    });
 
-    return Object.entries(allPlayers)
+    const filteredPlayers = Object.entries(allPlayers)
       .filter(([playerId, player]) => {
         if (!player) return false;
         const matchesSearch =
           player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           player.region.toLowerCase().includes(searchQuery.toLowerCase());
-        return !allRosteredPlayers.has(playerId) && matchesSearch;
+        
+        return matchesSearch && (!hideRostered || !rosteredPlayersMap.has(playerId));
       })
       .sort((a, b) => {
         const playerA = a[1];
@@ -99,6 +110,14 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
         const diff = playerB.scores[sortField] - playerA.scores[sortField];
         return sortDirection === "desc" ? diff : -diff;
       });
+
+    const indexOfLastPlayer = currentPage * playersPerPage;
+    const indexOfFirstPlayer = indexOfLastPlayer - playersPerPage;
+    return {
+      paginatedPlayers: filteredPlayers.slice(indexOfFirstPlayer, indexOfLastPlayer),
+      totalPlayers: filteredPlayers.length,
+      rosteredPlayersMap
+    };
   };
 
   const submitBid = async () => {
@@ -289,6 +308,65 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   const canManageTeam = userTeam?.ownerID === user.uid || 
                        userTeam?.coOwners?.includes(user.uid);
 
+  const { paginatedPlayers, totalPlayers, rosteredPlayersMap } = getAvailablePlayers();
+
+  const Pagination = ({ totalPlayers }: { totalPlayers: number }) => {
+    const pageNumbers = Math.ceil(totalPlayers / playersPerPage);
+    
+    const pageItems = [];
+    for (let i = 1; i <= pageNumbers; i++) {
+      if (
+        i === 1 || // First page
+        i === pageNumbers || // Last page
+        (i >= currentPage - 2 && i <= currentPage + 2) // Pages around current
+      ) {
+        pageItems.push(
+          <li key={i} className={`page-item ${currentPage === i ? 'active' : ''}`}>
+            <button 
+              className="page-link"
+              onClick={() => setCurrentPage(i)}
+            >
+              {i}
+            </button>
+          </li>
+        );
+      } else if (
+        i === currentPage - 3 ||
+        i === currentPage + 3
+      ) {
+        pageItems.push(
+          <li key={i} className="page-item disabled">
+            <span className="page-link">...</span>
+          </li>
+        );
+      }
+    }
+
+    return (
+      <nav aria-label="Players pagination">
+        <ul className="pagination justify-content-center">
+          <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+            <button
+              className="page-link"
+              onClick={() => setCurrentPage(curr => Math.max(1, curr - 1))}
+            >
+              Previous
+            </button>
+          </li>
+          {pageItems}
+          <li className={`page-item ${currentPage === pageNumbers ? 'disabled' : ''}`}>
+            <button
+              className="page-link"
+              onClick={() => setCurrentPage(curr => Math.min(pageNumbers, curr + 1))}
+            >
+              Next
+            </button>
+          </li>
+        </ul>
+      </nav>
+    );
+  };
+
   return (
     <>
       <div className="row">
@@ -371,7 +449,19 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                 </div>
               )}
 
-              <div className="mb-3">
+              <div className="mb-3 d-flex gap-3 align-items-center">
+                <div className="form-check">
+                  <input
+                    type="checkbox"
+                    className="form-check-input"
+                    id="hideRostered"
+                    checked={hideRostered}
+                    onChange={(e) => setHideRostered(e.target.checked)}
+                  />
+                  <label className="form-check-label" htmlFor="hideRostered">
+                    Hide players on rosters
+                  </label>
+                </div>
                 <input
                   type="text"
                   className="form-control"
@@ -387,6 +477,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                     <tr>
                       <th>Player</th>
                       <th>Region</th>
+                      <th>Team</th>
                       <th
                         className="cursor-pointer"
                         onClick={() => {
@@ -460,15 +551,17 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {getAvailablePlayers().map(([playerId, player]) => {
+                    {paginatedPlayers.map(([playerId, player]) => {
                       const existingBid = pendingBids.find(
                         (bid) => bid.playerId === playerId
                       );
+                      const teamName = rosteredPlayersMap.get(playerId) || "Free Agent";
 
                       return (
                         <tr key={playerId}>
                           <td>{player.name}</td>
                           <td>{player.region}</td>
+                          <td>{teamName}</td>
                           <td>{player.scores.cup1}</td>
                           <td>{player.scores.cup2}</td>
                           <td>{player.scores.cup3}</td>
@@ -489,7 +582,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                               <button
                                 className="btn btn-sm btn-primary"
                                 onClick={() => setSelectedPlayer(playerId)}
-                                disabled={loading || !canManageTeam}
+                                disabled={loading || !canManageTeam || teamName !== "Free Agent"}
                               >
                                 Place Bid
                               </button>
@@ -497,7 +590,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                               <button
                                 className="btn btn-sm btn-success"
                                 onClick={() => addFreeAgent(playerId, null)}
-                                disabled={loading || !canManageTeam}
+                                disabled={loading || !canManageTeam || teamName !== "Free Agent"}
                               >
                                 Add Player
                               </button>
@@ -508,6 +601,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                     })}
                   </tbody>
                 </table>
+                <Pagination totalPlayers={totalPlayers} />
               </div>
             </div>
           </div>
