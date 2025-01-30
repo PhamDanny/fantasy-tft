@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import type { League, Player, Transaction, Team } from "../../types";
-import { format } from "date-fns";
 
 interface TransactionHistoryTabProps {
   league: League;
