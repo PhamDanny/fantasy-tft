@@ -13,15 +13,19 @@ export const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    console.log("Starting login/signup submission...");
 
     try {
       if (isSignUp) {
+        console.log("Beginning signup flow...");
         await signUp(email, password, displayName);
+        console.log("Signup completed successfully");
       } else {
         await signIn(email, password);
       }
       navigate("/leagues");
     } catch (err) {
+      console.error("Error in handleSubmit:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
     }
   };
