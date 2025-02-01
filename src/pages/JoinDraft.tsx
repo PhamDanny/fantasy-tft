@@ -55,7 +55,27 @@ const JoinDraft = () => {
     setError(null);
 
     try {
-      // Check if user already has a team
+      // First check if user already has a team in the league's teams subcollection
+      const teamsRef = collection(db, 'leagues', draft.id.toString(), 'teams');
+      const teamsQuery = query(teamsRef, 
+        where('ownerID', '==', user.uid)
+      );
+      const coOwnerQuery = query(teamsRef,
+        where('coOwners', 'array-contains', user.uid)
+      );
+
+      const [ownerSnapshot, coOwnerSnapshot] = await Promise.all([
+        getDocs(teamsQuery),
+        getDocs(coOwnerQuery)
+      ]);
+
+      if (!ownerSnapshot.empty || !coOwnerSnapshot.empty) {
+        // User already has a team, redirect to league page
+        navigate(`/leagues/${draft.id}`);
+        return;
+      }
+
+      // Check if user already has a team in the draft
       const hasTeam = Object.values(draft.teams).some(
         team => team.ownerID === user.uid || team.coOwners.includes(user.uid)
       );

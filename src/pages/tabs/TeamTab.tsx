@@ -538,7 +538,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
               {Object.values(teams).map((team) => (
                 <option key={team.teamId} value={team.teamId}>
                   {team.teamName}{" "}
-                  {selectedTeam?.ownerID === team.ownerID ? "(Your Team)" : ""}
+                  {team.ownerID === user?.uid || team.coOwners?.includes(user?.uid) ? "(Your Team)" : ""}
                 </option>
               ))}
             </select>
@@ -565,12 +565,10 @@ const TeamTab: React.FC<TeamTabProps> = ({
                   Cup {cupNumber}
                 </button>
               ))}
-              {league.settings.playoffs && (
+              {league.settings.playoffs && league.settings.playoffSettings?.playoffAuctionStarted && isInPlayoffs && (
                 <button
                   className={`btn btn-${selectedCup === 0 ? "primary" : "outline-primary"}`}
                   onClick={() => setSelectedCup(0)}
-                  disabled={!isInPlayoffs}  // Now based on selected team's playoff status
-                  title={!isInPlayoffs ? "This team did not qualify for playoffs" : ""}
                 >
                   Regionals
                 </button>
