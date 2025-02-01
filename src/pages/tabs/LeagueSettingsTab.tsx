@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { doc, updateDoc, runTransaction, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, runTransaction, serverTimestamp, collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import type { League, LeagueSettings, Team } from "../../types";
 import InviteDialog from '../../components/dialogs/InviteDialog';
@@ -89,10 +89,91 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
 
   const playoffsStarted = league.settings.playoffSettings?.playoffAuctionStarted === true;
 
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   if (!isCommissioner) {
     return (
-      <div className="alert alert-warning">
-        Only the league commissioner can access these settings.
+      <div className="row">
+        <div className="col-md-8">
+          <div className="card">
+            <div className="card-header">
+              <h4 className="h5 mb-0">League Settings</h4>
+            </div>
+            <div className="card-body">
+              <h5 className="mb-3">Roster Settings</h5>
+              <div className="row mb-4">
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">Captain Slots</label>
+                    <p className="mb-1">{league.settings.captainSlots}</p>
+                    <small className="text-muted">Players get 1.5x points in captain slots</small>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">NA Player Slots</label>
+                    <p>{league.settings.naSlots}</p>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">BR/LATAM Player Slots</label>
+                    <p>{league.settings.brLatamSlots}</p>
+                  </div>
+                </div>
+
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">Flex Slots</label>
+                    <p className="mb-1">{league.settings.flexSlots}</p>
+                    <small className="text-muted">Can be filled by any player</small>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Teams Limit</label>
+                    <p>{league.settings.teamsLimit}</p>
+                  </div>
+                </div>
+              </div>
+
+              <h5 className="mb-3">Playoff Settings</h5>
+              <div className="mb-4">
+                <p>Playoffs: {league.settings.playoffs ? 'Enabled' : 'Disabled'}</p>
+                {league.settings.playoffs && (
+                  <>
+                    <p>Number of Playoff Teams: {league.settings.playoffTeams}</p>
+                    <h6 className="mb-2">Playoff Roster Configuration</h6>
+                    <p>Captain Slots: {league.settings.playoffSettings?.captainSlots}</p>
+                    <p>NA Slots: {league.settings.playoffSettings?.naSlots}</p>
+                    <p>BR/LATAM Slots: {league.settings.playoffSettings?.brLatamSlots}</p>
+                    <p>Flex Slots: {league.settings.playoffSettings?.flexSlots}</p>
+                  </>
+                )}
+              </div>
+
+              <h5 className="mb-3">Financial Settings</h5>
+              <div className="mb-4">
+                <label className="form-label">Starting FAAB Budget</label>
+                <p>{league.settings.faabBudget}</p>
+              </div>
+
+              <h5 className="mb-3">Waiver Settings</h5>
+              <div className="mb-4">
+                <p>Waivers: {league.settings.waiversEnabled ? 'Enabled' : 'Disabled'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-4">
+          <div className="card">
+            <div className="card-header">
+              <h4 className="h5 mb-0">Season Progress</h4>
+            </div>
+            <div className="card-body">
+              <p>Current Cup: {league.settings.currentCup === 0 ? "Preseason" : league.settings.currentCup}</p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -354,6 +435,72 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
       playoffSettings.brLatamSlots + 
       playoffSettings.flexSlots;
     return slotsPerTeam * settings.playoffTeams;
+  };
+
+  const handleDeleteLeague = async () => {
+    if (deleteConfirmation !== league.name) {
+      setError("League name doesn't match");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        // READS FIRST
+        // Get all team documents
+        const teamsRef = collection(db, "leagues", leagueId.toString(), "teams");
+        const teamsSnapshot = await getDocs(teamsRef);
+
+        // Get all chat documents
+        const chatRef = collection(db, "leagues", leagueId.toString(), "chat");
+        const chatSnapshot = await getDocs(chatRef);
+
+        // Get all user documents that need updating
+        const userDocs = await Promise.all(
+          Object.values(teams).flatMap(team => [
+            team.ownerID,
+            ...(team.coOwners || [])
+          ]).map(async userId => {
+            const userRef = doc(db, "users", userId);
+            const userDoc = await transaction.get(userRef);
+            return { ref: userRef, data: userDoc };
+          })
+        );
+
+        // WRITES SECOND
+        // Delete all team documents
+        teamsSnapshot.forEach(doc => {
+          transaction.delete(doc.ref);
+        });
+
+        // Delete all chat documents
+        chatSnapshot.forEach(doc => {
+          transaction.delete(doc.ref);
+        });
+
+        // Update all user documents
+        userDocs.forEach(({ ref, data }) => {
+          const userData = data.data() as { leagues: string[] } | undefined;
+          if (userData) {
+            transaction.update(ref, {
+              leagues: userData.leagues.filter(id => id !== leagueId.toString())
+            });
+          }
+        });
+
+        // Finally delete the league document
+        const leagueRef = doc(db, "leagues", leagueId.toString());
+        transaction.delete(leagueRef);
+      });
+
+      // Redirect to home page after successful deletion
+      window.location.href = '/';
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete league");
+      setLoading(false);
+    }
   };
 
   return (
@@ -647,6 +794,57 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                 >
                   {loading ? "Saving..." : "Save Settings"}
                 </button>
+
+                {isCommissioner && (
+                  <div className="mt-5 pt-3 border-top">
+                    {!showDeleteConfirm ? (
+                      <button 
+                        type="button"
+                        className="btn btn-outline-danger"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        disabled={loading}
+                      >
+                        Delete League
+                      </button>
+                    ) : (
+                      <div>
+                        <p className="text-danger">
+                          This action cannot be undone. Please type <strong>{league.name}</strong> to confirm.
+                        </p>
+                        <div className="mb-3">
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={deleteConfirmation}
+                            onChange={(e) => setDeleteConfirmation(e.target.value)}
+                            placeholder="Type league name to confirm"
+                          />
+                        </div>
+                        <div className="d-flex gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            onClick={handleDeleteLeague}
+                            disabled={loading || deleteConfirmation !== league.name}
+                          >
+                            {loading ? "Deleting..." : "Confirm Delete"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              setShowDeleteConfirm(false);
+                              setDeleteConfirmation('');
+                            }}
+                            disabled={loading}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </form>
             </div>
           </div>
