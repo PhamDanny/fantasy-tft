@@ -79,6 +79,16 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
+  // Add playoff settings to the state
+  const [playoffSettings, setPlayoffSettings] = useState({
+    captainSlots: league.settings.playoffSettings?.captainSlots ?? 1,
+    naSlots: league.settings.playoffSettings?.naSlots ?? 1,
+    brLatamSlots: league.settings.playoffSettings?.brLatamSlots ?? 1,
+    flexSlots: league.settings.playoffSettings?.flexSlots ?? 3,
+  });
+
+  const playoffsStarted = league.settings.playoffSettings?.playoffAuctionStarted === true;
+
   if (!isCommissioner) {
     return (
       <div className="alert alert-warning">
@@ -108,8 +118,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
       settings.captainSlots < 0 ||
       settings.naSlots < 0 ||
       settings.brLatamSlots < 0 ||
-      settings.flexSlots < 0 ||
-      settings.benchSlots < 0
+      settings.flexSlots < 0
     ) {
       setError("Slot numbers cannot be negative");
       return false;
@@ -147,14 +156,15 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
 
     try {
       await updateDoc(doc(db, "leagues", leagueId.toString()), {
-        settings: settings,
+        settings: {
+          ...settings,
+          playoffSettings: playoffSettings
+        },
       });
 
       setSuccess("League settings updated successfully");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to update settings"
-      );
+      setError(err instanceof Error ? err.message : "Failed to update settings");
     } finally {
       setLoading(false);
     }
@@ -337,6 +347,15 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
     setSelectedTeamId(teamId);
   };
 
+  const getTotalPlayoffSlots = () => {
+    const slotsPerTeam = 
+      playoffSettings.captainSlots + 
+      playoffSettings.naSlots + 
+      playoffSettings.brLatamSlots + 
+      playoffSettings.flexSlots;
+    return slotsPerTeam * settings.playoffTeams;
+  };
+
   return (
     <>
       <div className="row">
@@ -413,18 +432,6 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                     </div>
 
                     <div className="mb-3">
-                      <label className="form-label">Bench Slots</label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        value={settings.benchSlots}
-                        onChange={(e) => handleSettingChange(e, "benchSlots")}
-                        min="0"
-                        disabled={loading}
-                      />
-                    </div>
-
-                    <div className="mb-3">
                       <label className="form-label">Teams Limit</label>
                       <input
                         type="number"
@@ -435,6 +442,138 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                         disabled={loading}
                       />
                     </div>
+                  </div>
+                </div>
+
+                {/* Move playoff settings to a dedicated card */}
+                <div className="card mb-4">
+                  <div className="card-header">
+                    <h5 className="mb-0">Playoff Settings</h5>
+                  </div>
+                  <div className="card-body">
+                    <div className="form-check form-switch mb-3">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="playoffsEnabled"
+                        checked={settings.playoffs}
+                        onChange={(e) => {
+                          setSettings((prev) => ({
+                            ...prev,
+                            playoffs: e.target.checked,
+                          }));
+                        }}
+                        disabled={loading || playoffsStarted}
+                      />
+                      <label className="form-check-label" htmlFor="playoffsEnabled">
+                        Enable Playoffs
+                      </label>
+                      {playoffsStarted && (
+                        <small className="text-muted d-block">
+                          Playoffs cannot be disabled once the playoff auction has started.
+                        </small>
+                      )}
+                    </div>
+
+                    {settings.playoffs && (
+                      <>
+                        <div className="mb-3">
+                          <label className="form-label">Number of Playoff Teams</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            value={settings.playoffTeams}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value) || 2;
+                              const maxTeams = Object.keys(teams).length;
+                              setSettings((prev) => ({
+                                ...prev,
+                                playoffTeams: Math.min(
+                                  Math.max(2, value),
+                                  maxTeams
+                                ),
+                              }));
+                            }}
+                            min={2}
+                            max={Object.keys(teams).length}
+                            disabled={loading || playoffsStarted}
+                          />
+                          <small className="text-muted">
+                            Min: 2, Max: {Object.keys(teams).length} teams
+                          </small>
+                        </div>
+
+                        <h6 className="mb-3">Playoff Roster Configuration</h6>
+                        <div className="row g-3">
+                          <div className="col-md-6">
+                            <label className="form-label">Captain Slots</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              value={playoffSettings.captainSlots}
+                              onChange={(e) => setPlayoffSettings(prev => ({
+                                ...prev,
+                                captainSlots: parseInt(e.target.value) || 0
+                              }))}
+                              min="0"
+                              disabled={loading || playoffsStarted}
+                            />
+                          </div>
+
+                          <div className="col-md-6">
+                            <label className="form-label">NA Slots</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              value={playoffSettings.naSlots}
+                              onChange={(e) => setPlayoffSettings(prev => ({
+                                ...prev,
+                                naSlots: parseInt(e.target.value) || 0
+                              }))}
+                              min="0"
+                              disabled={loading || playoffsStarted}
+                            />
+                          </div>
+
+                          <div className="col-md-6">
+                            <label className="form-label">BR/LATAM Slots</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              value={playoffSettings.brLatamSlots}
+                              onChange={(e) => setPlayoffSettings(prev => ({
+                                ...prev,
+                                brLatamSlots: parseInt(e.target.value) || 0
+                              }))}
+                              min="0"
+                              disabled={loading || playoffsStarted}
+                            />
+                          </div>
+
+                          <div className="col-md-6">
+                            <label className="form-label">Flex Slots</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              value={playoffSettings.flexSlots}
+                              onChange={(e) => setPlayoffSettings(prev => ({
+                                ...prev,
+                                flexSlots: parseInt(e.target.value) || 0
+                              }))}
+                              min="0"
+                              disabled={loading || playoffsStarted}
+                            />
+                          </div>
+                        </div>
+
+                        {getTotalPlayoffSlots() > 32 && (
+                          <div className="alert alert-warning mt-3">
+                            Warning: The current configuration requires {getTotalPlayoffSlots()} total roster slots, 
+                            but only 32 players qualify for regionals. Some teams may not be able to fill all roster slots.
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -452,61 +591,6 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                   <small className="text-muted">
                     Free Agent Acquisition Budget for new teams
                   </small>
-                </div>
-
-                <h5 className="mb-3">Playoff Settings</h5>
-                <div className="mb-4">
-                  <div className="form-check form-switch mb-3">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="playoffsEnabled"
-                      checked={settings.playoffs}
-                      onChange={(e) => {
-                        setSettings((prev) => ({
-                          ...prev,
-                          playoffs: e.target.checked,
-                        }));
-                      }}
-                      disabled={loading}
-                    />
-                    <label
-                      className="form-check-label"
-                      htmlFor="playoffsEnabled"
-                    >
-                      Enable Playoffs
-                    </label>
-                  </div>
-
-                  {settings.playoffs && (
-                    <div className="mb-3">
-                      <label className="form-label">
-                        Number of Playoff Teams
-                      </label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        value={settings.playoffTeams}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value) || 2;
-                          const maxTeams = Object.keys(teams).length;
-                          setSettings((prev) => ({
-                            ...prev,
-                            playoffTeams: Math.min(
-                              Math.max(2, value),
-                              maxTeams
-                            ),
-                          }));
-                        }}
-                        min={2}
-                        max={Object.keys(teams).length}
-                        disabled={loading}
-                      />
-                      <small className="text-muted">
-                        Min: 2, Max: {Object.keys(teams).length} teams
-                      </small>
-                    </div>
-                  )}
                 </div>
 
                 <h5 className="mb-3">Waiver Settings</h5>

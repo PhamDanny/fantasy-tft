@@ -5,39 +5,48 @@ import { onSnapshot } from 'firebase/firestore';
 
 export const fetchLeague = async (leagueId: number): Promise<League> => {
   // console.log("Fetching league with ID:", leagueId);
-  
+
   const leagueDoc = await getDoc(doc(db, 'leagues', leagueId.toString()));
-  
+
   if (!leagueDoc.exists()) {
     throw new Error('League not found');
   }
-  
+
   const leagueData = leagueDoc.data();
   const teamsSnapshot = await getDocs(collection(db, 'leagues', leagueId.toString(), 'teams'));
-  
+
   const teams: Record<string, Team> = {};
   teamsSnapshot.forEach((teamDoc) => {
     teams[teamDoc.id] = teamDoc.data() as Team;
   });
-  
+
   return {
     ...leagueData,
     teams
   } as League;
 };
 
-export const fetchPlayers = async (playerIds: string[]): Promise<Record<string, Player>> => {
+export const fetchPlayers = async (playerIds?: string[]): Promise<Record<string, Player>> => {
   const players: Record<string, Player> = {};
-  
-  await Promise.all(
-    playerIds.map(async (playerId) => {
-      const playerDoc = await getDoc(doc(db, 'players', playerId));
-      if (playerDoc.exists()) {
-        players[playerId] = playerDoc.data() as Player;
-      }
-    })
-  );
-  
+
+  if (playerIds) {
+    // Fetch specific players if IDs are provided
+    await Promise.all(
+      playerIds.map(async (playerId) => {
+        const playerDoc = await getDoc(doc(db, 'players', playerId));
+        if (playerDoc.exists()) {
+          players[playerId] = playerDoc.data() as Player;
+        }
+      })
+    );
+  } else {
+    // Fetch all players if no IDs are provided
+    const playersSnapshot = await getDocs(collection(db, 'players'));
+    playersSnapshot.forEach((doc) => {
+      players[doc.id] = { id: doc.id, ...doc.data() } as Player;
+    });
+  }
+
   return players;
 };
 
@@ -50,7 +59,7 @@ export const addUserToLeague = async (userId: string, leagueId: string) => {
 export const fetchUserLeagues = async (userId: string): Promise<League[]> => {
   const userDoc = await getDoc(doc(db, 'users', userId));
   if (!userDoc.exists()) return [];
-  
+
   const leagueIds = userDoc.data().leagues || [];
   const leagues: League[] = [];
 
@@ -68,7 +77,7 @@ export const fetchUserLeagues = async (userId: string): Promise<League[]> => {
 };
 
 export const subscribeToLeague = (
-  leagueId: number, 
+  leagueId: number,
   onUpdate: (league: League) => void,
   onError: (error: Error) => void
 ): (() => void) => {

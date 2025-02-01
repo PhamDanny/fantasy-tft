@@ -7,6 +7,7 @@ import type {
   TeamLineup,
   LeagueSettings,
 } from "../../types";
+import { PLAYOFF_SCORES } from "../../types";
 import { User } from "firebase/auth";
 import InviteDialog from "../../components/dialogs/InviteDialog";
 import LeagueChat from "../../components/chat/LeagueChat";
@@ -221,270 +222,360 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
     return score % 1 === 0 ? score.toFixed(0) : score.toFixed(1);
   };
 
+  // Add near the top with other checks
+  const playoffAuctionStarted = league.settings.playoffSettings?.playoffAuctionStarted === true;
+  const isAuctionComplete = playoffAuctionStarted && 
+    Object.values(players)
+      .filter(p => p.regionals?.qualified === true)
+      .every(player => 
+        Object.values(teams).some(team => team.playoffRoster?.includes(player.id))
+      );
+
   return (
     <div className="row">
       <div className="col-md-8">
-        <div className="mb-4">
-          <h3 className="h5 mb-0">League Settings</h3>
-          <div className="row">
-            <div className="col-md-3 col-6">
-              <div className="mb-2">
-                Current Cup:{" "}
-                {league.settings.currentCup === 0
-                  ? "Preseason"
-                  : league.settings.currentCup}
-              </div>
-              <div className="mb-2">
-                Teams: {Object.keys(teams).length}/
-                {league.settings.teamsLimit}
-              </div>
+        {/* Add Playoff Championship section at the top */}
+        {isAuctionComplete && (
+          <div className="card mb-4">
+            <div className="card-header">
+              <h4 className="mb-0">Playoff Championship</h4>
             </div>
-            <div className="col-md-3 col-6">
-              <div className="mb-2">
-                Captain Slots: {league.settings.captainSlots}
+            <div className="card-body">
+              <div className="table-responsive">
+                <table className="table table-hover">
+                  <thead className="table-light">
+                    <tr>
+                      <th className="text-center" style={{ width: '80px' }}>Rank</th>
+                      <th>Team</th>
+                      <th className="text-end" style={{ width: '120px' }}>Points</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.values(teams)
+                      .filter(team => team.playoffRoster)
+                      .map(team => ({
+                        team,
+                        retainedPoints: team.roster
+                          .filter(id => team.playoffRoster?.includes(id))
+                          .reduce((sum, id) => {
+                            const player = players[id];
+                            if (!player?.regionals?.placement) return sum;
+                            return sum + PLAYOFF_SCORES[player.regionals.placement];
+                          }, 0),
+                        acquiredPoints: (team.playoffRoster || [])
+                          .filter(id => !team.roster.includes(id))
+                          .reduce((sum, id) => {
+                            const player = players[id];
+                            if (!player?.regionals?.placement) return sum;
+                            return sum + PLAYOFF_SCORES[player.regionals.placement];
+                          }, 0)
+                      }))
+                      .map(({ team, retainedPoints, acquiredPoints }) => ({
+                        team,
+                        retainedPoints,
+                        acquiredPoints,
+                        totalPoints: retainedPoints + acquiredPoints
+                      }))
+                      .sort((a, b) => b.totalPoints - a.totalPoints)
+                      .map(({ team, totalPoints }, index) => {
+                        const rank = index + 1;
+                        return (
+                          <tr key={team.teamId}>
+                            <td className="text-center">
+                              <span 
+                                className={`badge ${getRankStyle(rank)} px-3 py-2`} 
+                                style={{ 
+                                  minWidth: '50px',
+                                  backgroundColor: rank === 3 ? '#CD7F32' : undefined,
+                                  fontSize: '1.1em'
+                                }}
+                              >
+                                {formatRank(rank)}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="h5 mb-0">{team.teamName}</span>
+                            </td>
+                            <td className="text-end">
+                              <span className="h4 mb-0">{totalPoints}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
-              <div className="mb-2">NA Slots: {league.settings.naSlots}</div>
-            </div>
-            <div className="col-md-3 col-6">
-              <div className="mb-2">
-                BR/LATAM Slots: {league.settings.brLatamSlots}
-              </div>
-              <div className="mb-2">
-                Flex Slots: {league.settings.flexSlots}
-              </div>
-            </div>
-            <div className="col-md-3 col-6">
-              <div className="mb-2">
-                Bench Slots: {league.settings.benchSlots}
-              </div>
-              <div className="mb-2">
-                Starting FAAB: ${league.settings.faabBudget}
+              <div className="text-muted small mt-2">
+                See Playoffs tab for detailed rosters, scoring, and auction results
               </div>
             </div>
           </div>
+        )}
 
-          {!isLeagueAtCapacity() && (
-            <div className="row mb-4">
-              <div className="col-12">
-                <div className="card bg-light">
-                  <div className="card-body text-center py-4">
-                    <h4>Your league isn't full!</h4>
-                    <p className="mb-4">
-                      {league.settings.teamsLimit -
-                        Object.keys(teams).length}{" "}
-                      spots remaining - Get your friends in on the action and
-                      build your Fantasy TFT community!
-                    </p>
-                    {league.commissioner === user.uid ? (
-                      <button
-                        className="btn btn-primary btn-lg px-4"
-                        onClick={() => setShowInviteDialog(true)}
-                      >
-                        Invite Players
-                      </button>
-                    ) : (
-                      <p className="text-muted">
-                        Contact the commissioner to get an invite link for your
-                        friends
-                      </p>
-                    )}
-                  </div>
+        {/* Only show league settings if playoffs haven't started */}
+        {!playoffAuctionStarted && (
+          <div className="mb-4">
+            <h3 className="h5 mb-0">League Settings</h3>
+            <div className="row">
+              <div className="col-md-3 col-6">
+                <div className="mb-2">
+                  Current Cup:{" "}
+                  {league.settings.currentCup === 0
+                    ? "Preseason"
+                    : league.settings.currentCup}
+                </div>
+                <div className="mb-2">
+                  Teams: {Object.keys(teams).length}/
+                  {league.settings.teamsLimit}
+                </div>
+              </div>
+              <div className="col-md-3 col-6">
+                <div className="mb-2">
+                  Captain Slots: {league.settings.captainSlots}
+                </div>
+                <div className="mb-2">NA Slots: {league.settings.naSlots}</div>
+              </div>
+              <div className="col-md-3 col-6">
+                <div className="mb-2">
+                  BR/LATAM Slots: {league.settings.brLatamSlots}
+                </div>
+                <div className="mb-2">
+                  Flex Slots: {league.settings.flexSlots}
+                </div>
+              </div>
+              <div className="col-md-3 col-6">
+                <div className="mb-2">
+                  Bench Slots: {league.settings.benchSlots}
+                </div>
+                <div className="mb-2">
+                  Starting FAAB: ${league.settings.faabBudget}
                 </div>
               </div>
             </div>
-          )}
 
-          <h3 className="h5 mb-3">Standings</h3>
-          <div className="table-responsive">
-            <table className="table table-hover">
-              <thead className="table-light">
-                <tr>
-                  <th className="text-center" style={{ width: '60px' }}>Rank</th>
-                  <th>Team</th>
-                  {league.settings.currentCup >= 1 && (
-                    <th className="text-center">Cup 1</th>
-                  )}
-                  {league.settings.currentCup >= 2 && (
-                    <th className="text-center">Cup 2</th>
-                  )}
-                  {league.settings.currentCup >= 3 && (
-                    <th className="text-center">Cup 3</th>
-                  )}
-                  <th className="text-center">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedTeams.map(({ teamId, team, cupScores }, index) => {
-                  const isExpanded = expandedTeams[teamId];
-                  const contributions = getAllPlayerContributions(team);
-                  const rank = index + 1;
-                  const isLastPlayoffTeam = league.settings.playoffs && 
-                    rank === league.settings.playoffTeams;
+            {!isLeagueAtCapacity() && (
+              <div className="row mb-4">
+                <div className="col-12">
+                  <div className="card bg-light">
+                    <div className="card-body text-center py-4">
+                      <h4>Your league isn't full!</h4>
+                      <p className="mb-4">
+                        {league.settings.teamsLimit -
+                          Object.keys(teams).length}{" "}
+                        spots remaining - Get your friends in on the action and
+                        build your Fantasy TFT community!
+                      </p>
+                      {league.commissioner === user.uid ? (
+                        <button
+                          className="btn btn-primary btn-lg px-4"
+                          onClick={() => setShowInviteDialog(true)}
+                        >
+                          Invite Players
+                        </button>
+                      ) : (
+                        <p className="text-muted">
+                          Contact the commissioner to get an invite link for your
+                          friends
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-                  return (
-                    <React.Fragment key={teamId}>
-                      <tr
-                        className={`${
-                          team.ownerID === user.uid ? "table-primary" : ""
-                        } cursor-pointer`}
-                        onClick={() => toggleTeamExpanded(teamId)}
-                      >
-                        <td className="text-center">
-                          <span 
-                            className={`badge ${getRankStyle(rank)} px-2 py-1`} 
-                            style={{ 
-                              minWidth: '42px',
-                              backgroundColor: rank === 3 ? '#CD7F32' : undefined 
-                            }}
-                          >
-                            {formatRank(rank)}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="d-flex align-items-center gap-2">
-                            {isExpanded ? (
-                              <ChevronUp size={16} />
-                            ) : (
-                              <ChevronDown size={16} />
-                            )}
-                            <div>
-                              <span className="fw-medium">{team.teamName}</span>
-                              <div className="small text-muted">
-                                ${team.faabBudget}
-                              </div>
+        <h3 className="h5 mb-3">Regular Season Standings</h3>
+        <div className="table-responsive">
+          <table className="table table-hover">
+            <thead className="table-light">
+              <tr>
+                <th className="text-center" style={{ width: '60px' }}>Rank</th>
+                <th>Team</th>
+                {league.settings.currentCup >= 1 && (
+                  <th className="text-center">Cup 1</th>
+                )}
+                {league.settings.currentCup >= 2 && (
+                  <th className="text-center">Cup 2</th>
+                )}
+                {league.settings.currentCup >= 3 && (
+                  <th className="text-center">Cup 3</th>
+                )}
+                <th className="text-center">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedTeams.map(({ teamId, team, cupScores }, index) => {
+                const isExpanded = expandedTeams[teamId];
+                const contributions = getAllPlayerContributions(team);
+                const rank = index + 1;
+                const isLastPlayoffTeam = league.settings.playoffs && 
+                  rank === league.settings.playoffTeams;
+
+                return (
+                  <React.Fragment key={teamId}>
+                    <tr
+                      className={`${
+                        team.ownerID === user.uid ? "table-primary" : ""
+                      } cursor-pointer`}
+                      onClick={() => toggleTeamExpanded(teamId)}
+                    >
+                      <td className="text-center">
+                        <span 
+                          className={`badge ${getRankStyle(rank)} px-2 py-1`} 
+                          style={{ 
+                            minWidth: '42px',
+                            backgroundColor: rank === 3 ? '#CD7F32' : undefined 
+                          }}
+                        >
+                          {formatRank(rank)}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="d-flex align-items-center gap-2">
+                          {isExpanded ? (
+                            <ChevronUp size={16} />
+                          ) : (
+                            <ChevronDown size={16} />
+                          )}
+                          <div>
+                            <span className="fw-medium">{team.teamName}</span>
+                            <div className="small text-muted">
+                              ${team.faabBudget}
                             </div>
                           </div>
-                        </td>
-                        {league.settings.currentCup >= 1 && (
-                          <td className="text-center">
-                            {typeof cupScores.cup1 === "number"
-                              ? formatScore(cupScores.cup1)
-                              : "-"}
-                          </td>
-                        )}
-                        {league.settings.currentCup >= 2 && (
-                          <td className="text-center">
-                            {typeof cupScores.cup2 === "number"
-                              ? formatScore(cupScores.cup2)
-                              : "-"}
-                          </td>
-                        )}
-                        {league.settings.currentCup >= 3 && (
-                          <td className="text-center">
-                            {typeof cupScores.cup3 === "number"
-                              ? formatScore(cupScores.cup3)
-                              : "-"}
-                          </td>
-                        )}
-                        <td className="text-center fw-bold">
-                          {typeof cupScores.total === "number"
-                            ? formatScore(cupScores.total)
+                        </div>
+                      </td>
+                      {league.settings.currentCup >= 1 && (
+                        <td className="text-center">
+                          {typeof cupScores.cup1 === "number"
+                            ? formatScore(cupScores.cup1)
                             : "-"}
                         </td>
-                      </tr>
+                      )}
+                      {league.settings.currentCup >= 2 && (
+                        <td className="text-center">
+                          {typeof cupScores.cup2 === "number"
+                            ? formatScore(cupScores.cup2)
+                            : "-"}
+                        </td>
+                      )}
+                      {league.settings.currentCup >= 3 && (
+                        <td className="text-center">
+                          {typeof cupScores.cup3 === "number"
+                            ? formatScore(cupScores.cup3)
+                            : "-"}
+                        </td>
+                      )}
+                      <td className="text-center fw-bold">
+                        {typeof cupScores.total === "number"
+                          ? formatScore(cupScores.total)
+                          : "-"}
+                      </td>
+                    </tr>
 
-                      {isExpanded && (
-                        <tr>
-                          <td></td>
-                          <td colSpan={league.settings.currentCup + 2}>
-                            <div className="bg-light p-3">
-                              <h6 className="mb-3">Player Contributions</h6>
-                              <table className="table table-sm">
-                                <thead>
-                                  <tr>
-                                    <th>Player</th>
-                                    {league.settings.currentCup >= 1 && (
-                                      <th className="text-center">Cup 1</th>
-                                    )}
-                                    {league.settings.currentCup >= 2 && (
-                                      <th className="text-center">Cup 2</th>
-                                    )}
-                                    {league.settings.currentCup >= 3 && (
-                                      <th className="text-center">Cup 3</th>
-                                    )}
-                                    <th className="text-center">Total</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {contributions.map((contribution) => {
-                                    const player =
-                                      players[contribution.playerId];
-                                    if (!player) return null;
+                    {isExpanded && (
+                      <tr>
+                        <td></td>
+                        <td colSpan={league.settings.currentCup + 2}>
+                          <div className="bg-light p-3">
+                            <h6 className="mb-3">Player Contributions</h6>
+                            <table className="table table-sm">
+                              <thead>
+                                <tr>
+                                  <th>Player</th>
+                                  {league.settings.currentCup >= 1 && (
+                                    <th className="text-center">Cup 1</th>
+                                  )}
+                                  {league.settings.currentCup >= 2 && (
+                                    <th className="text-center">Cup 2</th>
+                                  )}
+                                  {league.settings.currentCup >= 3 && (
+                                    <th className="text-center">Cup 3</th>
+                                  )}
+                                  <th className="text-center">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {contributions.map((contribution) => {
+                                  const player =
+                                    players[contribution.playerId];
+                                  if (!player) return null;
 
-                                    return (
-                                      <tr key={contribution.playerId}>
-                                        <td>
-                                          <div className="d-flex align-items-center gap-2">
-                                            <div>
-                                              <span>{player.name}</span>
-                                              <small className="text-muted">
-                                                ({player.region})
-                                              </small>
-                                              {!contribution.isOnTeam &&
-                                                contribution.total > 0 && (
-                                                  <span className="badge bg-danger">
-                                                    Off Roster
-                                                  </span>
-                                                )}
-                                            </div>
+                                  return (
+                                    <tr key={contribution.playerId}>
+                                      <td>
+                                        <div className="d-flex align-items-center gap-2">
+                                          <div>
+                                            <span>{player.name}</span>
+                                            <small className="text-muted">
+                                              ({player.region})
+                                            </small>
+                                            {!contribution.isOnTeam &&
+                                              contribution.total > 0 && (
+                                                <span className="badge bg-danger">
+                                                  Off Roster
+                                                </span>
+                                              )}
                                           </div>
-                                        </td>
-                                        {league.settings.currentCup >= 1 && (
-                                          <td className="text-center">
-                                            {contribution.cup1 > 0
-                                              ? formatScore(contribution.cup1)
-                                              : "-"}
-                                          </td>
-                                        )}
-                                        {league.settings.currentCup >= 2 && (
-                                          <td className="text-center">
-                                            {contribution.cup2 > 0
-                                              ? formatScore(contribution.cup2)
-                                              : "-"}
-                                          </td>
-                                        )}
-                                        {league.settings.currentCup >= 3 && (
-                                          <td className="text-center">
-                                            {contribution.cup3 > 0
-                                              ? formatScore(contribution.cup3)
-                                              : "-"}
-                                          </td>
-                                        )}
-                                        <td className="text-center fw-bold">
-                                          {contribution.total > 0
-                                            ? formatScore(contribution.total)
+                                        </div>
+                                      </td>
+                                      {league.settings.currentCup >= 1 && (
+                                        <td className="text-center">
+                                          {contribution.cup1 > 0
+                                            ? formatScore(contribution.cup1)
                                             : "-"}
                                         </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
+                                      )}
+                                      {league.settings.currentCup >= 2 && (
+                                        <td className="text-center">
+                                          {contribution.cup2 > 0
+                                            ? formatScore(contribution.cup2)
+                                            : "-"}
+                                        </td>
+                                      )}
+                                      {league.settings.currentCup >= 3 && (
+                                        <td className="text-center">
+                                          {contribution.cup3 > 0
+                                            ? formatScore(contribution.cup3)
+                                            : "-"}
+                                        </td>
+                                      )}
+                                      <td className="text-center fw-bold">
+                                        {contribution.total > 0
+                                          ? formatScore(contribution.total)
+                                          : "-"}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
 
-                      {/* Modified separator with text */}
-                      {isLastPlayoffTeam && (
-                        <tr className="playoff-separator">
-                          <td colSpan={league.settings.currentCup + 3} className="p-0">
-                            <div className="d-flex align-items-center gap-2 my-2">
-                              <div className="border-bottom border-2 border-secondary flex-grow-1"></div>
-                              <div className="text-muted small px-2">
-                                Top {league.settings.playoffTeams} teams qualify for playoffs
-                              </div>
-                              <div className="border-bottom border-2 border-secondary flex-grow-1"></div>
+                    {/* Modified separator with text */}
+                    {isLastPlayoffTeam && (
+                      <tr className="playoff-separator">
+                        <td colSpan={league.settings.currentCup + 3} className="p-0">
+                          <div className="d-flex align-items-center gap-2 my-2">
+                            <div className="border-bottom border-2 border-secondary flex-grow-1"></div>
+                            <div className="text-muted small px-2">
+                              Top {league.settings.playoffTeams} teams qualify for playoffs
                             </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            <div className="border-bottom border-2 border-secondary flex-grow-1"></div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 

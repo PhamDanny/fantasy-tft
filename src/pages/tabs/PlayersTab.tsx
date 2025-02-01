@@ -72,8 +72,15 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
     return <div>You don't have a team in this league.</div>;
   }
 
-  if (!league || !league.settings) {
-    return <div>Loading league data...</div>;
+  const playoffsStarted = league.settings.playoffSettings?.playoffAuctionStarted === true;
+
+  if (playoffsStarted) {
+    return (
+      <div className="alert alert-info">
+        Waivers and free agent pickups are locked during playoffs. 
+        You will be able to earn more players in the Playoff Auction.
+      </div>
+    );
   }
 
   const pendingBids = userTeam.pendingBids || [];
@@ -154,7 +161,6 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
         processingOrder: pendingBids.length,
       };
 
-      // Add new bid and sort by amount
       const updatedBids = [...pendingBids, newBid]
         .sort((a, b) => b.amount - a.amount)
         .map((bid, index) => ({ ...bid, processingOrder: index }));
@@ -166,7 +172,6 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
         }
       );
 
-      // Reset form
       setSelectedPlayer(null);
       setBidAmount(0);
       setDropPlayer(null);
@@ -240,7 +245,6 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   };
 
   const addFreeAgent = async (playerId: string, dropPlayerId: string | null) => {
-    // Verify roster space
     const rosterLimit = getTotalRosterLimit(league.settings);
     if (!dropPlayerId && userTeam.roster.length >= rosterLimit) {
       setError("Cannot add player - roster is full");
@@ -266,7 +270,6 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
       }
       newRoster.push(playerId);
 
-      // Create transaction record
       const transaction = {
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
@@ -291,7 +294,6 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
         }
       };
 
-      // Update both the roster and transactions in one batch
       await updateDoc(doc(db, "leagues", leagueId.toString()), {
         transactions: [...league.transactions, transaction]
       });
@@ -300,7 +302,6 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
         roster: newRoster
       });
 
-      // Reset form
       setSelectedPlayer(null);
       setDropPlayer(null);
     } catch (err) {
@@ -309,8 +310,20 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
       setLoading(false);
     }
   };
-  const canManageTeam = userTeam?.ownerID === user.uid || 
-                       userTeam?.coOwners?.includes(user.uid);
+
+  const playoffTeams = league.settings?.playoffs ? 
+    Object.values(teams)
+      .filter(t => t.playoffRoster)
+      .map(team => ({ team }))
+    : [];
+
+  const hasTeam = user && (userTeam || playoffTeams.some(({ team }) => 
+    team.ownerID === user.uid || team.coOwners?.includes(user.uid)
+  ));
+
+  if (!hasTeam) {
+    return <div>You don't have a team in this league.</div>;
+  }
 
   const { paginatedPlayers, totalPlayers, rosteredPlayersMap } = getAvailablePlayers();
 
@@ -320,9 +333,9 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
     const pageItems = [];
     for (let i = 1; i <= pageNumbers; i++) {
       if (
-        i === 1 || // First page
-        i === pageNumbers || // Last page
-        (i >= currentPage - 2 && i <= currentPage + 2) // Pages around current
+        i === 1 ||
+        i === pageNumbers ||
+        (i >= currentPage - 2 && i <= currentPage + 2)
       ) {
         pageItems.push(
           <li key={i} className={`page-item ${currentPage === i ? 'active' : ''}`}>
@@ -586,7 +599,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                                 onClick={() =>
                                   cancelBid(pendingBids.indexOf(existingBid))
                                 }
-                                disabled={loading || !canManageTeam}
+                                disabled={loading || !hasTeam}
                               >
                                 Cancel Bid
                               </button>
@@ -594,7 +607,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                               <button
                                 className="btn btn-sm btn-primary"
                                 onClick={() => setSelectedPlayer(playerId)}
-                                disabled={loading || !canManageTeam || teamName !== "Free Agent"}
+                                disabled={loading || !hasTeam || teamName !== "Free Agent"}
                               >
                                 Place Bid
                               </button>
@@ -602,7 +615,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                               <button
                                 className="btn btn-sm btn-success"
                                 onClick={() => addFreeAgent(playerId, null)}
-                                disabled={loading || !canManageTeam || teamName !== "Free Agent"}
+                                disabled={loading || !hasTeam || teamName !== "Free Agent"}
                               >
                                 Add Player
                               </button>

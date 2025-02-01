@@ -13,6 +13,7 @@ import LeagueSettingsTab from "./tabs/LeagueSettingsTab";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { db } from "../firebase/config";
 import DraftTab from "./tabs/DraftTab";
+import PlayoffsTab from "./tabs/PlayoffsTab";
 
 const TABS = {
   STANDINGS: "Standings",
@@ -20,6 +21,7 @@ const TABS = {
   PLAYERS: "Players",
   TRADE: "Trade",
   DRAFT: "Draft",
+  PLAYOFFS: "Playoffs",
   TRANSACTIONS: "Transaction History",
   SETTINGS: "Edit League Settings",
 } as const;
@@ -58,18 +60,19 @@ export const LeagueView: React.FC = () => {
           });
           setTeams(teamsData);
           
-          // Move userTeam finding here where we know teams are loaded
-          const foundUserTeam = Object.values(teamsData).find(
-            (team) => team.ownerID === authUser.uid || team.coOwners?.includes(authUser.uid)
+          // Find user's team and set it
+          const foundUserTeam = Object.values(teamsData).find(team => 
+            team.ownerID === authUser.uid || team.coOwners?.includes(authUser.uid)
           );
           setUserTeam(foundUserTeam || null);
 
-          // Move player fetching here where we have teams data
-          const playerIds = Array.from(
-            new Set(
-              Object.values(teamsData).flatMap(team => team.roster)
-            )
-          );
+          // Get all player IDs from both regular and playoff rosters
+          const playerIds = Array.from(new Set(
+            Object.values(teamsData).flatMap(team => [
+              ...(team.roster || []),
+              ...(team.playoffRoster || [])
+            ])
+          ));
 
           // Fetch players
           fetchPlayers(playerIds).then((playersData) => {
@@ -94,14 +97,10 @@ export const LeagueView: React.FC = () => {
 
     return () => {
       authUnsubscribe();
-      if (leagueUnsubscribe) {
-        leagueUnsubscribe();
-      }
-      if (teamsUnsubscribe) {
-        teamsUnsubscribe();
-      }
+      if (leagueUnsubscribe) leagueUnsubscribe();
+      if (teamsUnsubscribe) teamsUnsubscribe();
     };
-  }, [numericLeagueId]);
+  }, [numericLeagueId, activeTab]);
 
   if (loading) return <div className="p-4">Loading...</div>;
   if (error) return <div className="p-4 text-danger">Error: {error}</div>;
@@ -206,6 +205,14 @@ export const LeagueView: React.FC = () => {
               <DraftTab 
                 league={league} 
                 players={players}
+                teams={teams}
+              />
+            )}
+            {activeTab === TABS.PLAYOFFS && (
+              <PlayoffsTab
+                league={league}
+                players={players}
+                user={user}
                 teams={teams}
               />
             )}

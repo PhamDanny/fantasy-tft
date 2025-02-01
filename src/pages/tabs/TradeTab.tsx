@@ -41,6 +41,11 @@ const TradeTab: React.FC<TradeTabProps> = ({
     return <div>You don't have a team in this league.</div>;
   }
 
+  // Simple list of other teams
+  const otherTeams = Object.values(teams).filter(
+    team => team.teamId !== userTeam.teamId
+  );
+
   const trades = league.trades || {};
   const transactions = league.transactions || [];
 
@@ -66,12 +71,6 @@ const TradeTab: React.FC<TradeTabProps> = ({
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       )
       .slice(0, 5); // Show last 5 trades
-  };
-
-  const getOtherTeams = () => {
-    return Object.values(teams).filter(
-      (team) => team.teamId !== userTeam?.teamId
-    );
   };
 
   const renderPlayerNames = (playerIds: string[]) => {
@@ -294,13 +293,16 @@ const TradeTab: React.FC<TradeTabProps> = ({
     }
   };
 
-  const canManageTeam = userTeam?.ownerID === user.uid || 
-                       userTeam?.coOwners?.includes(user.uid);
+  const handleTeamSelect = (teamId: string) => {
+    setSelectedTeam(teams[teamId]);
+    setSelectedProposerPlayers([]);
+    setSelectedReceiverPlayers([]);
+  };
 
   return (
     <div className="row">
       {/* Only show trade proposal section if user can manage team */}
-      {canManageTeam && (
+      {(userTeam.ownerID === user.uid || userTeam.coOwners?.includes(user.uid)) && (
         <div className="col-md-7">
           <div className="card">
             <div className="card-header">
@@ -314,17 +316,10 @@ const TradeTab: React.FC<TradeTabProps> = ({
                 <select
                   className="form-select"
                   value={selectedTeam?.teamId || ""}
-                  onChange={(e) => {
-                    const team = getOtherTeams().find(
-                      (t) => t.teamId === e.target.value
-                    );
-                    setSelectedTeam(team || null);
-                    setSelectedProposerPlayers([]);
-                    setSelectedReceiverPlayers([]);
-                  }}
+                  onChange={(e) => handleTeamSelect(e.target.value)}
                 >
                   <option value="">Select a team...</option>
-                  {getOtherTeams().map((team) => (
+                  {otherTeams.map((team) => (
                     <option key={team.teamId} value={team.teamId}>
                       {team.teamName}
                     </option>
@@ -475,14 +470,14 @@ const TradeTab: React.FC<TradeTabProps> = ({
                             <button
                               className="btn btn-sm btn-success"
                               onClick={() => respondToTrade(tradeId, true)}
-                              disabled={loading || !canManageTeam}
+                              disabled={loading || !userTeam.ownerID}
                             >
                               Accept
                             </button>
                             <button
                               className="btn btn-sm btn-danger"
                               onClick={() => respondToTrade(tradeId, false)}
-                              disabled={loading || !canManageTeam}
+                              disabled={loading || !userTeam.ownerID}
                             >
                               Reject
                             </button>
@@ -491,7 +486,7 @@ const TradeTab: React.FC<TradeTabProps> = ({
                           <button
                             className="btn btn-sm btn-danger"
                             onClick={() => cancelTrade(tradeId)}
-                            disabled={loading || !canManageTeam}
+                            disabled={loading || !userTeam.ownerID}
                           >
                             Cancel Trade
                           </button>

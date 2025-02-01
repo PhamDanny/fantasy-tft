@@ -11,6 +11,10 @@ export interface Player {
   name: string;
   region: string;
   scores: PlayerScores;
+  regionals?: {
+    qualified: boolean;
+    placement: number;
+  };
 }
 
 export interface RosterSlots {
@@ -58,6 +62,10 @@ export interface Team {
   };
   faabBudget: number;
   pendingBids: PendingBid[];  // Changed from Record to Array to maintain order
+  playoffRoster?: string[];
+  playoffLineup?: PlayoffLineup;
+  playoffDollars?: number;
+  playoffBids?: Record<string, number>;  // Map of player ID to bid amount
 }
 
 export interface LeagueSettings extends RosterSlots {
@@ -67,6 +75,7 @@ export interface LeagueSettings extends RosterSlots {
   playoffs: boolean;   // Whether playoffs are enabled
   playoffTeams: number; // Number of teams that make playoffs
   waiversEnabled: boolean;  // When false, players can be added instantly as free agents
+  playoffSettings?: PlayoffSettings;
 }
 
 export interface TradeOffer {
@@ -177,3 +186,47 @@ export interface Draft {
   picks: DraftPick[];
   invites?: Record<string, LeagueInvite>;
 }
+
+// Add playoff-specific types
+export interface PlayoffNomination {
+  playerId: string;
+  nominator: string;
+  currentBid: {
+    teamId: string;
+    amount: number;
+    timestamp: string;
+  } | null;
+  passedTeams: string[];
+  status: 'bidding' | 'completed';
+}
+
+export interface AuctionLogEntry {
+  timestamp: string;
+  teamId: string;
+  playerId: string;
+  amount: number;
+}
+
+export interface PlayoffSettings {
+  captainSlots: number;
+  naSlots: number;
+  brLatamSlots: number;
+  flexSlots: number;
+  playoffAuctionStarted?: boolean;
+  currentNomination?: PlayoffNomination;
+  currentNominator?: string;
+  nominationOrder?: string[];
+  auctionLog?: AuctionLogEntry[];
+}
+
+export interface PlayoffLineup extends TeamLineup {
+  locked: boolean;
+}
+
+// Add playoff scoring constant
+export const PLAYOFF_SCORES: Record<number, number> = {
+  1: 40, 2: 37, 3: 35, 4: 33, 5: 32, 6: 31, 7: 30, 8: 29,
+  9: 26, 10: 25, 11: 24, 12: 23, 13: 22, 14: 21, 15: 20, 16: 19,
+  17: 18, 18: 17, 19: 16, 20: 15, 21: 14, 22: 13, 23: 12, 24: 11,
+  25: 8, 26: 7, 27: 6, 28: 5, 29: 4, 30: 3, 31: 2, 32: 1
+};

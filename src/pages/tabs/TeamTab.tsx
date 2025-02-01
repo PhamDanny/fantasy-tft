@@ -33,7 +33,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
   user,
 }) => {
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-  const [selectedTeamId, setSelectedTeamId] = useState<string>(userTeam?.teamId || "");
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [selectedCup, setSelectedCup] = useState<number>(() => {
     const currentCup = league.settings?.currentCup ?? 0;
     const maxCups = TWO_CUP_SETS.includes(league.season as TwoCupSet) ? 2 : 3;
@@ -41,26 +41,21 @@ const TeamTab: React.FC<TeamTabProps> = ({
   });
   const [showCoOwnerDialog, setShowCoOwnerDialog] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-
-  // Define selectedTeam from selectedTeamId
-  const selectedTeam = selectedTeamId ? teams[selectedTeamId] : userTeam;
-  const canEdit = selectedTeam?.ownerID === userTeam?.ownerID || 
-                 selectedTeam?.coOwners?.includes(user.uid);
 
   if (!userTeam) {
     return <div>You don't have a team in this league.</div>;
   }
 
-  if (!selectedTeam) {
-    return <div>Team not found.</div>;
-  }
+  // Get the currently selected team
+  const selectedTeam = teams[selectedTeamId] || userTeam;
 
-  // Add error display here
-  if (error) {
-    return <div className="alert alert-danger">{error}</div>;
-  }
+  // Simple ownership check - it's the same team whether regular season or playoffs
+  const canEdit = selectedTeam?.ownerID === user?.uid || 
+                 selectedTeam?.coOwners?.includes(user?.uid);
+
+  // Simple check if team is in playoffs
+  const isInPlayoffs = league.settings?.playoffs && selectedTeam.playoffRoster;
 
   // Initialize cupLineups if it doesn't exist
   if (!selectedTeam.cupLineups) {
@@ -93,7 +88,22 @@ const TeamTab: React.FC<TeamTabProps> = ({
     };
   };
 
-  const lineup = getCupLineup(selectedCup);
+  const getLineup = (cupNumber: number): CupLineup => {
+    if (cupNumber === 0) {  // Regionals
+      const playoffLineup = selectedTeam.playoffLineup || {
+        captains: Array(league.settings.playoffSettings?.captainSlots || 1).fill(null),
+        naSlots: Array(league.settings.playoffSettings?.naSlots || 1).fill(null),
+        brLatamSlots: Array(league.settings.playoffSettings?.brLatamSlots || 1).fill(null),
+        flexSlots: Array(league.settings.playoffSettings?.flexSlots || 3).fill(null),
+        bench: [],
+        locked: false
+      };
+      return playoffLineup;
+    }
+    return getCupLineup(cupNumber);
+  };
+
+  const lineup = getLineup(selectedCup);
   const isLineupLocked = lineup.locked;
 
   // Calculate bench as players not in starting lineup
@@ -106,6 +116,14 @@ const TeamTab: React.FC<TeamTabProps> = ({
         ...lineup.flexSlots,
       ].filter(Boolean)
     );
+
+    if (selectedCup === 0) {  // Regionals
+      // Get all players from playoff roster - both retained and acquired
+      const allPlayoffPlayers = selectedTeam.playoffRoster || [];
+      return allPlayoffPlayers.filter(
+        (playerId) => !startingPlayers.has(playerId)
+      );
+    }
 
     return selectedTeam.roster.filter(
       (playerId) => !startingPlayers.has(playerId)
@@ -156,6 +174,8 @@ const TeamTab: React.FC<TeamTabProps> = ({
     currentPlayer: string | null,
     slotIndex: number
   ) => {
+    if (!selectedTeam) return;  // Add early return if no selected team
+    
     if (isLineupLocked || !canEdit) return;
 
     // If clicking the same player that's selected, deselect it
@@ -237,13 +257,22 @@ const TeamTab: React.FC<TeamTabProps> = ({
       }
 
       // Update the lineup in Firebase
-      const cupKey = `cup${selectedCup}` as keyof typeof userTeam.cupLineups;
-      await updateDoc(
-        doc(db, "leagues", leagueId.toString(), "teams", userTeam.teamId),
-        {
-          [`cupLineups.${cupKey}`]: newLineup,
-        }
-      );
+      if (selectedCup === 0) {  // Regionals
+        await updateDoc(
+          doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
+          {
+            playoffLineup: newLineup,
+          }
+        );
+      } else {
+        const cupKey = `cup${selectedCup}` as keyof typeof selectedTeam.cupLineups;
+        await updateDoc(
+          doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
+          {
+            [`cupLineups.${cupKey}`]: newLineup,
+          }
+        );
+      }
 
       setSelectedPlayer(null);
     } catch (error) {
@@ -332,7 +361,6 @@ const TeamTab: React.FC<TeamTabProps> = ({
     }
 
     setLoading(true);
-    setError(null);
 
     try {
       const teamRef = doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId);
@@ -369,7 +397,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
         roster: newRoster
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to drop player");
+      console.error(err instanceof Error ? err.message : "Failed to drop player");
     } finally {
       setLoading(false);
     }
@@ -510,7 +538,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
               {Object.values(teams).map((team) => (
                 <option key={team.teamId} value={team.teamId}>
                   {team.teamName}{" "}
-                  {team.ownerID === userTeam.ownerID ? "(Your Team)" : ""}
+                  {selectedTeam?.ownerID === team.ownerID ? "(Your Team)" : ""}
                 </option>
               ))}
             </select>
@@ -537,9 +565,19 @@ const TeamTab: React.FC<TeamTabProps> = ({
                   Cup {cupNumber}
                 </button>
               ))}
+              {league.settings.playoffs && (
+                <button
+                  className={`btn btn-${selectedCup === 0 ? "primary" : "outline-primary"}`}
+                  onClick={() => setSelectedCup(0)}
+                  disabled={!isInPlayoffs}  // Now based on selected team's playoff status
+                  title={!isInPlayoffs ? "This team did not qualify for playoffs" : ""}
+                >
+                  Regionals
+                </button>
+              )}
             </div>
             
-            {userTeam?.ownerID === user?.uid && (
+            {selectedTeam?.ownerID === user?.uid && (
               <button
                 className="btn btn-outline-primary"
                 onClick={() => setShowCoOwnerDialog(true)}
@@ -557,41 +595,45 @@ const TeamTab: React.FC<TeamTabProps> = ({
                   <h4 className="card-title mb-0">Cup {selectedCup} Lineup</h4>
                 </div>
                 <div className="card-body">
-                  <div className="mb-4">
-                    <label className="form-label">Captain (1.5x Points)</label>
-                    {lineup.captains.map((playerId, index) => (
-                      <div key={index} className="mb-2">
-                        {renderSlot("captain", playerId, index, isLineupLocked)}
+                  {selectedCup !== 0 || isInPlayoffs ? (
+                    <>
+                      <div className="mb-4">
+                        <label className="form-label">Captain (1.5x Points)</label>
+                        {lineup.captains.map((playerId, index) => (
+                          <div key={index} className="mb-2">
+                            {renderSlot("captain", playerId, index, isLineupLocked)}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
 
-                  <div className="mb-4">
-                    <label className="form-label">NA</label>
-                    {lineup.naSlots.map((playerId, index) => (
-                      <div key={index} className="mb-2">
-                        {renderSlot("na", playerId, index, isLineupLocked)}
+                      <div className="mb-4">
+                        <label className="form-label">NA</label>
+                        {lineup.naSlots.map((playerId, index) => (
+                          <div key={index} className="mb-2">
+                            {renderSlot("na", playerId, index, isLineupLocked)}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
 
-                  <div className="mb-4">
-                    <label className="form-label">BR/LATAM</label>
-                    {lineup.brLatamSlots.map((playerId, index) => (
-                      <div key={index} className="mb-2">
-                        {renderSlot("brLatam", playerId, index, isLineupLocked)}
+                      <div className="mb-4">
+                        <label className="form-label">BR/LATAM</label>
+                        {lineup.brLatamSlots.map((playerId, index) => (
+                          <div key={index} className="mb-2">
+                            {renderSlot("brLatam", playerId, index, isLineupLocked)}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
 
-                  <div className="mb-4">
-                    <label className="form-label">Flex</label>
-                    {lineup.flexSlots.map((playerId, index) => (
-                      <div key={index} className="mb-2">
-                        {renderSlot("flex", playerId, index, isLineupLocked)}
+                      <div className="mb-4">
+                        <label className="form-label">Flex</label>
+                        {lineup.flexSlots.map((playerId, index) => (
+                          <div key={index} className="mb-2">
+                            {renderSlot("flex", playerId, index, isLineupLocked)}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -629,14 +671,14 @@ const TeamTab: React.FC<TeamTabProps> = ({
 
                             // Update Firebase
                             const cupKey =
-                              `cup${selectedCup}` as keyof typeof userTeam.cupLineups;
+                              `cup${selectedCup}` as keyof typeof selectedTeam.cupLineups;
                             updateDoc(
                               doc(
                                 db,
                                 "leagues",
                                 leagueId.toString(),
                                 "teams",
-                                userTeam.teamId
+                                selectedTeam.teamId
                               ),
                               {
                                 [`cupLineups.${cupKey}`]: newLineup,
@@ -742,6 +784,12 @@ const TeamTab: React.FC<TeamTabProps> = ({
         >
           Leave League
         </button>
+      )}
+
+      {selectedCup === 0 && !isInPlayoffs && (
+        <div className="alert alert-warning mt-3">
+          This team did not qualify for playoffs.
+        </div>
       )}
     </div>
   );

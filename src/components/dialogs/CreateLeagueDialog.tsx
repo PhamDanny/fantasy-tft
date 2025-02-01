@@ -17,11 +17,13 @@ const generateEmptyLineup = (settings: LeagueSettings): CupLineup => {
 };
 
 // Add a type for slot settings
-type SlotSetting = 'captainSlots' | 'naSlots' | 'brLatamSlots' | 'flexSlots';
+type SlotSetting = "captainSlots" | "naSlots" | "brLatamSlots" | "flexSlots";
 
 // Helper function to check if a setting is a slot setting
 const isSlotSetting = (setting: string): setting is SlotSetting => {
-  return ['captainSlots', 'naSlots', 'brLatamSlots', 'flexSlots'].includes(setting);
+  return ["captainSlots", "naSlots", "brLatamSlots", "flexSlots"].includes(
+    setting
+  );
 };
 
 const CreateLeagueDialog = ({
@@ -55,7 +57,7 @@ const CreateLeagueDialog = ({
     const { name, value } = e.target;
     if (name.startsWith("settings.")) {
       const settingName = name.split(".")[1] as keyof typeof formState.settings;
-      
+
       // Handle numeric slot settings
       if (isSlotSetting(settingName)) {
         const currentValue = formState.settings[settingName];
@@ -71,7 +73,7 @@ const CreateLeagueDialog = ({
             [settingName]: validatedValue,
           },
         }));
-      } 
+      }
       // Handle boolean settings
       else if (settingName === "playoffs") {
         setFormState((prev) => ({
@@ -106,7 +108,7 @@ const CreateLeagueDialog = ({
 
     try {
       // Validate total slots
-      const totalStartingSlots = 
+      const totalStartingSlots =
         formState.settings.captainSlots +
         formState.settings.naSlots +
         formState.settings.brLatamSlots +
@@ -144,7 +146,7 @@ const CreateLeagueDialog = ({
         currentCup: formState.settings.currentCup,
         playoffs: formState.settings.playoffs,
         playoffTeams: formState.settings.playoffTeams,
-        waiversEnabled: true
+        waiversEnabled: true,
       };
 
       const commissionerTeam = {
@@ -218,13 +220,13 @@ const CreateLeagueDialog = ({
     field: SlotSetting
   ): number => {
     const newValue = parseInt(value) || 0;
-    const otherSlots = 
+    const otherSlots =
       formState.settings.captainSlots +
       formState.settings.naSlots +
       formState.settings.brLatamSlots +
       formState.settings.flexSlots -
       formState.settings[field];
-    
+
     if (otherSlots + newValue > 20) {
       return currentValue;
     }
@@ -259,11 +261,16 @@ const CreateLeagueDialog = ({
 
                 <div className="alert alert-info">
                   <i className="bi bi-info-circle me-2"></i>
-                  This is for creating a league from scratch, you will need to manually import rosters. Want to draft rosters with your league members? Consider{" "}
-                  <Link to="/drafts" className="alert-link" onClick={() => setShow(false)}>
+                  When creating a league from scratch, you will need to manually
+                  import rosters. Want to draft rosters instead? Consider{" "}
+                  <Link
+                    to="/drafts"
+                    className="alert-link"
+                    onClick={() => setShow(false)}
+                  >
                     creating a draft
                   </Link>{" "}
-                  instead. You can convert it to a league after the draft is complete.
+                  . You can convert it to a league after the draft is complete.
                 </div>
 
                 <div className="mb-3">
@@ -303,7 +310,7 @@ const CreateLeagueDialog = ({
                       }))
                     }
                   >
-                    <option value="Set 13">Set 13</option>
+                    <option value="Set 13">Set 13: Into the Arcane</option>
                     <option value="Set 14">Set 14</option>
                     <option value="Set 15">Set 15</option>
                     <option value="Set 16">Set 16</option>
