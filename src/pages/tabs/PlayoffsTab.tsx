@@ -26,7 +26,7 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
 
   const isCommissioner = league.commissioner === user.uid;
 
-  const POINTS_PER_PLAYOFF_DOLLAR = 15;
+  const POINTS_PER_PLAYOFF_DOLLAR = 10;
 
   // Update how we check for regionals started - only check qualified status
   const regionalsStarted = Object.values(players).filter(p => 
