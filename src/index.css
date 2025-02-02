@@ -1,0 +1,45 @@
+@media (max-width: 768px) {
+  .table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table th,
+  .table td {
+    white-space: nowrap;
+  }
+
+  /* Make cards full width on mobile */
+  .card {
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+    border-radius: 0;
+  }
+
+  /* Adjust form layouts */
+  .row {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  /* Stack buttons vertically on mobile */
+  .btn-group {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn-group>.btn {
+    border-radius: 0.25rem !important;
+    margin-bottom: 0.25rem;
+  }
+}
+
+/* Add padding to bottom of mobile pages to account for navigation */
+@media (max-width: 768px) {
+  main {
+    padding-bottom: 4rem;
+  }
+}

@@ -131,8 +131,25 @@ export const LeagueView: React.FC = () => {
         </div>
 
         <div className="card-body p-0">
-          {/* Tabs */}
-          <ul className="nav nav-tabs">
+          {/* Mobile Tabs Dropdown */}
+          <div className="d-md-none p-2">
+            <select 
+              className="form-select"
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as TabType)}
+            >
+              {Object.values(TABS).map((tab) => (
+                <option key={tab} value={tab}>
+                  {tab}
+                  {tab === TABS.PLAYERS && pendingWaivers > 0 && ` (${pendingWaivers})`}
+                  {tab === TABS.TRADE && pendingTrades > 0 && ` (${pendingTrades})`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Desktop Tabs */}
+          <ul className="nav nav-tabs d-none d-md-flex">
             {Object.values(TABS).map((tab) => (
               <li className="nav-item" key={tab}>
                 <button
@@ -156,7 +173,7 @@ export const LeagueView: React.FC = () => {
           </ul>
 
           {/* Tab Content */}
-          <div className="p-4">
+          <div className="p-2 p-md-4">
             {activeTab === TABS.STANDINGS && (
               <StandingsTab league={league} players={players} user={user} teams={teams} />
             )}

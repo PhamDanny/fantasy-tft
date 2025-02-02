@@ -387,112 +387,57 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   return (
     <>
       <div className="row">
-        <div className="col-md-8">
+        <div className="col-12 col-lg-8">
           <div className="card">
-            <div className="card-header">
+            <div className="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
               <h4 className="h5 mb-0">Available Players</h4>
-            </div>
-            <div className="card-body">
-              <div className="alert alert-info mb-3">
-                {error && <div className="alert alert-danger mb-2">{error}</div>}
-                {league.settings.waiversEnabled ? (
-                  <>
-                    <strong>Waivers are enabled</strong>
-                    <p className="mb-2">
-                      Players must be claimed through the waiver system.
-                      {!isCommissioner && ' Ask your commissioner when waivers will be processed.'}
-                    </p>
-                    <div className="d-flex gap-2 align-items-center">
-                      <button 
-                        className="btn btn-sm btn-outline-primary"
-                        onClick={() => setShowWaiverHelpDialog(true)}
-                      >
-                        Learn More
-                      </button>
-                      {isCommissioner && (
-                        <button 
-                          className="btn btn-sm btn-warning"
-                          onClick={async () => {
-                            if (!window.confirm('Are you sure you want to process waivers? This will resolve all pending claims.')) {
-                              return;
-                            }
-                            setLoading(true);
-                            try {
-                              await processWaivers(leagueId.toString());
-                            } catch (err) {
-                              setError(err instanceof Error ? err.message : "Failed to process waivers");
-                            } finally {
-                              setLoading(false);
-                            }
-                          }}
-                          disabled={loading}
-                        >
-                          Process Waivers
-                        </button>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <strong>Free Agency is active - players can be added instantly</strong>
-                )}
-              </div>
-
-              {isCommissioner && (
-                <div className="mb-3 d-flex align-items-center gap-3">
-                  <div className="form-check form-switch">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="waiversEnabled"
-                      checked={league.settings.waiversEnabled}
-                      onChange={async (e) => {
-                        setLoading(true);
-                        try {
-                          await updateDoc(doc(db, "leagues", leagueId.toString()), {
-                            "settings.waiversEnabled": e.target.checked
-                          });
-                        } catch (err) {
-                          setError(err instanceof Error ? err.message : "Failed to update waiver settings");
-                        } finally {
-                          setLoading(false);
-                        }
-                      }}
-                      disabled={loading}
-                    />
-                    <label className="form-check-label" htmlFor="waiversEnabled">
-                      Enable Waivers
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              <div className="mb-3 d-flex gap-3 align-items-center">
-                <div className="form-check">
-                  <input
-                    type="checkbox"
-                    className="form-check-input"
-                    id="hideRostered"
-                    checked={hideRostered}
-                    onChange={(e) => setHideRostered(e.target.checked)}
-                  />
-                  <label className="form-check-label" htmlFor="hideRostered">
-                    Hide players on rosters
-                  </label>
-                </div>
+              <div className="d-flex gap-2">
                 <input
                   type="text"
-                  className="form-control"
+                  className="form-control form-control-sm"
                   placeholder="Search players..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
+                <div className="form-check form-switch">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    checked={hideRostered}
+                    onChange={(e) => setHideRostered(e.target.checked)}
+                    id="hideRosteredSwitch"
+                  />
+                  <label className="form-check-label" htmlFor="hideRosteredSwitch">
+                    Hide Rostered
+                  </label>
+                </div>
               </div>
+            </div>
 
+            {/* Add the info box here */}
+            <div className="alert alert-info m-3 mb-0">
+              {league.settings.waiversEnabled ? (
+                <>
+                  Waivers are enabled. Players must be claimed through the waiver system.
+                  <button
+                    className="btn btn-link btn-sm p-0 ms-2"
+                    onClick={() => setShowWaiverHelpDialog(true)}
+                  >
+                    Learn More
+                  </button>
+                </>
+              ) : (
+                "Free Agency is active. Players can be added instantly."
+              )}
+            </div>
+
+            {/* Desktop View */}
+            <div className="d-none d-md-block">
               <div className="table-responsive">
                 <table className="table table-hover">
                   <thead>
                     <tr>
-                      <th>Player</th>
+                      <th className="ps-3">Player</th>
                       <th>Region</th>
                       <th>Team</th>
                       <th
@@ -576,7 +521,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
 
                       return (
                         <tr key={playerId}>
-                          <td>{player.name}</td>
+                          <td className="ps-3">{player.name}</td>
                           <td>{player.region}</td>
                           <td>{teamName}</td>
                           <td className="text-center">
@@ -629,20 +574,142 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                 <Pagination totalPlayers={totalPlayers} />
               </div>
             </div>
+
+            {/* Mobile View */}
+            <div className="d-md-none">
+              <div className="list-group list-group-flush">
+                {getAvailablePlayers().paginatedPlayers.map(([playerId, player]) => (
+                  <div key={playerId} className="list-group-item px-3">
+                    <div className="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <h6 className="mb-0">{player.name}</h6>
+                        <small className="text-muted">{player.region}</small>
+                      </div>
+                      {getAvailablePlayers().rosteredPlayersMap.has(playerId) ? (
+                        <span className="badge bg-secondary">
+                          {getAvailablePlayers().rosteredPlayersMap.get(playerId)}
+                        </span>
+                      ) : (
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() => {
+                            setSelectedPlayer(playerId);
+                            setBidAmount(0);
+                            setDropPlayer(null);
+                          }}
+                          disabled={loading}
+                        >
+                          {league.settings.waiversEnabled ? 'Claim' : 'Add'}
+                        </button>
+                      )}
+                    </div>
+                    <div className="d-flex justify-content-between small">
+                      <div>
+                        <span className="me-2">Cup 1: {player.scores.cup1}</span>
+                        <span className="me-2">Cup 2: {player.scores.cup2}</span>
+                        <span>Cup 3: {player.scores.cup3}</span>
+                      </div>
+                      <div>
+                        Total: {player.scores.cup1 + player.scores.cup2 + player.scores.cup3}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pagination */}
+            <div className="card-footer d-flex justify-content-between align-items-center">
+              <div className="small text-muted">
+                Showing {getAvailablePlayers().paginatedPlayers.length} of {getAvailablePlayers().totalPlayers} players
+              </div>
+              <div className="btn-group">
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </button>
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={
+                    currentPage * playersPerPage >= getAvailablePlayers().totalPlayers
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="col-md-4">
+        <div className="col-12 col-lg-4 mt-3 mt-lg-0">
+          {/* FAAB Budget Card */}
           <div className="card mb-4">
             <div className="card-header">
               <h4 className="h5 mb-0">FAAB Budget</h4>
             </div>
             <div className="card-body">
-              <p className="mb-2">
+              <p className="mb-0">
                 <strong>Remaining Budget:</strong> ${faabBudget}
               </p>
             </div>
           </div>
+
+          {/* Add new Commissioner Controls card */}
+          {league.commissioner === user.uid && (
+            <div className="card mb-4">
+              <div className="card-header">
+                <h4 className="h5 mb-0">Commissioner Waiver Controls</h4>
+              </div>
+              <div className="card-body">
+                <div className="d-grid gap-2">
+                  <button
+                    className="btn btn-outline-primary"
+                    onClick={async () => {
+                      try {
+                        setLoading(true);
+                        await updateDoc(doc(db, "leagues", leagueId.toString()), {
+                          "settings.waiversEnabled": !league.settings.waiversEnabled,
+                        });
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Failed to update waiver settings");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    disabled={loading}
+                  >
+                    {league.settings.waiversEnabled ? "Switch to Free Agency" : "Enable Waivers"}
+                  </button>
+
+                  {league.settings.waiversEnabled && (
+                    <button
+                      className="btn btn-warning"
+                      onClick={async () => {
+                        if (!window.confirm("Are you sure you want to process all pending waiver claims?")) {
+                          return;
+                        }
+                        try {
+                          setLoading(true);
+                          await processWaivers(leagueId);
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : "Failed to process waivers");
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      disabled={loading}
+                    >
+                      Process Waivers
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="card mb-4">
             <div className="card-header">
@@ -788,6 +855,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
           )}
         </div>
       </div>
+      
       <WaiverHelpDialog 
         show={showWaiverHelpDialog} 
         onClose={() => setShowWaiverHelpDialog(false)} 

@@ -233,7 +233,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
 
   return (
     <div className="row">
-      <div className="col-md-8">
+      <div className="col-12 col-lg-8">
         {/* Add Playoff Championship section at the top */}
         {isAuctionComplete && (
           <div className="card mb-4">
@@ -579,7 +579,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
         </div>
       </div>
 
-      <div className="col-md-4">
+      <div className="col-12 col-lg-4 mt-3 mt-lg-0">
         <LeagueChat
           league={league}
           userId={user.uid}
