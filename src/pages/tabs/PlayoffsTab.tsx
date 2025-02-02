@@ -67,7 +67,8 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
 
   // Get playoff teams - simple filter for teams with playoff rosters
   const playoffTeams = Object.values(teams)
-    .filter(team => team.playoffRoster)
+    .sort((a, b) => calculateTeamTotal(b) - calculateTeamTotal(a))  // Sort by total points
+    .slice(0, league.settings.playoffTeams || 8)  // Take top N teams
     .map(team => ({
       team,
       playoffDollars: Math.floor(calculateTeamTotal(team) / POINTS_PER_PLAYOFF_DOLLAR)
@@ -203,6 +204,20 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
     if (rank === 2) return '2nd';
     if (rank === 3) return '3rd';
     return `${rank}th`;
+  };
+
+  // Add this helper function near the other helpers
+  const getAvailableRegionalsPlayers = () => {
+    // Get all qualified players
+    const qualifiedPlayers = Object.values(players).filter(p => p.regionals?.qualified === true);
+    
+    // Get all retained players from playoff teams
+    const retainedPlayerIds = new Set(
+      playoffTeams.flatMap(({ team }) => getRetainedPlayers(team))
+    );
+    
+    // Return qualified players not retained by playoff teams
+    return qualifiedPlayers.filter(player => !retainedPlayerIds.has(player.id));
   };
 
   return (
@@ -356,10 +371,6 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
               <div className="alert alert-info">
                 Playoffs are not enabled for this league. The commissioner can enable them in the settings tab.
               </div>
-            ) : !regionalsStarted ? (
-              <div className="alert alert-info">
-                Playoff information will be available once regionals players have been finalized.
-              </div>
             ) : (
               <>
                 {!regionalsStarted ? (
@@ -374,7 +385,7 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
 
                 <div className="row">
                   <div className="col-md-5">
-                    <h5 className="mb-3">Current Playoff Teams</h5>
+                    <h5 className="mb-3">{regionalsStarted ? 'Current' : 'Projected'} Playoff Teams</h5>
                     <div className="table-responsive">
                       <table className="table table-sm">
                         <thead>
@@ -416,188 +427,129 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
                   </div>
                 </div>
 
-                <div className="mt-4">
-                  <h5 className="mb-3">{regionalsStarted ? 'Playoff Rosters' : 'Projected Playoff Rosters'}</h5>
-                  {regionalsStarted && (
-                    <>
-                      {isCommissioner && !playoffAuctionStarted && (
-                        <div className="alert alert-primary d-flex justify-content-between align-items-center mb-4">
-                          <span>Ready to start the playoff auction?</span>
-                          <button 
-                            className="btn btn-primary"
-                            onClick={startPlayoffAuction}
-                          >
-                            Start Playoff Auction
-                          </button>
+                {!regionalsStarted ? (
+                  // Preview Mode
+                  <div className="mt-4">
+                    <h5 className="mb-3">Projected Playoff Rosters</h5>
+                    {playoffTeams.map(({ team }) => (
+                      <div key={team.teamId} className="card mb-3">
+                        <div className="card-header">
+                          <h6 className="mb-0">{team.teamName}</h6>
                         </div>
-                      )}
-
-                      {playoffAuctionStarted && (
-                        <div className="alert alert-success d-flex justify-content-between align-items-center mb-4">
-                          {isAuctionComplete ? (
-                            <>
-                              <span>The playoff auction has ended!</span>
-                              <button 
-                                className="btn btn-primary"
-                                onClick={() => setShowAuction(true)}
-                              >
-                                View Auction Results
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <span>The playoff auction is in progress!</span>
-                              <div>
-                                {isCommissioner && (
-                                  <button 
-                                    className="btn btn-warning me-2"
-                                    onClick={handleRestartAuction}
-                                  >
-                                    Restart Auction
-                                  </button>
-                                )}
-                                {isInPlayoffs && !showAuction && (
-                                  <button 
-                                    className="btn btn-success"
-                                    onClick={() => setShowAuction(true)}
-                                  >
-                                    Join Auction
-                                  </button>
-                                )}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {playoffTeams.map(({ team }) => (
-                    <div key={team.teamId} className="card mb-3">
-                      <div className="card-header">
-                        <h6 className="mb-0">{team.teamName}</h6>
-                      </div>
-                      <div className="card-body">
-                        <h6 className="mb-2">Retained Players</h6>
-                        {getRetainedPlayerObjects(team).length > 0 ? (
-                          <>
+                        <div className="card-body">
+                          {getRetainedPlayerObjects(team).length > 0 ? (
                             <div className="table-responsive">
                               <table className="table table-sm">
                                 <thead>
                                   <tr>
                                     <th>Player</th>
-                                    <th className="text-center">Placement</th>
-                                    <th className="text-end">Points</th>
+                                    <th>Region</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {getRetainedPlayerObjects(team).map(player => (
                                     <tr key={player.id}>
-                                      <td>{player.name} ({player.region})</td>
-                                      <td className="text-center">
-                                        {(() => {
-                                          const placement = getPlayerPlacement(player);
-                                          return placement 
-                                            ? `${placement.placement}${getOrdinalSuffix(placement.placement)}`
-                                            : '-';
-                                        })()}
-                                      </td>
-                                      <td className="text-end">
-                                        {(() => {
-                                          const placement = getPlayerPlacement(player);
-                                          return placement ? placement.points : '-';
-                                        })()}
-                                      </td>
+                                      <td>{player.name}</td>
+                                      <td>{player.region}</td>
                                     </tr>
                                   ))}
-                                  <tr className="table-light fw-bold">
-                                    <td>Total</td>
-                                    <td></td>
-                                    <td className="text-end">
-                                      {getRetainedPlayerObjects(team)
-                                        .reduce((sum, player) => {
-                                          const placement = getPlayerPlacement(player);
-                                          return sum + (placement?.points || 0);
-                                        }, 0)}
-                                    </td>
-                                  </tr>
                                 </tbody>
                               </table>
                             </div>
+                          ) : (
+                            <p className="text-muted">No qualified players yet</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="card mt-4">
+                      <div className="card-header">
+                        <h5 className="mb-0">Projected Auction Pool</h5>
+                      </div>
+                      <div className="card-body">
+                        <div className="table-responsive">
+                          {getAvailableRegionalsPlayers().length > 0 ? (
+                            <table className="table table-sm">
+                              <thead>
+                                <tr>
+                                  <th>Player</th>
+                                  <th>Region</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {getAvailableRegionalsPlayers()
+                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                  .map(player => (
+                                    <tr key={player.id}>
+                                      <td>{player.name}</td>
+                                      <td>{player.region}</td>
+                                    </tr>
+                                  ))}
+                              </tbody>
+                            </table>
+                          ) : (
+                            <p className="text-muted">Regionals players not on a a playoff team will be available in the Playoff Auction.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // Full Playoff Mode - Show existing playoff content
+                  <>
+                    {/* Existing playoff content - standings, auction controls, etc */}
+                    {isCommissioner && !playoffAuctionStarted && (
+                      <div className="alert alert-primary d-flex justify-content-between align-items-center mb-4">
+                        <span>Ready to start the playoff auction?</span>
+                        <button 
+                          className="btn btn-primary"
+                          onClick={startPlayoffAuction}
+                        >
+                          Start Playoff Auction
+                        </button>
+                      </div>
+                    )}
+
+                    {playoffAuctionStarted && (
+                      <div className="alert alert-success d-flex justify-content-between align-items-center mb-4">
+                        {isAuctionComplete ? (
+                          <>
+                            <span>The playoff auction has ended!</span>
+                            <button 
+                              className="btn btn-primary"
+                              onClick={() => setShowAuction(true)}
+                            >
+                              View Auction Results
+                            </button>
                           </>
                         ) : (
-                          <p className="text-muted">No retained players</p>
-                        )}
-
-                        {team.playoffRoster && team.playoffRoster.length > 0 && (
                           <>
-                            <h6 className="mb-2 mt-3">Acquired Players</h6>
-                            <div className="table-responsive">
-                              <table className="table table-sm">
-                                <thead>
-                                  <tr>
-                                    <th>Player</th>
-                                    <th className="text-end">Cost</th>
-                                    <th className="text-center">Placement</th>
-                                    <th className="text-end">Points</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {team.playoffRoster
-                                    .filter(id => !team.roster.includes(id))
-                                    .map(id => {
-                                      const player = players[id];
-                                      if (!player) return null;  // Skip if player not found
-                                      return (
-                                        <tr key={player.id}>
-                                          <td>{player.name} ({player.region})</td>
-                                          <td className="text-end">
-                                            ${team.playoffBids?.[player.id] || 0}
-                                          </td>
-                                          <td className="text-center">
-                                            {(() => {
-                                              const placement = getPlayerPlacement(player);
-                                              return placement 
-                                                ? `${placement.placement}${getOrdinalSuffix(placement.placement)}`
-                                                : '-';
-                                            })()}
-                                          </td>
-                                          <td className="text-end">
-                                            {(() => {
-                                              const placement = getPlayerPlacement(player);
-                                              return placement ? placement.points : '-';
-                                            })()}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  <tr className="table-light fw-bold">
-                                    <td>Total</td>
-                                    <td className="text-end">
-                                      ${team.playoffRoster
-                                        .filter(id => !team.roster.includes(id))
-                                        .reduce((sum, id) => sum + (team.playoffBids?.[id] || 0), 0)}
-                                    </td>
-                                    <td></td>
-                                    <td className="text-end">
-                                      {team.playoffRoster
-                                        .filter(id => !team.roster.includes(id))
-                                        .reduce((sum, id) => {
-                                          const player = players[id];
-                                          const placement = getPlayerPlacement(player);
-                                          return sum + (placement?.points || 0);
-                                        }, 0)}
-                                    </td>
-                                  </tr>
-                                </tbody>
-                              </table>
+                            <span>The playoff auction is in progress!</span>
+                            <div>
+                              {isCommissioner && (
+                                <button 
+                                  className="btn btn-warning me-2"
+                                  onClick={handleRestartAuction}
+                                >
+                                  Restart Auction
+                                </button>
+                              )}
+                              {isInPlayoffs && !showAuction && (
+                                <button 
+                                  className="btn btn-success"
+                                  onClick={() => setShowAuction(true)}
+                                >
+                                  Join Auction
+                                </button>
+                              )}
                             </div>
                           </>
                         )}
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    )}
+                  </>
+                )}
               </>
             )}
           </div>
