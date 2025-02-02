@@ -43,8 +43,6 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   const [playersPerPage] = useState(20);
   const [hideRostered, setHideRostered] = useState(true);
 
-  const isCommissioner = league.commissioner === user.uid;
-
   useEffect(() => {
     const fetchAllPlayers = async () => {
       try {
@@ -386,6 +384,11 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
 
   return (
     <>
+      {error && (
+        <div className="alert alert-danger mb-3">
+          {error}
+        </div>
+      )}
       <div className="row">
         <div className="col-12 col-lg-8">
           <div className="card">
@@ -694,7 +697,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                         }
                         try {
                           setLoading(true);
-                          await processWaivers(leagueId);
+                          await processWaivers(leagueId.toString());
                         } catch (err) {
                           setError(err instanceof Error ? err.message : "Failed to process waivers");
                         } finally {

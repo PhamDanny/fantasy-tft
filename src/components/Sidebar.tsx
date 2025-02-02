@@ -1,3 +1,4 @@
+import './Sidebar.css';
 import { Link, useLocation } from "react-router-dom";
 import { ReactNode, useState } from "react";
 import { Menu, X } from "lucide-react";
@@ -89,13 +90,10 @@ const Sidebar = ({
       <div className="d-none d-md-block" style={{ width: "250px", flexShrink: 0 }} />
       <main className="flex-grow-1">
         <div 
-          className="container-fluid px-3 px-md-4"
+          className="container-fluid px-3 px-md-4 main-content"
           style={{ 
             paddingTop: "3rem",
-            paddingBottom: "1rem",
-            "@media (min-width: 768px)": {
-              paddingTop: "0.5rem"
-            }
+            paddingBottom: "1rem"
           }}
         >
           {children}
