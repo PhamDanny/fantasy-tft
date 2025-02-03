@@ -5,6 +5,7 @@ import { db } from "../../firebase/config";
 import { getTotalRosterLimit } from "../../utils/rosterUtils";
 import WaiverHelpDialog from "../../components/dialogs/WaiverHelpDialog";
 import { processWaivers } from "../../utils/waiverUtils";
+import WaiverClaimDialog from "../../components/dialogs/WaiverClaimDialog";
 
 interface PlayersTabProps {
   league: League;
@@ -30,8 +31,6 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-  const [bidAmount, setBidAmount] = useState<number>(0);
-  const [dropPlayer, setDropPlayer] = useState<string | null>(null);
   const [allPlayers, setAllPlayers] = useState<Record<string, Player>>({});
   const [sortField, setSortField] = useState<
     "total" | "cup1" | "cup2" | "cup3"
@@ -42,6 +41,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [playersPerPage] = useState(20);
   const [hideRostered, setHideRostered] = useState(true);
+  const [showWaiverDialog, setShowWaiverDialog] = useState(false);
 
   useEffect(() => {
     const fetchAllPlayers = async () => {
@@ -129,7 +129,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
     };
   };
 
-  const submitBid = async () => {
+  const submitBid = async (bidAmount: number, dropPlayer: string | null) => {
     if (!selectedPlayer) {
       setError("Please select a player to claim");
       return;
@@ -170,9 +170,8 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
         }
       );
 
+      setShowWaiverDialog(false);
       setSelectedPlayer(null);
-      setBidAmount(0);
-      setDropPlayer(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit bid");
     } finally {
@@ -300,8 +299,8 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
         roster: newRoster
       });
 
+      setShowWaiverDialog(false);
       setSelectedPlayer(null);
-      setDropPlayer(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add player");
     } finally {
@@ -554,10 +553,13 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                             ) : league.settings.waiversEnabled ? (
                               <button
                                 className="btn btn-sm btn-primary"
-                                onClick={() => setSelectedPlayer(playerId)}
+                                onClick={() => {
+                                  setSelectedPlayer(playerId);
+                                  setShowWaiverDialog(true);
+                                }}
                                 disabled={loading || !hasTeam || teamName !== "Free Agent"}
                               >
-                                Place Bid
+                                {league.settings.waiversEnabled ? 'Place Bid' : 'Add'}
                               </button>
                             ) : (
                               <button
@@ -597,8 +599,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                           className="btn btn-sm btn-primary"
                           onClick={() => {
                             setSelectedPlayer(playerId);
-                            setBidAmount(0);
-                            setDropPlayer(null);
+                            setShowWaiverDialog(true);
                           }}
                           disabled={loading}
                         >
@@ -782,79 +783,26 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
           </div>
 
           {selectedPlayer && (
-            <div className="card">
-              <div className="card-header">
-                <h4 className="h5 mb-0">
-                  {league.settings.waiversEnabled ? 'Place Waiver Claim' : 'Add Free Agent'}
-                </h4>
-              </div>
-              <div className="card-body">
-                <div className="mb-3">
-                  <label className="form-label">Selected Player</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={allPlayers[selectedPlayer]?.name || ""}
-                    disabled
-                  />
-                </div>
-
-                {league.settings.waiversEnabled && (
-                  <div className="mb-3">
-                    <label className="form-label">Bid Amount</label>
-                    <div className="input-group">
-                      <span className="input-group-text">$</span>
-                      <input
-                        type="number"
-                        className="form-control"
-                        value={bidAmount}
-                        onChange={(e) => setBidAmount(Math.max(0, parseInt(e.target.value) || 0))}
-                        min="0"
-                        max={faabBudget}
-                      />
-                    </div>
-                    <small className="text-muted">Maximum bid: ${faabBudget}</small>
-                  </div>
-                )}
-
-                <div className="mb-3">
-                  <label className="form-label">Drop Player (Optional)</label>
-                  <select
-                    className="form-select"
-                    value={dropPlayer || ""}
-                    onChange={(e) => setDropPlayer(e.target.value || null)}
-                  >
-                    <option value="">No drop - add to roster</option>
-                    {userTeam.roster.map((playerId) => (
-                      <option key={playerId} value={playerId}>
-                        {players[playerId]?.name} ({players[playerId]?.region})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="d-grid gap-2">
-                  <button
-                    className="btn btn-primary"
-                    onClick={league.settings.waiversEnabled ? submitBid : () => addFreeAgent(selectedPlayer, dropPlayer)}
-                    disabled={loading}
-                  >
-                    {loading ? "Processing..." : league.settings.waiversEnabled ? "Submit Claim" : "Add Player"}
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      setSelectedPlayer(null);
-                      setBidAmount(0);
-                      setDropPlayer(null);
-                    }}
-                    disabled={loading}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
+            <WaiverClaimDialog
+              show={showWaiverDialog}
+              onClose={() => {
+                setShowWaiverDialog(false);
+                setSelectedPlayer(null);
+              }}
+              onSubmit={(bidAmount, dropPlayerId) => {
+                if (league.settings.waiversEnabled) {
+                  submitBid(bidAmount, dropPlayerId);
+                } else {
+                  addFreeAgent(selectedPlayer, dropPlayerId);
+                }
+              }}
+              selectedPlayer={allPlayers[selectedPlayer]}
+              roster={userTeam.roster}
+              players={players}
+              maxBid={faabBudget}
+              isWaiver={league.settings.waiversEnabled}
+              loading={loading}
+            />
           )}
         </div>
       </div>

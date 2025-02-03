@@ -120,27 +120,110 @@ export const processWaivers = async (leagueId: string) => {
       return a.teamScore - b.teamScore;
     });
 
-    const transactions: Transaction[] = [];
+    // Track FAAB spent per team during this processing
+    const teamFaabSpent: Record<string, number> = {};
     const processedPlayers = new Set<string>();
+    const transactions: Transaction[] = [];
+
+    // Track roster changes during processing
+    const updatedRosters: Record<string, string[]> = {};
 
     // Process bids in sorted order
     for (const bid of sortedBids) {
       const team = teams[bid.teamId];
+      const remainingFaab = (team.faabBudget || 0) - (teamFaabSpent[bid.teamId] || 0);
+
+      // Get current roster state including any changes from previous successful bids
+      const currentRoster = updatedRosters[bid.teamId] || [...team.roster];
+
+      // Create transaction for failed bid if player already claimed
       if (processedPlayers.has(bid.playerId)) {
+        transactions.push({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          type: 'waiver',
+          teamIds: [bid.teamId],
+          adds: {},
+          drops: {},
+          metadata: {
+            type: 'waiver',
+            waiver: {
+              bidAmount: bid.amount,
+              success: false,
+              failureReason: 'Player already claimed'
+            },
+            playerNames: {
+              [bid.playerId]: {
+                name: players[bid.playerId]?.name || 'Unknown Player',
+                region: players[bid.playerId]?.region || 'Unknown Region'
+              }
+            }
+          }
+        });
         continue;
       }
 
-      if (bid.amount > (team.faabBudget || 0)) {
+      // Create transaction for failed bid if insufficient FAAB
+      if (bid.amount > remainingFaab) {
+        transactions.push({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          type: 'waiver',
+          teamIds: [bid.teamId],
+          adds: {},
+          drops: {},
+          metadata: {
+            type: 'waiver',
+            waiver: {
+              bidAmount: bid.amount,
+              success: false,
+              failureReason: 'Insufficient FAAB'
+            },
+            playerNames: {
+              [bid.playerId]: {
+                name: players[bid.playerId]?.name || 'Unknown Player',
+                region: players[bid.playerId]?.region || 'Unknown Region'
+              }
+            }
+          }
+        });
         continue;
       }
 
+      // Check roster limit considering previous successful claims
       const rosterLimit = getTotalRosterLimit(freshLeague.settings);
-      if (!bid.dropPlayerId && team.roster.length >= rosterLimit) {
+      const newRosterSize = bid.dropPlayerId ?
+        currentRoster.length :
+        currentRoster.length + 1;
+
+      if (newRosterSize > rosterLimit) {
+        transactions.push({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          type: 'waiver',
+          teamIds: [bid.teamId],
+          adds: {},
+          drops: {},
+          metadata: {
+            type: 'waiver',
+            waiver: {
+              bidAmount: bid.amount,
+              success: false,
+              failureReason: 'Roster full'
+            },
+            playerNames: {
+              [bid.playerId]: {
+                name: players[bid.playerId]?.name || 'Unknown Player',
+                region: players[bid.playerId]?.region || 'Unknown Region'
+              }
+            }
+          }
+        });
         continue;
       }
 
       // Process successful claim
-      const newRoster = [...team.roster];
+      const newRoster = [...currentRoster];
       if (bid.dropPlayerId) {
         const dropIndex = newRoster.indexOf(bid.dropPlayerId);
         if (dropIndex !== -1) {
@@ -149,77 +232,56 @@ export const processWaivers = async (leagueId: string) => {
       }
       newRoster.push(bid.playerId);
 
-      // Update team with new roster, reduced FAAB, and clear bids
+      // Update team with new roster and reduced FAAB
       const teamRef = doc(db, "leagues", leagueId, "teams", bid.teamId);
       transaction.update(teamRef, {
         roster: newRoster,
-        faabBudget: (team.faabBudget || 0) - bid.amount,
+        faabBudget: remainingFaab - bid.amount,
         pendingBids: []
       });
 
-      // Mark player as processed
+      // Track FAAB spent, processed players, and roster changes
+      teamFaabSpent[bid.teamId] = (teamFaabSpent[bid.teamId] || 0) + bid.amount;
       processedPlayers.add(bid.playerId);
+      updatedRosters[bid.teamId] = newRoster;
 
-      // Record transaction with losing bids
-      const losingBids = Object.entries(teams)
-        .filter(([id, t]) => {
-          if (!t || !t.pendingBids) return false;
-          return id !== bid.teamId && t.pendingBids.some(b => b.playerId === bid.playerId);
-        })
-        .flatMap(([id, t]) => {
-          if (!t || !t.pendingBids) return [];
-          return t.pendingBids
-            .filter(b => b.playerId === bid.playerId)
-            .map(b => ({
-              teamId: id,
-              teamName: t.teamName,
-              bidAmount: b.amount,
-              failureReason: b.amount > (t.faabBudget || 0) ? 'Insufficient FAAB' :
-                (!b.dropPlayerId && t.roster.length >= rosterLimit) ? 'Roster full' :
-                  undefined
-            }));
-        });
+      // Record successful transaction
+      const losingBids = sortedBids
+        .filter(b => b.playerId === bid.playerId && b.teamId !== bid.teamId)
+        .map(b => ({
+          teamId: b.teamId,
+          teamName: teams[b.teamId]?.teamName || 'Unknown Team',
+          bidAmount: b.amount
+        }));
 
-      // Only create transaction if there are actual changes
-      if (bid.playerId || bid.dropPlayerId) {
-        const adds: Record<string, string[]> = bid.playerId ? { [bid.teamId]: [bid.playerId] } : {};
-        const drops: Record<string, string[]> = bid.dropPlayerId ? { [bid.teamId]: [bid.dropPlayerId] } : {};
-
-        transactions.push({
-          id: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
+      transactions.push({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        type: 'waiver',
+        teamIds: [bid.teamId],
+        adds: { [bid.teamId]: [bid.playerId] },
+        drops: bid.dropPlayerId ? { [bid.teamId]: [bid.dropPlayerId] } : {},
+        metadata: {
           type: 'waiver',
-          teamIds: [bid.teamId],
-          adds,
-          drops,
-          metadata: {
-            type: 'waiver',
-            waiver: {
-              bidAmount: bid.amount,
-              losingBids: losingBids.map(b => ({
-                teamId: b.teamId,
-                teamName: b.teamName,
-                bidAmount: b.bidAmount,
-                failureReason: b.failureReason
-              }))
+          waiver: {
+            bidAmount: bid.amount,
+            success: true,
+            losingBids
+          },
+          playerNames: {
+            [bid.playerId]: {
+              name: players[bid.playerId]?.name || 'Unknown Player',
+              region: players[bid.playerId]?.region || 'Unknown Region'
             },
-            playerNames: {
-              ...(bid.playerId ? {
-                [bid.playerId]: {
-                  name: players[bid.playerId]?.name || 'Unknown Player',
-                  region: players[bid.playerId]?.region || 'Unknown Region'
-                }
-              } : {}),
-              ...(bid.dropPlayerId ? {
-                [bid.dropPlayerId]: {
-                  name: players[bid.dropPlayerId]?.name || 'Unknown Player',
-                  region: players[bid.dropPlayerId]?.region || 'Unknown Region'
-                }
-              } : {})
-            }
+            ...(bid.dropPlayerId ? {
+              [bid.dropPlayerId]: {
+                name: players[bid.dropPlayerId]?.name || 'Unknown Player',
+                region: players[bid.dropPlayerId]?.region || 'Unknown Region'
+              }
+            } : {})
           }
-        });
-      }
+        }
+      });
     }
 
     // Clear pending bids for all teams
@@ -232,29 +294,11 @@ export const processWaivers = async (leagueId: string) => {
       }
     }
 
-    // Update league transactions if we have new ones
+    // Update league transactions
     if (transactions.length > 0) {
-      const newTransactions = Array.isArray(freshLeague.transactions)
-        ? [...freshLeague.transactions, ...transactions]
-        : transactions;
-
-      // Validate and clean transactions
-      const validTransactions = newTransactions.filter(t =>
-        t &&
-        typeof t.id === 'string' &&
-        typeof t.timestamp === 'string' &&
-        typeof t.type === 'string' &&
-        Array.isArray(t.teamIds) &&
-        typeof t.adds === 'object' &&
-        typeof t.drops === 'object' &&
-        typeof t.metadata === 'object'
-      );
-
-      // Deep clone to remove any undefined values
-      const cleanTransactions = validTransactions.map(t => JSON.parse(JSON.stringify(t)));
-
+      const newTransactions = [...(freshLeague.transactions || []), ...transactions];
       transaction.update(leagueRef, {
-        transactions: cleanTransactions
+        transactions: newTransactions
       });
     }
   });

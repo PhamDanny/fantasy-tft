@@ -280,11 +280,31 @@ const LeagueChat = ({
 
         case "waiver":
           const waiverTeam = getTeamName(metadata.teamIds[0]);
+          const waiverSuccess = metadata.metadata.waiver?.success !== false;
+          
+          if (!waiverSuccess) {
+            const playerId = Object.keys(metadata.metadata.playerNames || {})[0];
+            content = (
+              <div>
+                <div className="h5 mb-2 text-center">Failed Waiver Claim</div>
+                <div className="text-center">
+                  <div className="fw-medium mb-2">{waiverTeam}</div>
+                  <div className="text-danger">
+                    Failed to claim {getPlayerNames([playerId])[0]} (${metadata.metadata.waiver?.bidAmount})
+                    <div className="small mt-1">
+                      Reason: {metadata.metadata.waiver?.failureReason || 'Unknown error'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+            break;
+          }
+
           const waiverAdds = getPlayerNames(metadata.adds[metadata.teamIds[0]] || []);
           const waiverDrops = metadata.drops[metadata.teamIds[0]]?.length > 0
             ? getPlayerNames(metadata.drops[metadata.teamIds[0]])
             : [];
-          const losingBids = metadata.metadata.waiver?.losingBids || [];
 
           content = (
             <div>
@@ -296,7 +316,7 @@ const LeagueChat = ({
                     <div key={i} className="fs-5">
                       + {name}
                       {metadata.metadata.waiver?.bidAmount && (
-                        <span className="text-muted ms-2">(${metadata.metadata.waiver.bidAmount} FAAB)</span>
+                        <span className="text-muted ms-2">(${metadata.metadata.waiver.bidAmount})</span>
                       )}
                     </div>
                   ))}
@@ -306,13 +326,6 @@ const LeagueChat = ({
                     {waiverDrops.map((name, i) => (
                       <div key={i} className="fs-5">- {name}</div>
                     ))}
-                  </div>
-                )}
-                {losingBids.length > 0 && (
-                  <div className="text-muted small mt-2">
-                    Losing bids: {losingBids.map((b: { teamId: string, bidAmount: number, failureReason?: string }) => 
-                      `${getTeamName(b.teamId)} ($${b.bidAmount})${b.failureReason ? ` - ${b.failureReason}` : ''}`
-                    ).join(', ')}
                   </div>
                 )}
               </div>

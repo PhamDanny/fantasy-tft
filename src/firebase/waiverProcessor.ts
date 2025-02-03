@@ -1,8 +1,8 @@
 // src/firebase/waiverProcessor.ts
 
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "./config";
-import type { League, PendingBid, Transaction } from "../types";
+import type { League, PendingBid, Transaction, Team } from "../types";
 import { getTotalRosterLimit } from "../utils/rosterUtils";
 
 interface ProcessedBid {
@@ -19,50 +19,104 @@ interface WaiverResult {
 
 const generateTransactionId = () => `transaction_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+const getTeamPoints = (team: Team): number => {
+  let totalPoints = 0;
+  for (const playerId of team.roster) {
+    const cupScores = (team.cupLineups?.cup1?.playerScores?.[playerId] || 0) +
+      (team.cupLineups?.cup2?.playerScores?.[playerId] || 0) +
+      (team.cupLineups?.cup3?.playerScores?.[playerId] || 0);
+    totalPoints += cupScores;
+  }
+  return totalPoints;
+};
+
 export const processWaiverClaims = async (league: League): Promise<WaiverResult> => {
+  // Get players collection for names
+  const playersRef = collection(db, "players");
+  const playersSnapshot = await getDocs(playersRef);
+  const players = Object.fromEntries(
+    playersSnapshot.docs.map(doc => [doc.id, doc.data()])
+  );
+
   // Get all teams with pending bids
-  const teamsWithBids = Object.values(league.teams).filter(team => 
+  const teamsWithBids = Object.values(league.teams).filter(team =>
     team.pendingBids && team.pendingBids.length > 0
   );
 
-  // Sort all bids across all teams by amount (highest to lowest)
-  const allBids = teamsWithBids.flatMap(team => 
+  // Sort all bids across all teams by:
+  // 1. Bid amount (highest to lowest)
+  // 2. Team points (lower points get priority)
+  // 3. Processing order (earlier bids get priority)
+  const allBids = teamsWithBids.flatMap(team =>
     team.pendingBids.map(bid => ({
       bid,
-      teamId: team.teamId
+      teamId: team.teamId,
+      teamPoints: getTeamPoints(team)
     }))
-  ).sort((a, b) => b.bid.amount - a.bid.amount);
+  ).sort((a, b) => {
+    // First sort by bid amount (highest first)
+    const amountDiff = b.bid.amount - a.bid.amount;
+    if (amountDiff !== 0) {
+      return amountDiff;
+    }
 
+    // If bids are from the same team, use processing order
+    if (a.teamId === b.teamId) {
+      return a.bid.processingOrder - b.bid.processingOrder;
+    }
+
+    // If bid amounts are equal and from different teams, sort by team points
+    return a.teamPoints - b.teamPoints;
+  });
+
+  // Track which players have been claimed and FAAB spent
+  const claimedPlayers = new Set<string>();
+  const teamFaabSpent: Record<string, number> = {};
+
+  // Process bids in order
   const processedBids: ProcessedBid[] = [];
   const transactions: Transaction[] = [];
-  
-  // Track which players have been claimed
-  const claimedPlayers = new Set<string>();
-  
-  // Process each bid in order
+
+  // Debug logging
+  console.log("Processing bids in order:", allBids.map(({ bid }) => ({
+    amount: bid.amount,
+    playerId: bid.playerId,
+    processingOrder: bid.processingOrder
+  })));
+
   for (const { bid, teamId } of allBids) {
     const team = league.teams[teamId];
     let success = false;
     let reason = "";
 
+    // Get remaining FAAB after previous successful bids
+    const previousFaabSpent = teamFaabSpent[teamId] || 0;
+    const remainingFaab = team.faabBudget - previousFaabSpent;
+
+    // Debug logging
+    console.log(`Processing bid: $${bid.amount} for player ${bid.playerId}`);
+    console.log(`Team ${teamId} has $${remainingFaab} remaining FAAB`);
+
     // Skip if player already claimed
     if (claimedPlayers.has(bid.playerId)) {
       reason = "Player already claimed";
+      console.log("Failed: Player already claimed");
     }
-    // Verify FAAB budget
-    else if (bid.amount > team.faabBudget) {
-      reason = "Insufficient FAAB budget";
+    // Verify remaining FAAB
+    else if (bid.amount > remainingFaab) {
+      reason = "Insufficient remaining FAAB";
+      console.log("Failed: Insufficient FAAB");
     }
     // Process the claim
     else {
       // Calculate roster size after potential move
       const currentRoster = new Set(team.roster);
       let rosterSize = currentRoster.size;
-      
+
       // Adjust for previous successful claims in this processing
       const previousClaims = processedBids
         .filter(pb => pb.teamId === teamId && pb.success);
-      
+
       for (const claim of previousClaims) {
         if (!currentRoster.has(claim.bid.playerId)) rosterSize++;
         if (claim.bid.dropPlayerId) rosterSize--;
@@ -87,7 +141,9 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
 
       if (success) {
         claimedPlayers.add(bid.playerId);
-        
+        teamFaabSpent[teamId] = (teamFaabSpent[teamId] || 0) + bid.amount;
+        console.log(`Success: Added player ${bid.playerId}, spent $${bid.amount}`);
+
         // Create transaction record
         const transaction: Transaction = {
           id: generateTransactionId(),
@@ -97,10 +153,51 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
           adds: { [teamId]: [bid.playerId] },
           drops: bid.dropPlayerId ? { [teamId]: [bid.dropPlayerId] } : {},
           metadata: {
-            faabSpent: { [teamId]: bid.amount }
+            waiver: {
+              bidAmount: bid.amount,
+              success: true
+            },
+            faabSpent: { [teamId]: bid.amount },
+            playerNames: {
+              [bid.playerId]: {
+                name: players[bid.playerId]?.name || "Unknown Player",
+                region: players[bid.playerId]?.region || "Unknown Region"
+              },
+              ...(bid.dropPlayerId ? {
+                [bid.dropPlayerId]: {
+                  name: players[bid.dropPlayerId]?.name || "Unknown Player",
+                  region: players[bid.dropPlayerId]?.region || "Unknown Region"
+                }
+              } : {})
+            }
           }
         };
-        
+
+        transactions.push(transaction);
+      } else {
+        // Create failed transaction record
+        const transaction: Transaction = {
+          id: generateTransactionId(),
+          type: 'waiver',
+          timestamp: new Date().toISOString(),
+          teamIds: [teamId],
+          adds: {},
+          drops: {},
+          metadata: {
+            waiver: {
+              bidAmount: bid.amount,
+              success: false,
+              failureReason: reason
+            },
+            playerNames: {
+              [bid.playerId]: {
+                name: players[bid.playerId]?.name || "Unknown Player",
+                region: players[bid.playerId]?.region || "Unknown Region"
+              }
+            }
+          }
+        };
+
         transactions.push(transaction);
       }
     }
@@ -121,11 +218,11 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
   await Promise.all(teamsWithBids.map(async team => {
     const teamProcessedBids = processedBids.filter(pb => pb.teamId === team.teamId);
     const successfulBids = teamProcessedBids.filter(pb => pb.success);
-    
+
     // Calculate new roster
     let newRoster = [...team.roster];
     let newFaabBudget = team.faabBudget;
-    
+
     for (const { bid } of successfulBids) {
       // Remove dropped player if any
       if (bid.dropPlayerId) {

@@ -98,14 +98,16 @@ export interface Transaction {
   adds: Record<string, string[]>;  // teamId -> playerIds[]
   drops: Record<string, string[]>; // teamId -> playerIds[]
   metadata: {
-    type?: TransactionType;  // Add this field
-    tradeId?: string;  // For trade transactions
-    faabSpent?: Record<string, number>;  // For waiver/free_agent transactions
-    reason?: string;  // For commissioner transactions
-    commissioner?: string;  // For commissioner transactions
+    type?: TransactionType;
+    tradeId?: string;
+    faabSpent?: Record<string, number>;
+    reason?: string;
+    commissioner?: string;
     action?: 'roster_edit' | 'member_removed' | 'member_left';
     waiver?: {
       bidAmount: number;
+      success?: boolean;
+      failureReason?: string;
       losingBids?: Array<{
         teamId: string;
         teamName: string;

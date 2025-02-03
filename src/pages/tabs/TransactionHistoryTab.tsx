@@ -29,8 +29,16 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
   const getTeamName = (teamId: string) =>
     teams[teamId]?.teamName || "Unknown Team";
 
-  const getPlayerName = (playerId: string) =>
-    players[playerId]?.name || "Unknown Player";
+  const getPlayerName = (playerId: string, transaction?: Transaction) => {
+    // First check if player name exists in this transaction's metadata
+    const playerMetadata = transaction?.metadata?.playerNames?.[playerId];
+    if (playerMetadata) {
+      return playerMetadata.name;
+    }
+    
+    // Fall back to players object
+    return players[playerId]?.name || "Unknown Player";
+  };
 
   interface BaseTransactionDetail {
     team: string;
@@ -42,6 +50,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
 
   interface WaiverTransactionDetail extends BaseTransactionDetail {
     faabSpent?: number;
+    failureReason?: string;
   }
 
   interface FreeAgentTransactionDetail extends BaseTransactionDetail {}
@@ -62,40 +71,74 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
       case "trade":
         return transaction.teamIds.map((teamId) => ({
           team: getTeamName(teamId),
-          added: (transaction.adds[teamId] || []).map(getPlayerName).join(", "),
+          added: (transaction.adds[teamId] || [])
+            .map((playerId) => getPlayerName(playerId, transaction))
+            .join(", "),
           dropped: (transaction.drops[teamId] || [])
-            .map(getPlayerName)
+            .map((playerId) => getPlayerName(playerId, transaction))
             .join(", "),
         }));
 
       case "waiver":
-        return transaction.teamIds.map((teamId) => ({
-          team: getTeamName(teamId),
-          added: (transaction.adds[teamId] || []).map(getPlayerName).join(", "),
-          dropped: (transaction.drops[teamId] || [])
-            .map(getPlayerName)
-            .join(", "),
-          faabSpent: transaction.metadata.faabSpent?.[teamId],
-        }));
+        return transaction.teamIds.map((teamId) => {
+          const waiverSuccess = transaction.metadata.waiver?.success !== false;
+          
+          if (!waiverSuccess) {
+            const playerId = Object.keys(transaction.metadata.playerNames || {})[0];
+            return {
+              team: getTeamName(teamId),
+              added: `Failed to claim ${getPlayerName(playerId, transaction)} ($${transaction.metadata.waiver?.bidAmount})`,
+              dropped: '',
+              faabSpent: 0,
+              failureReason: transaction.metadata.waiver?.failureReason
+            };
+          }
+
+          return {
+            team: getTeamName(teamId),
+            added: (transaction.adds[teamId] || [])
+              .map((playerId) => `${getPlayerName(playerId, transaction)} ($${transaction.metadata.waiver?.bidAmount})`)
+              .join(", "),
+            dropped: (transaction.drops[teamId] || [])
+              .map((playerId) => getPlayerName(playerId, transaction))
+              .join(", "),
+            faabSpent: transaction.metadata.waiver?.bidAmount,
+          };
+        });
 
       case "free_agent":
         return transaction.teamIds.map((teamId) => ({
           team: getTeamName(teamId),
-          added: (transaction.adds[teamId] || []).map(getPlayerName).join(", "),
+          added: (transaction.adds[teamId] || [])
+            .map((playerId) => getPlayerName(playerId, transaction))
+            .join(", "),
           dropped: (transaction.drops[teamId] || [])
-            .map(getPlayerName)
+            .map((playerId) => getPlayerName(playerId, transaction))
             .join(", "),
         }));
 
       case "commissioner":
         return transaction.teamIds.map((teamId) => ({
           team: getTeamName(teamId),
-          added: (transaction.adds[teamId] || []).map(getPlayerName).join(", "),
-          dropped: (transaction.drops[teamId] || []).map(getPlayerName).join(", "),
+          added: (transaction.adds[teamId] || [])
+            .map((playerId) => getPlayerName(playerId, transaction))
+            .join(", "),
+          dropped: (transaction.drops[teamId] || [])
+            .map((playerId) => getPlayerName(playerId, transaction))
+            .join(", "),
           reason: transaction.metadata.reason,
           commissioner: transaction.metadata.commissioner 
             ? getTeamName(transaction.metadata.commissioner)
             : "System"
+        }));
+
+      case "drop":
+        return transaction.teamIds.map((teamId) => ({
+          team: getTeamName(teamId),
+          added: "",
+          dropped: (transaction.drops[teamId] || [])
+            .map((playerId) => getPlayerName(playerId, transaction))
+            .join(", "),
         }));
 
       default:
@@ -145,7 +188,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
           ...Object.values(transaction.adds).flat(),
           ...Object.values(transaction.drops).flat(),
         ]
-          .map((id) => getPlayerName(id).toLowerCase())
+          .map((id) => getPlayerName(id, transaction).toLowerCase())
           .join(" ");
 
         return (
@@ -270,8 +313,8 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
                             ) : (
                               <>
                                 {detail.added && (
-                                  <div className="text-success">
-                                    + Added: {detail.added}
+                                  <div className={detail.added.startsWith('Failed') ? 'text-danger' : 'text-success'}>
+                                    {detail.added.startsWith('Failed') ? detail.added : `+ Added: ${detail.added}`}
                                   </div>
                                 )}
                                 {detail.dropped && (
@@ -281,18 +324,22 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
                                 )}
                               </>
                             )}
-                            {"faabSpent" in detail &&
-                              detail.faabSpent !== undefined && (
-                                <div className="text-muted">
-                                  FAAB Spent: ${detail.faabSpent}
-                                </div>
-                              )}
+                            {'faabSpent' in detail && typeof detail.faabSpent === 'number' && (
+                              <div className="text-muted">
+                                FAAB Spent: ${detail.faabSpent}
+                              </div>
+                            )}
+                            {'failureReason' in detail && detail.failureReason && (
+                              <div className="small text-muted">
+                                Reason: {detail.failureReason}
+                              </div>
+                            )}
                           </div>
-                          {"reason" in detail && detail.reason && (
+                          {'reason' in detail && detail.reason && (
                             <div className="mt-1 text-muted">
                               <small>
-                                Reason: {detail.reason} (by Commissioner{" "}
-                                {detail.commissioner})
+                                Reason: {detail.reason}
+                                {detail.commissioner && ` (by Commissioner ${detail.commissioner})`}
                               </small>
                             </div>
                           )}
