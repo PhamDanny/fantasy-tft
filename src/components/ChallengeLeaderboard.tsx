@@ -51,7 +51,15 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
         score: totalScore
       };
     })
-    .sort((a, b) => (b.score || 0) - (a.score || 0));
+    .sort((a, b) => {
+      // First sort by score
+      const scoreCompare = (b.score || 0) - (a.score || 0);
+      // If scores are equal, sort alphabetically by userName
+      if (scoreCompare === 0) {
+        return (a.userName || '').localeCompare(b.userName || '');
+      }
+      return scoreCompare;
+    });
   };
 
   const sortedEntries = getEntriesWithScores();

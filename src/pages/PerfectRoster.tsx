@@ -131,6 +131,23 @@ const PerfectRoster = () => {
           const userEntry = challenge.entries[currentUser?.uid || ''];
           const participantCount = Object.keys(challenge.entries).length;
 
+          const getSlotDescription = () => {
+            const parts = [];
+            if (challenge.settings.captainSlots > 0) {
+              parts.push(`Most Popular ${challenge.settings.captainSlots === 1 ? 'Captain' : 'Captains'}`);
+            }
+            if (challenge.settings.naSlots > 0) {
+              parts.push(`${challenge.settings.naSlots === 1 ? 'NA Player' : 'NA Players'}`);
+            }
+            if (challenge.settings.brLatamSlots > 0) {
+              parts.push(`${challenge.settings.brLatamSlots === 1 ? 'BR/LATAM Player' : 'BR/LATAM Players'}`);
+            }
+            if (challenge.settings.flexSlots > 0) {
+              parts.push(`${challenge.settings.flexSlots === 1 ? 'Flex Player' : 'Flex Players'}`);
+            }
+            return parts.join(', ');
+          };
+
           return (
             <div key={challenge.id} className="col-12">
               <div 
@@ -142,7 +159,9 @@ const PerfectRoster = () => {
                   <div className="d-flex justify-content-between align-items-center">
                     <div>
                       <h5 className="card-title mb-1">{challenge.name}</h5>
-                      <p className="text-muted mb-2">{challenge.season}</p>
+                      <p className="text-muted mb-2">
+                        {challenge.season} • {getSlotDescription()}
+                      </p>
                     </div>
                     <div className="d-flex align-items-center">
                       {isAdmin && (

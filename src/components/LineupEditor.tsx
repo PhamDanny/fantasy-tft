@@ -163,25 +163,25 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
             
             <div className="mb-4">
               <h6>
-                Captain <span className="badge bg-warning text-dark">1.5x Points</span>
+                {lineup.captains?.length === 1 ? 'Captain' : 'Captains'} <span className="badge bg-warning text-dark">1.5x Points</span>
               </h6>
               {renderSlot('captains', 0)}
             </div>
 
             <div className="mb-4">
-              <h6>NA Players</h6>
+              <h6>{lineup.naSlots?.length === 1 ? 'NA Player' : 'NA Players'}</h6>
               {Array.from({ length: lineup.naSlots?.length || 0 }).map((_, i) => (
                 <div key={i}>{renderSlot('naSlots', i)}</div>
               ))}
             </div>
 
             <div className="mb-4">
-              <h6>BR/LATAM Player</h6>
+              <h6>{lineup.brLatamSlots?.length === 1 ? 'BR/LATAM Player' : 'BR/LATAM Players'}</h6>
               {renderSlot('brLatamSlots', 0)}
             </div>
 
             <div className="mb-4">
-              <h6>Flex Slots</h6>
+              <h6>{lineup.flexSlots?.length === 1 ? 'Flex Player' : 'Flex Players'}</h6>
               {Array.from({ length: lineup.flexSlots?.length || 0 }).map((_, i) => (
                 <div key={i}>{renderSlot('flexSlots', i)}</div>
               ))}
