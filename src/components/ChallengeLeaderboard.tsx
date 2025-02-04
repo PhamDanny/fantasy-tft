@@ -106,9 +106,6 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
   return (
     <div className="card">
       <div className="card-body">
-        <div className="alert alert-info mb-3">
-          Tournament hasn't started yet. All players currently show 0 points.
-        </div>
         <div className="table-responsive">
           <table className="table table-hover mb-0">
             <thead className="table-light">
