@@ -66,18 +66,19 @@ const TeamTab: React.FC<TeamTabProps> = ({
     const cupKey = `cup${cupNumber}` as keyof typeof selectedTeam.cupLineups;
     const existingLineup = selectedTeam.cupLineups[cupKey];
 
+    console.log('Getting cup lineup:', {
+      cupNumber,
+      cupKey,
+      existingLineup,
+      selectedTeam
+    });
+
     if (existingLineup) {
-      return {
-        captains: [...(existingLineup.captains || [])],
-        naSlots: [...(existingLineup.naSlots || [])],
-        brLatamSlots: [...(existingLineup.brLatamSlots || [])],
-        flexSlots: [...(existingLineup.flexSlots || [])],
-        bench: [], // We'll maintain an empty bench array to satisfy the type
-        locked: cupNumber <= (league.settings?.currentCup || 0),
-      };
+      // Return the existing lineup directly instead of creating a new object
+      return existingLineup;
     }
 
-    // Create new empty lineup
+    // Create new empty lineup only if one doesn't exist
     return {
       captains: Array(league.settings?.captainSlots || 0).fill(null),
       naSlots: Array(league.settings?.naSlots || 0).fill(null),
@@ -125,6 +126,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
       );
     }
 
+    // For all other cases, bench is just current roster players not in starting lineup
     return selectedTeam.roster.filter(
       (playerId) => !startingPlayers.has(playerId)
     );
@@ -286,13 +288,29 @@ const TeamTab: React.FC<TeamTabProps> = ({
     slotIndex: number,
     showScore = false
   ) => {
-    // Only allow selection if user can edit
+    // Debug all players in lineup slots
+    if (currentPlayer) {
+      console.log('Player slot debug:', {
+        currentPlayer,
+        playerInDatabase: players[currentPlayer],
+        inCurrentRoster: selectedTeam.roster.includes(currentPlayer),
+        cupNumber: selectedCup,
+        slotType,
+        scores: players[currentPlayer]?.scores,
+        showScore
+      });
+    }
+
+    const isPastCup = selectedCup <= (league.settings?.currentCup || 0);
     const isSelected = canEdit && selectedPlayer === currentPlayer;
     const isValidTarget =
       !isLineupLocked &&
       canEdit &&
       selectedPlayer &&
-      canPlayerFitSlot(selectedPlayer, slotType);
+      canPlayerFitSlot(selectedPlayer, slotType) &&
+      !isPastCup;
+
+    // Simply look up the player in the players database
     const player = currentPlayer ? players[currentPlayer] : null;
 
     let className = "p-3 border rounded ";
@@ -301,27 +319,35 @@ const TeamTab: React.FC<TeamTabProps> = ({
     } else if (selectedPlayer && isValidTarget) {
       className += "border-primary ";
     }
+    if (isPastCup && player && currentPlayer && !selectedTeam.roster.includes(currentPlayer)) {
+      className += "bg-light "; // Visual indication this is a historical entry
+    }
 
     return (
       <div
         className={className}
-        onClick={() => canEdit && handleSlotClick(slotType, currentPlayer, slotIndex)}
+        onClick={() => canEdit && !isPastCup && handleSlotClick(slotType, currentPlayer, slotIndex)}
         style={{
-          cursor: isLineupLocked || !canEdit ? "default" : "pointer",
+          cursor: isLineupLocked || !canEdit || isPastCup ? "default" : "pointer",
           opacity: isLineupLocked || !canEdit ? 0.8 : 1,
         }}
       >
         {player ? (
           <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <span>{player.name}</span>
-              <small className={isSelected ? "text-white-50" : "text-muted"}>
-                {" "}
-                ({player.region})
-              </small>
+            <div className="d-flex align-items-center gap-2">
+              <div>
+                <span>{player.name}</span>
+                <small className={isSelected ? "text-white-50" : "text-muted"}>
+                  {" "}
+                  ({player.region})
+                </small>
+              </div>
+              {isPastCup && currentPlayer && !selectedTeam.roster.includes(currentPlayer) && (
+                <span className="badge bg-danger">Off Roster</span>
+              )}
             </div>
             <div className="d-flex align-items-center gap-3">
-              {showScore && (
+              {showScore && player.scores && (
                 <span className="fw-bold fs-5">
                   {slotType === "captain" 
                     ? `${(player.scores[`cup${selectedCup}` as keyof typeof player.scores] * 1.5) % 1 === 0 
@@ -332,7 +358,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                   }
                 </span>
               )}
-              {!isLineupLocked && canEdit && !isSelected && (
+              {!isLineupLocked && canEdit && !isSelected && !isPastCup && (
                 <button
                   className="btn btn-sm btn-outline-danger"
                   onClick={(e) => {
@@ -361,6 +387,12 @@ const TeamTab: React.FC<TeamTabProps> = ({
     }
 
     setLoading(true);
+    console.log('Before drop:', {
+      currentCup: league.settings?.currentCup,
+      cupLineups: selectedTeam.cupLineups,
+      roster: selectedTeam.roster,
+      playerId
+    });
 
     try {
       const teamRef = doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId);
@@ -389,13 +421,29 @@ const TeamTab: React.FC<TeamTabProps> = ({
         }
       };
 
+      // Only update the roster - preserve all cup lineups
       await updateDoc(doc(db, "leagues", leagueId.toString()), {
         transactions: [...league.transactions, transaction]
       });
 
-      await updateDoc(teamRef, {
-        roster: newRoster
+      // If in playoffs, also remove from playoff roster if present
+      if (league.settings?.playoffs && selectedTeam.playoffRoster) {
+        const newPlayoffRoster = selectedTeam.playoffRoster.filter(id => id !== playerId);
+        await updateDoc(teamRef, {
+          roster: newRoster,
+          playoffRoster: newPlayoffRoster
+        });
+      } else {
+        await updateDoc(teamRef, {
+          roster: newRoster
+        });
+      }
+
+      console.log('After drop:', {
+        newRoster,
+        cupLineups: selectedTeam.cupLineups
       });
+
     } catch (err) {
       console.error(err instanceof Error ? err.message : "Failed to drop player");
     } finally {
@@ -599,7 +647,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                         <label className="form-label">Captain (1.5x Points)</label>
                         {lineup.captains.map((playerId, index) => (
                           <div key={index} className="mb-2">
-                            {renderSlot("captain", playerId, index, isLineupLocked)}
+                            {renderSlot("captain", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
                           </div>
                         ))}
                       </div>
@@ -608,7 +656,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                         <label className="form-label">NA</label>
                         {lineup.naSlots.map((playerId, index) => (
                           <div key={index} className="mb-2">
-                            {renderSlot("na", playerId, index, isLineupLocked)}
+                            {renderSlot("na", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
                           </div>
                         ))}
                       </div>
@@ -617,7 +665,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                         <label className="form-label">BR/LATAM</label>
                         {lineup.brLatamSlots.map((playerId, index) => (
                           <div key={index} className="mb-2">
-                            {renderSlot("brLatam", playerId, index, isLineupLocked)}
+                            {renderSlot("brLatam", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
                           </div>
                         ))}
                       </div>
@@ -626,7 +674,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                         <label className="form-label">Flex</label>
                         {lineup.flexSlots.map((playerId, index) => (
                           <div key={index} className="mb-2">
-                            {renderSlot("flex", playerId, index, isLineupLocked)}
+                            {renderSlot("flex", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
                           </div>
                         ))}
                       </div>

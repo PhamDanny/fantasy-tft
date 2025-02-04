@@ -66,12 +66,19 @@ export const LeagueView: React.FC = () => {
           );
           setUserTeam(foundUserTeam || null);
 
-          // Get all player IDs from both regular and playoff rosters
+          // Get all player IDs from rosters, playoff rosters, and cup lineups
           const playerIds = Array.from(new Set(
             Object.values(teamsData).flatMap(team => [
               ...(team.roster || []),
-              ...(team.playoffRoster || [])
-            ])
+              ...(team.playoffRoster || []),
+              // Include players from all cup lineups
+              ...Object.values(team.cupLineups || {}).flatMap(cupLineup => [
+                ...(cupLineup.captains || []),
+                ...(cupLineup.naSlots || []),
+                ...(cupLineup.brLatamSlots || []),
+                ...(cupLineup.flexSlots || [])
+              ])
+            ].filter((id): id is string => id !== null))
           ));
 
           // Fetch players
