@@ -161,6 +161,11 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
               <div className="alert alert-danger mb-3">{error}</div>
             )}
             
+            <div className="alert alert-warning mb-3">
+              <strong>Note:</strong> Scoring is based on Qualification Points (QP) earned from the event, not game-to-game placements. 
+              Select players playing in Tactician's Trials at your own risk!
+            </div>
+            
             <div className="mb-4">
               <h6>
                 {lineup.captains?.length === 1 ? 'Captain' : 'Captains'} <span className="badge bg-warning text-dark">1.5x Points</span>
