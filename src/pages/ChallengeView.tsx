@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, getDocs, onSnapshot, deleteDoc, setDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -16,19 +16,26 @@ const ChallengeView = () => {
   const [players, setPlayers] = useState<Record<string, Player>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'lineup' | 'leaderboard' | 'perfect' | 'popular'>('lineup');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [activeTab, setActiveTab] = useState<'lineup' | 'leaderboard' | 'perfect' | 'popular'>(
+    'leaderboard'  // Default to leaderboard
+  );
   const navigate = useNavigate();
 
   // Update auth state
   useEffect(() => {
     const unsubscribe = useAuth(async (user) => {
       setCurrentUser(user);
+      // Only check admin status if user is logged in
       if (user) {
-        // Check if user is admin
-        const adminDoc = await getDoc(doc(db, 'admins', 'list'));
-        setIsAdmin(adminDoc.exists() && adminDoc.data().userIds.includes(user.uid));
+        try {
+          const adminDoc = await getDoc(doc(db, 'admins', 'list'));
+          setIsAdmin(adminDoc.exists() && adminDoc.data().userIds.includes(user.uid));
+        } catch (err) {
+          console.error('Failed to check admin status:', err);
+          setIsAdmin(false);
+        }
       } else {
         setIsAdmin(false);
       }
@@ -36,59 +43,63 @@ const ChallengeView = () => {
     return () => unsubscribe();
   }, []);
 
-  // Memoize fetchPlayers to prevent recreation on every render
-  const fetchPlayers = useCallback(async (challengeSet: number) => {
-    if (!challengeSet) return;
-
-    const playersRef = collection(db, 'players');
-    const q = query(playersRef, where('set', '==', Number(challengeSet)));
-    
-    try {
-      const playersSnap = await getDocs(q);
-      const playersData: Record<string, Player> = {};
-      
-      playersSnap.forEach(doc => {
-        const data = doc.data();
-        playersData[doc.id] = {
-          id: doc.id,
-          ...data
-        } as Player;
-      });
-      
-      setPlayers(playersData);
-    } catch (err) {
-      setError('Failed to load players');
-    }
-  }, []);
+  // Update active tab when user auth state changes
+  useEffect(() => {
+    setActiveTab(currentUser ? 'lineup' : 'leaderboard');
+  }, [currentUser]);
 
   useEffect(() => {
-    if (!challengeId) return;
+    if (!challengeId) {
+      return;
+    }
+
+    setLoading(true);
 
     // Set up real-time listener for the challenge
     const unsubscribe = onSnapshot(
       doc(db, 'perfectRosterChallenges', challengeId),
       async (doc) => {
-        if (doc.exists()) {
-          const challengeData = { id: doc.id, ...doc.data() } as PerfectRosterChallenge;
-          setChallenge(challengeData);
-          
-          // Only fetch players if the set has changed
-          if (challengeData.set !== challenge?.set) {
-            await fetchPlayers(challengeData.set);
+        try {
+          if (doc.exists()) {
+            const challengeData = { id: doc.id, ...doc.data() } as PerfectRosterChallenge;
+            setChallenge(challengeData);
+            
+            // Always fetch players when challenge data updates
+            const playersRef = collection(db, 'players');
+            const q = query(playersRef, where('set', '==', Number(challengeData.set)));
+            const playersSnap = await getDocs(q);
+            
+            const playersData: Record<string, Player> = {};
+            playersSnap.forEach(doc => {
+              const data = doc.data();
+              playersData[doc.id] = {
+                id: doc.id,
+                ...data
+              } as Player;
+            });
+            
+            setPlayers(playersData);
+          } else {
+            setError('Challenge not found');
           }
-        } else {
-          setError('Challenge not found');
+        } catch (err) {
+          console.error('Error loading challenge data:', err);
+          setError('Failed to load challenge data');
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       },
       (error) => {
+        console.error('Error in challenge snapshot:', error);
         setError('Failed to load challenge: ' + error.message);
         setLoading(false);
       }
     );
 
-    return () => unsubscribe();
-  }, [challengeId, fetchPlayers, challenge?.set]);
+    return () => {
+      unsubscribe();
+    };
+  }, [challengeId]);
 
   const handleDelete = async () => {
     if (!challengeId || !currentUser?.uid) return;
@@ -155,7 +166,6 @@ const ChallengeView = () => {
   if (loading) return <div>Loading...</div>;
   if (error) return <div className="alert alert-danger">{error}</div>;
   if (!challenge) return <div>Challenge not found</div>;
-  if (!currentUser) return <div>Please log in to view challenges</div>;
 
   return (
     <div className="container-fluid">
@@ -175,16 +185,18 @@ const ChallengeView = () => {
         )}
       </div>
 
-      {/* Challenge Navigation */}
+      {/* Challenge Navigation - hide lineup tab for logged out users */}
       <ul className="nav nav-tabs mb-4">
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === 'lineup' ? 'active' : ''}`}
-            onClick={() => setActiveTab('lineup')}
-          >
-            My Lineup
-          </button>
-        </li>
+        {currentUser && (
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeTab === 'lineup' ? 'active' : ''}`}
+              onClick={() => setActiveTab('lineup')}
+            >
+              My Lineup
+            </button>
+          </li>
+        )}
         <li className="nav-item">
           <button
             className={`nav-link ${activeTab === 'leaderboard' ? 'active' : ''}`}
@@ -211,8 +223,20 @@ const ChallengeView = () => {
         </li>
       </ul>
 
+      {/* Sign up banner for logged out users - moved under tabs */}
+      {!currentUser && (
+        <div className="alert alert-info mb-4 d-flex justify-content-between align-items-center">
+          <div>
+            <strong>Want to participate?</strong> Sign up to create and submit your own lineup!
+          </div>
+          <a href="/login?mode=signup" className="btn btn-primary btn-sm">
+            Sign Up Now
+          </a>
+        </div>
+      )}
+
       {/* Tab Content */}
-      {activeTab === 'lineup' && (
+      {activeTab === 'lineup' && currentUser && (
         <LineupEditor
           players={players}
           lineup={

@@ -52,20 +52,16 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           
-          {/* Protected Routes */}
-          <Route path="/leagues" element={
-            <RequireAuth>
-              <MyLeagues />
-            </RequireAuth>
-          } />
+          {/* Public Routes */}
+          <Route path="/perfect-roster" element={<PerfectRoster />} />
+          <Route path="/perfect-roster/:challengeId" element={<ChallengeView />} />
+          <Route path="/leagues" element={<MyLeagues />} />
+          <Route path="/drafts" element={<MyDrafts />} />
+          
+          {/* Protected Routes - only specific actions need auth */}
           <Route path="/leagues/:leagueId" element={
             <RequireAuth>
               <LeagueView />
-            </RequireAuth>
-          } />
-          <Route path="/drafts" element={
-            <RequireAuth>
-              <MyDrafts />
             </RequireAuth>
           } />
           <Route path="/drafts/:draftId" element={
@@ -75,16 +71,6 @@ function App() {
           } />
           <Route path="/drafts/join/:inviteCode" element={<JoinDraft />} />
           <Route path="/join/:inviteCode" element={<JoinLeague />} />
-          <Route path="/perfect-roster" element={
-            <RequireAuth>
-              <PerfectRoster />
-            </RequireAuth>
-          } />
-          <Route path="/perfect-roster/:challengeId" element={
-            <RequireAuth>
-              <ChallengeView />
-            </RequireAuth>
-          } />
           <Route path="/profile" element={
             <RequireAuth>
               <Profile />

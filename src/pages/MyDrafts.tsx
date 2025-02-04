@@ -81,10 +81,6 @@ const MyDrafts = () => {
     return <div className="p-4">Loading...</div>;
   }
 
-  if (!user) {
-    return <div className="p-4">Please log in to view your drafts</div>;
-  }
-
   if (error) {
     return <div className="p-4 text-danger">Error: {error}</div>;
   }
@@ -95,10 +91,20 @@ const MyDrafts = () => {
         <h2>Drafts</h2>
       </div>
 
-      {drafts.length === 0 ? (
+      {!user ? (
+        // Show welcome banner for non-authenticated users
+        <div className="alert alert-info mb-4 d-flex justify-content-between align-items-center">
+          <div>
+            <strong>Want to participate in drafts?</strong> Sign up to start drafting your dream team!
+          </div>
+          <a href="/login?mode=signup" className="btn btn-primary btn-sm">
+            Sign Up Now
+          </a>
+        </div>
+      ) : drafts.length === 0 ? (
         <div className="text-center py-5">
           <p className="text-muted mb-4">
-            You have no saved or in-progress drafts.
+            You haven't created or joined any drafts yet.
           </p>
           <CreateDraftDialog
             userId={user.uid}

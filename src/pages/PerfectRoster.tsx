@@ -38,8 +38,6 @@ const PerfectRoster = () => {
   }, []);
 
   useEffect(() => {
-    if (!currentUser) return;
-
     // Set up real-time listener for challenges
     const unsubscribe = onSnapshot(
       collection(db, 'perfectRosterChallenges'),
@@ -75,9 +73,8 @@ const PerfectRoster = () => {
       }
     );
 
-    // Cleanup listener on unmount
     return () => unsubscribe();
-  }, [currentUser]);
+  }, []);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -111,7 +108,6 @@ const PerfectRoster = () => {
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div className="alert alert-danger">{error}</div>;
-  if (!currentUser) return <div>Please log in to participate in challenges</div>;
 
   const renderChallengeCards = () => {
     const activeAndUpcoming = challenges.filter(c => c.status !== 'completed');
@@ -128,7 +124,7 @@ const PerfectRoster = () => {
       <div className="row g-4">
         {activeAndUpcoming.map(challenge => {
           const isActive = challenge.status === 'active';
-          const userEntry = challenge.entries[currentUser?.uid || ''];
+          const userEntry = currentUser ? challenge.entries[currentUser.uid] : null;
           const participantCount = Object.keys(challenge.entries).length;
 
           return (
@@ -136,7 +132,9 @@ const PerfectRoster = () => {
               <div 
                 className="card h-100"
                 style={{ cursor: 'pointer' }}
-                onClick={() => navigate(`/perfect-roster/${challenge.id}`)}
+                onClick={() => {
+                  navigate(`/perfect-roster/${challenge.id}`);
+                }}
               >
                 <div className="card-body">
                   <div className="d-flex justify-content-between align-items-center">

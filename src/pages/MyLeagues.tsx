@@ -41,10 +41,6 @@ const MyLeagues = () => {
     return <div className="p-4">Loading...</div>;
   }
 
-  if (!user) {
-    return <div className="p-4">Please log in to view your leagues</div>;
-  }
-
   if (error) {
     return <div className="p-4 text-danger">Error: {error}</div>;
   }
@@ -55,7 +51,16 @@ const MyLeagues = () => {
         <h2>Leagues</h2>
       </div>
 
-      {leagues.length === 0 ? (
+      {!user ? (
+        <div className="alert alert-info mb-4 d-flex justify-content-between align-items-center">
+          <div>
+            <strong>Want to create or join a league?</strong> Sign up to start competing with friends!
+          </div>
+          <a href="/login?mode=signup" className="btn btn-primary btn-sm">
+            Sign Up Now
+          </a>
+        </div>
+      ) : leagues.length === 0 ? (
         <div className="text-center py-5">
           <p className="text-muted mb-4">
             You are not a member of any leagues yet.
