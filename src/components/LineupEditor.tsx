@@ -187,6 +187,7 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
 
             <div className="mb-4">
               <h6>{lineup.flexSlots?.length === 1 ? 'Flex Player' : 'Flex Players'}</h6>
+              <small className="text-muted d-block mb-2">Can be filled by players from any region</small>
               {Array.from({ length: lineup.flexSlots?.length || 0 }).map((_, i) => (
                 <div key={i}>{renderSlot('flexSlots', i)}</div>
               ))}
