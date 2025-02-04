@@ -1,7 +1,7 @@
 import './Sidebar.css';
 import { Link, useLocation } from "react-router-dom";
 import { ReactNode, useState, useEffect } from "react";
-import { Menu, X, Trophy, Home, Settings, FileText, User, Crown } from "lucide-react";
+import { Menu, X, Trophy, Settings, FileText, User, Crown } from "lucide-react";
 import { useAuth } from "../firebase/auth";
 
 interface NavItemProps {
@@ -35,7 +35,6 @@ const NavItem = ({ Icon, text, path, onClick }: NavItemProps & { onClick?: () =>
 };
 
 const Sidebar = ({
-  appName = "Fantasy TFT",
   footerText = "Created by Dinodan",
   children,
 }: SidebarProps) => {
@@ -50,7 +49,6 @@ const Sidebar = ({
   }, []);
 
   const updatedMenuItems = [
-    { Icon: Home, text: "Home", path: "/" },
     { Icon: Trophy, text: "Leagues", path: "/leagues" },
     { Icon: FileText, text: "Drafts", path: "/drafts" },
     { Icon: Crown, text: "Perfect Roster Challenge", path: "/perfect-roster" },
@@ -79,16 +77,17 @@ const Sidebar = ({
         style={{ width: "250px" }}
       >
         <div className="d-flex flex-column h-100">
-          <div className="p-3 border-bottom border-secondary">
-            <h1
-              className="h1 mb-0 text-center"
-              style={{
-                fontFamily: "'Smooch Sans', sans-serif",
-                fontWeight: 700,
-              }}
-            >
-              {appName}
-            </h1>
+          <div className="p-3">
+            <div className="text-center">
+              <Link to="/">
+                <img 
+                  src="/logo.png" 
+                  alt="Fantasy TFT" 
+                  className="img-fluid"
+                  style={{ maxWidth: '200px' }}
+                />
+              </Link>
+            </div>
           </div>
           <nav className="nav flex-column flex-grow-1 overflow-auto py-3">
             {updatedMenuItems.map((item, index) => (
@@ -100,7 +99,7 @@ const Sidebar = ({
             ))}
           </nav>
           <div className="p-3 border-top border-secondary">
-            <p className="small text-white mb-0">{footerText}</p>
+            <p className="small text-white mb-0">{footerText}<br />{"Logo by CLE"}</p>
           </div>
         </div>
       </div>

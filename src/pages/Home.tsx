@@ -19,7 +19,9 @@ const Home = () => {
       <div className="bg-primary bg-gradient text-white py-5 px-4 mb-5">
         <div className="row align-items-center">
           <div className="col-lg-6">
-            <h1 className="display-4 fw-bold mb-3">Fantasy TFT</h1>
+            <h1 className="display-4 fw-bold mb-3">
+              Welcome to Fantasy TFT!
+            </h1>
             <p className="lead mb-4">
               Create leagues, draft players, and compete with friends in the ultimate
               TFT fantasy experience. Track scores across multiple tournaments and crown
@@ -54,8 +56,8 @@ const Home = () => {
                   multiple tournaments and track your standings throughout the season.
                 </p>
                 <div className="mt-auto text-center">
-                  <Link to="/leagues" className="btn btn-primary">
-                    Browse Leagues
+                <Link to="/drafts" className="btn btn-primary me-2">
+                    Start a Fantasy Draft
                   </Link>
                 </div>
               </div>
@@ -70,13 +72,12 @@ const Home = () => {
                   <h3 className="h5 mb-0">Perfect Roster Challenge</h3>
                 </div>
                 <p className="card-text">
-                  Don't want to commit to a full league? Try the Perfect Roster Challenge! 
-                  Pick your ideal lineup for a single tournament and compete against everyone to score the most points.
-                  Can you pick the perfect roster? 
+                  Don't have a group to play with yet? Try the Perfect Roster Challenge! 
+                  Pick your ideal lineup for an upcoming tournament and compete against everyone else to score the most points.
                 </p>
                 <div className="mt-auto text-center">
                   <Link to="/perfect-roster" className="btn btn-warning text-dark">
-                    Join Challenge
+                    Join the Challenge
                   </Link>
                 </div>
               </div>
@@ -86,7 +87,7 @@ const Home = () => {
       </div>
 
       {/* How It Works Section */}
-      <div className="bg-light py-5">
+      <div className="py-5">
         <div className="container">
           <h2 className="text-center mb-4">How It Works</h2>
           <div className="row g-4">
@@ -99,7 +100,7 @@ const Home = () => {
                   </div>
                 </div>
                 <h3 className="h5">Draft Your Teams</h3>
-                <p className="text-muted">
+                <p className="text-body-secondary">
                   You can draft your teams live right here on Fantasy TFT in the Drafts tab, or you can draft on your own platform and import your rosters later.
                 </p>
               </div>
@@ -113,7 +114,7 @@ const Home = () => {
                   </div>
                 </div>
                 <h3 className="h5">Create Your League</h3>
-                <p className="text-muted">
+                <p className="text-body-secondary">
                   Convert your Fantasy TFT Draft directly into a League, or create a new one from scratch and import your rosters later.
                 </p>
               </div>
@@ -127,7 +128,7 @@ const Home = () => {
                   </div>
                 </div>
                 <h3 className="h5">Compete & Win</h3>
-                <p className="text-muted">
+                <p className="text-body-secondary">
                   Manage your roster through trades and Free Agents. Compete for the highest season score, 
                   or battle it out in playoffs during the Americas Golden Spatula!
                 </p>

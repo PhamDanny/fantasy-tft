@@ -203,13 +203,21 @@ const LeagueChat = ({
     if (message.type === "message") {
       return (
         <div className={`d-flex mb-2 ${isOwnMessage ? "justify-content-end" : "justify-content-start"}`}>
-          <div className={`px-3 py-2 rounded-3 ${isOwnMessage ? "bg-primary text-white" : "bg-light"}`}
+          <div className={`px-3 py-2 rounded-3 ${
+            isOwnMessage 
+              ? "bg-primary text-white" 
+              : "bg-light-subtle"
+          }`}
             style={{ maxWidth: "75%" }}>
             <div className={`fw-medium small mb-1 ${isOwnMessage ? "text-white-50" : ""}`}>
               {displayName}
             </div>
             <div className="mb-1">{message.content}</div>
-            <div className={`small ${isOwnMessage ? "text-white-50" : "text-muted"}`}>
+            <div className={`small ${
+              isOwnMessage 
+                ? "text-white-50" 
+                : "text-body-secondary"
+            }`}>
               {timestamp}
             </div>
           </div>
@@ -384,13 +392,15 @@ const LeagueChat = ({
 
       return (
         <div className="d-flex justify-content-center mb-3">
-          <div
-            className={`bg-light px-4 py-3 rounded-3 ${
-              message.metadata?.type === "trade" ? "w-100" : "w-75"
-            }`}
-          >
+          <div className={`bg-light-subtle px-4 py-3 rounded-3 ${
+            message.metadata?.type === "trade" ? "w-100" : "w-75"
+          }`}>
             {content}
-            <div className="text-muted small text-center mt-2">
+            <div className={`small text-center ${
+              isOwnMessage 
+                ? "text-white-50" 
+                : "text-body-secondary"
+            }`}>
               {timestamp}
             </div>
           </div>

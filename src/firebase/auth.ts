@@ -2,7 +2,10 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  sendPasswordResetEmail as firebaseSendPasswordReset,
+  User,
+  verifyBeforeUpdateEmail
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './config';
@@ -51,7 +54,15 @@ export const signOut = async () => {
   return firebaseSignOut(auth);
 };
 
-export const useAuth = (callback: (user: any) => void) => {
+export const reloadUser = async () => {
+  if (auth.currentUser) {
+    await auth.currentUser.reload();
+    return auth.currentUser;
+  }
+  return null;
+};
+
+export const useAuth = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, callback);
 };
 
@@ -62,4 +73,12 @@ export const createUserDocument = async (userId: string, email: string, displayN
     createdAt: serverTimestamp(),
     leagues: []
   });
+};
+
+export const sendPasswordResetEmail = async (email: string) => {
+  return firebaseSendPasswordReset(auth, email);
+};
+
+export const updateUserEmail = async (user: User, newEmail: string) => {
+  return verifyBeforeUpdateEmail(user, newEmail);
 };

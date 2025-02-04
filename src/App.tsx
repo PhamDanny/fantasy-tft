@@ -16,6 +16,7 @@ import { useAuth } from "./firebase/auth";
 import PerfectRoster from "./pages/PerfectRoster";
 import ChallengeView from "./pages/ChallengeView";
 import RequireAuth from './components/RequireAuth';
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -42,48 +43,50 @@ function App() {
   const menuItems = user ? authenticatedMenuItems : unauthenticatedMenuItems;
 
   return (
-    <Router>
-      <Sidebar
-        menuItems={menuItems}
-        appName="Fantasy TFT"
-        footerText="Created by Dinodan"
-      >
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          
-          {/* Public Routes */}
-          <Route path="/perfect-roster" element={<PerfectRoster />} />
-          <Route path="/perfect-roster/:challengeId" element={<ChallengeView />} />
-          <Route path="/leagues" element={<MyLeagues />} />
-          <Route path="/drafts" element={<MyDrafts />} />
-          
-          {/* Protected Routes - only specific actions need auth */}
-          <Route path="/leagues/:leagueId" element={
-            <RequireAuth>
-              <LeagueView />
-            </RequireAuth>
-          } />
-          <Route path="/drafts/:draftId" element={
-            <RequireAuth>
-              <Draft />
-            </RequireAuth>
-          } />
-          <Route path="/drafts/join/:inviteCode" element={<JoinDraft />} />
-          <Route path="/join/:inviteCode" element={<JoinLeague />} />
-          <Route path="/profile" element={
-            <RequireAuth>
-              <Profile />
-            </RequireAuth>
-          } />
-          <Route path="/settings" element={
-            <RequireAuth>
-              <UserSettings />
-            </RequireAuth>
-          } />
-        </Routes>
-      </Sidebar>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <Sidebar
+          menuItems={menuItems}
+          appName="Fantasy TFT"
+          footerText="Created by Dinodan"
+        >
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            
+            {/* Public Routes */}
+            <Route path="/perfect-roster" element={<PerfectRoster />} />
+            <Route path="/perfect-roster/:challengeId" element={<ChallengeView />} />
+            <Route path="/leagues" element={<MyLeagues />} />
+            <Route path="/drafts" element={<MyDrafts />} />
+            
+            {/* Protected Routes - only specific actions need auth */}
+            <Route path="/leagues/:leagueId" element={
+              <RequireAuth>
+                <LeagueView />
+              </RequireAuth>
+            } />
+            <Route path="/drafts/:draftId" element={
+              <RequireAuth>
+                <Draft />
+              </RequireAuth>
+            } />
+            <Route path="/drafts/join/:inviteCode" element={<JoinDraft />} />
+            <Route path="/join/:inviteCode" element={<JoinLeague />} />
+            <Route path="/profile" element={
+              <RequireAuth>
+                <Profile />
+              </RequireAuth>
+            } />
+            <Route path="/settings" element={
+              <RequireAuth>
+                <UserSettings />
+              </RequireAuth>
+            } />
+          </Routes>
+        </Sidebar>
+      </Router>
+    </ThemeProvider>
   );
 }
 

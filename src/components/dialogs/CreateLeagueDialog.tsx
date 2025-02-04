@@ -261,8 +261,8 @@ const CreateLeagueDialog = ({
 
                 <div className="alert alert-info">
                   <i className="bi bi-info-circle me-2"></i>
-                  When creating a league from scratch, you will need to manually
-                  import rosters. Want to draft rosters instead? Consider{" "}
+                  When creating a league from scratch, you will need to draft on another platform and manually
+                  import rosters. Want to draft here on Fantasy TFT instead? Consider{" "}
                   <Link
                     to="/drafts"
                     className="alert-link"

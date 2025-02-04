@@ -356,7 +356,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
             {!isLeagueAtCapacity() && (
               <div className="row mb-4">
                 <div className="col-12">
-                  <div className="card bg-light">
+                  <div className="card">
                     <div className="card-body text-center py-4">
                       <h4>Your league isn't full!</h4>
                       <p className="mb-4">
@@ -389,7 +389,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
         <h3 className="h5 mb-3">Regular Season Standings</h3>
         <div className="table-responsive">
           <table className="table table-hover">
-            <thead className="table-light">
+            <thead className="table-secondary">
               <tr>
                 <th className="text-center" style={{ width: '60px' }}>Rank</th>
                 <th>Team</th>
@@ -417,7 +417,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                   <React.Fragment key={teamId}>
                     <tr
                       className={`${
-                        team.ownerID === user.uid ? "table-primary" : ""
+                        team.ownerID === user.uid ? "table-info bg-opacity-50" : ""
                       } cursor-pointer`}
                       onClick={() => toggleTeamExpanded(teamId)}
                     >
@@ -441,7 +441,11 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                           )}
                           <div>
                             <span className="fw-medium">{team.teamName}</span>
-                            <div className="small text-muted">
+                            <div className={`small ${
+                              team.ownerID === user.uid 
+                                ? "text-dark" 
+                                : "text-body-secondary"
+                            }`}>
                               ${team.faabBudget}
                             </div>
                           </div>
@@ -479,8 +483,8 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                       <tr>
                         <td></td>
                         <td colSpan={league.settings.currentCup + 2}>
-                          <div className="bg-light p-3">
-                            <h6 className="mb-3">Player Contributions</h6>
+                          <div className="table-secondary p-3">
+                            <h6 className="mb-3 text-body">Player Contributions</h6>
                             <table className="table table-sm">
                               <thead>
                                 <tr>
