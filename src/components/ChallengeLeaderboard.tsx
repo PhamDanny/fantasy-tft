@@ -23,36 +23,55 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
   };
 
   const getEntriesWithScores = () => {
-    return Object.entries(entries).map(([_, entry]) => {
+    return Object.entries(entries).map(([userId, entry]) => {
       let totalScore = 0;
+      const playerContributions: Array<{playerId: string, score: number}> = [];
 
       // Calculate captain scores
       entry.captains.forEach((playerId: string) => {
-        totalScore += calculatePlayerScore(playerId, true);
+        if (playerId) {  // Only calculate if playerId exists
+          const score = calculatePlayerScore(playerId, true);
+          totalScore += score;
+          playerContributions.push({ playerId, score });
+        }
       });
 
       // Calculate NA player scores
       entry.naSlots.forEach((playerId: string) => {
-        totalScore += calculatePlayerScore(playerId, false);
+        if (playerId) {
+          const score = calculatePlayerScore(playerId, false);
+          totalScore += score;
+          playerContributions.push({ playerId, score });
+        }
       });
 
       // Calculate BR/LATAM player scores
       entry.brLatamSlots.forEach((playerId: string) => {
-        totalScore += calculatePlayerScore(playerId, false);
+        if (playerId) {
+          const score = calculatePlayerScore(playerId, false);
+          totalScore += score;
+          playerContributions.push({ playerId, score });
+        }
       });
 
       // Calculate flex player scores
       entry.flexSlots.forEach((playerId: string) => {
-        totalScore += calculatePlayerScore(playerId, false);
+        if (playerId) {
+          const score = calculatePlayerScore(playerId, false);
+          totalScore += score;
+          playerContributions.push({ playerId, score });
+        }
       });
 
       return {
         ...entry,
-        score: totalScore
+        userId,
+        score: totalScore,
+        playerContributions
       };
     })
     .sort((a, b) => {
-      // First sort by score
+      // First sort by score (even if 0)
       const scoreCompare = (b.score || 0) - (a.score || 0);
       // If scores are equal, sort alphabetically by userName
       if (scoreCompare === 0) {
@@ -80,40 +99,16 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
     return `${rank}th`;
   };
 
-  const getPlayerContributions = (entry: PerfectRosterLineup) => {
-    const contributions: Record<string, number> = {};
-    
-    // Calculate captain contributions (1.5x)
-    entry.captains.forEach((playerId: string) => {
-      if (playerId && players[playerId]?.scores?.[currentCup]) {
-        contributions[playerId] = players[playerId].scores[currentCup] * 1.5;
-      }
-    });
-
-    // Calculate other slot contributions
-    const slotTypes = ['naSlots', 'brLatamSlots', 'flexSlots'] as const;
-    slotTypes.forEach(slotType => {
-      // Type assertion to ensure TypeScript knows these are arrays
-      const slots = entry[slotType] as string[];
-      slots.forEach((playerId: string) => {
-        if (playerId && players[playerId]?.scores?.[currentCup]) {
-          contributions[playerId] = players[playerId].scores[currentCup];
-        }
-      });
-    });
-
-    return Object.entries(contributions)
-      .map(([playerId, score]) => ({
-        playerId,
-        score,
-        player: players[playerId]
-      }))
-      .sort((a, b) => b.score - a.score);
+  const formatScore = (score: number): string => {
+    return score % 1 === 0 ? score.toFixed(0) : score.toFixed(1);
   };
 
   return (
     <div className="card">
       <div className="card-body">
+        <div className="alert alert-info mb-3">
+          Tournament hasn't started yet. All players currently show 0 points.
+        </div>
         <div className="table-responsive">
           <table className="table table-hover mb-0">
             <thead className="table-light">
@@ -126,7 +121,6 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
             <tbody>
               {sortedEntries.map((entry, index) => {
                 const rank = index + 1;
-                const contributions = getPlayerContributions(entry);
                 
                 return (
                   <React.Fragment key={entry.userId}>
@@ -156,7 +150,7 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
                         </div>
                       </td>
                       <td className="text-end fw-bold">
-                        {entry.score?.toFixed(1)}
+                        {formatScore(entry.score || 0)}
                       </td>
                     </tr>
                     
@@ -165,7 +159,7 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
                         <td></td>
                         <td colSpan={2}>
                           <div className="bg-light p-3">
-                            <h6 className="mb-3">Player Contributions</h6>
+                            <h6 className="mb-3">Roster</h6>
                             <table className="table table-sm mb-0">
                               <thead>
                                 <tr>
@@ -174,22 +168,71 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
                                 </tr>
                               </thead>
                               <tbody>
-                                {contributions.map(({ playerId, score, player }) => (
-                                  <tr key={playerId}>
+                                {/* Show captains first */}
+                                {entry.captains.map((playerId, idx) => playerId && (
+                                  <tr key={`captain-${idx}`}>
                                     <td>
                                       <div>
-                                        <span>{player.name}</span>
+                                        <span>{players[playerId]?.name}</span>
                                         <small className="text-muted ms-2">
-                                          ({player.region})
+                                          ({players[playerId]?.region})
                                         </small>
-                                        {entry.captains.includes(playerId) && (
-                                          <span className="badge bg-warning text-dark ms-2">
-                                            Captain
-                                          </span>
-                                        )}
+                                        <span className="badge bg-warning text-dark ms-2">
+                                          Captain
+                                        </span>
                                       </div>
                                     </td>
-                                    <td className="text-end">{score.toFixed(1)}</td>
+                                    <td className="text-end">
+                                      {formatScore(0)}  {/* For now it's 0, but will format properly when scores are available */}
+                                    </td>
+                                  </tr>
+                                ))}
+                                {/* Show NA players */}
+                                {entry.naSlots.map((playerId, idx) => playerId && (
+                                  <tr key={`na-${idx}`}>
+                                    <td>
+                                      <div>
+                                        <span>{players[playerId]?.name}</span>
+                                        <small className="text-muted ms-2">
+                                          ({players[playerId]?.region})
+                                        </small>
+                                      </div>
+                                    </td>
+                                    <td className="text-end">
+                                      {formatScore(0)}  {/* For now it's 0, but will format properly when scores are available */}
+                                    </td>
+                                  </tr>
+                                ))}
+                                {/* Show BR/LATAM players */}
+                                {entry.brLatamSlots.map((playerId, idx) => playerId && (
+                                  <tr key={`br-${idx}`}>
+                                    <td>
+                                      <div>
+                                        <span>{players[playerId]?.name}</span>
+                                        <small className="text-muted ms-2">
+                                          ({players[playerId]?.region})
+                                        </small>
+                                      </div>
+                                    </td>
+                                    <td className="text-end">
+                                      {formatScore(0)}  {/* For now it's 0, but will format properly when scores are available */}
+                                    </td>
+                                  </tr>
+                                ))}
+                                {/* Show flex players */}
+                                {entry.flexSlots.map((playerId, idx) => playerId && (
+                                  <tr key={`flex-${idx}`}>
+                                    <td>
+                                      <div>
+                                        <span>{players[playerId]?.name}</span>
+                                        <small className="text-muted ms-2">
+                                          ({players[playerId]?.region})
+                                        </small>
+                                      </div>
+                                    </td>
+                                    <td className="text-end">
+                                      {formatScore(0)}  {/* For now it's 0, but will format properly when scores are available */}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>

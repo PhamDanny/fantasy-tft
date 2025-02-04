@@ -9,16 +9,11 @@ import { auth, db } from './config';
 
 export const signUp = async (email: string, password: string, displayName: string) => {
   try {
-    console.log("Starting signup process...");
-
     // Create the auth user
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    console.log("Auth user created:", userCredential.user.uid);
 
     // Create the user document in Firestore
     const userDoc = doc(db, 'users', userCredential.user.uid);
-    console.log("Attempting Firestore write to:", userDoc.path);
-
     await setDoc(userDoc, {
       displayName,
       email,
@@ -26,7 +21,6 @@ export const signUp = async (email: string, password: string, displayName: strin
       leagues: []
     });
 
-    console.log("Firestore user document created successfully");
     return userCredential;
   } catch (error: any) {
     // Convert Firebase auth errors to user-friendly messages

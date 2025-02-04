@@ -86,15 +86,12 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
       
       // Always set nomination state, even when null
       const newNomination = settings?.currentNomination || null;
-      console.log('Nomination state changed:', newNomination); // Debug
       setNomination(newNomination);
       
       if (settings?.currentNominator) {
-        console.log('Nominator changed:', settings.currentNominator); // Debug
         setCurrentNominator(settings.currentNominator);
       }
       if (settings?.nominationOrder) {
-        console.log('Order changed:', settings.nominationOrder); // Debug
         setNominationOrder(settings.nominationOrder);
       }
     });

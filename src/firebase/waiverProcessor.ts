@@ -77,13 +77,6 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
   const processedBids: ProcessedBid[] = [];
   const transactions: Transaction[] = [];
 
-  // Debug logging
-  console.log("Processing bids in order:", allBids.map(({ bid }) => ({
-    amount: bid.amount,
-    playerId: bid.playerId,
-    processingOrder: bid.processingOrder
-  })));
-
   for (const { bid, teamId } of allBids) {
     const team = league.teams[teamId];
     let success = false;
@@ -93,19 +86,13 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
     const previousFaabSpent = teamFaabSpent[teamId] || 0;
     const remainingFaab = team.faabBudget - previousFaabSpent;
 
-    // Debug logging
-    console.log(`Processing bid: $${bid.amount} for player ${bid.playerId}`);
-    console.log(`Team ${teamId} has $${remainingFaab} remaining FAAB`);
-
     // Skip if player already claimed
     if (claimedPlayers.has(bid.playerId)) {
       reason = "Player already claimed";
-      console.log("Failed: Player already claimed");
     }
     // Verify remaining FAAB
     else if (bid.amount > remainingFaab) {
       reason = "Insufficient remaining FAAB";
-      console.log("Failed: Insufficient FAAB");
     }
     // Process the claim
     else {
@@ -142,7 +129,6 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
       if (success) {
         claimedPlayers.add(bid.playerId);
         teamFaabSpent[teamId] = (teamFaabSpent[teamId] || 0) + bid.amount;
-        console.log(`Success: Added player ${bid.playerId}, spent $${bid.amount}`);
 
         // Create transaction record
         const transaction: Transaction = {

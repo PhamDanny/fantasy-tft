@@ -4,7 +4,6 @@ import type { League, Team, Player } from '../types';
 import { onSnapshot } from 'firebase/firestore';
 
 export const fetchLeague = async (leagueId: number): Promise<League> => {
-  // console.log("Fetching league with ID:", leagueId);
 
   const leagueDoc = await getDoc(doc(db, 'leagues', leagueId.toString()));
 
