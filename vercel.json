@@ -4,6 +4,14 @@
       "handle": "filesystem"
     },
     {
+      "src": "/perfect-roster/([^/]+)",
+      "dest": "/"
+    },
+    {
+      "src": "/perfect-roster",
+      "dest": "/"
+    },
+    {
       "src": "/join/([^/]+)",
       "dest": "/"
     },
