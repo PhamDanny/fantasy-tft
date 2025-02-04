@@ -162,7 +162,8 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
             )}
             
             <div className="alert alert-warning mb-3">
-              <strong>Note:</strong> Scoring is based on Qualification Points (QP) earned from the event, not game-to-game placements. 
+              <strong>How to Play:</strong> Select a player from the list on the right, then click on a slot below to add them to your lineup.
+              Scoring is based on Qualification Points (QP) earned from the event, not game-to-game placements. 
               Select players playing in Tactician's Trials at your own risk!
             </div>
             
