@@ -1,10 +1,9 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
-import { Swords, Search, Settings, User, LogIn, FileText } from "lucide-react";
+import { Trophy, Settings, User, LogIn, FileText } from "lucide-react";
 import Home from "./pages/Home";
 import MyLeagues from "./pages/MyLeagues";
 import LeagueView from "./pages/League";
-import FindLeagues from "./pages/FindLeagues";
 import UserSettings from "./pages/UserSettings";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
@@ -14,6 +13,9 @@ import Draft from "./pages/Draft";
 import JoinDraft from './pages/JoinDraft';
 import { useEffect, useState } from "react";
 import { useAuth } from "./firebase/auth";
+import PerfectRoster from "./pages/PerfectRoster";
+import ChallengeView from "./pages/ChallengeView";
+import RequireAuth from './components/RequireAuth';
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -26,9 +28,9 @@ function App() {
   }, []);
 
   const authenticatedMenuItems = [
-    { Icon: Swords, text: "Leagues", path: "/leagues" },
+    { Icon: Trophy, text: "Leagues", path: "/leagues" },
     { Icon: FileText, text: "Drafts", path: "/drafts" },
-    { Icon: Search, text: "Find Leagues", path: "/findleagues" },
+    { Icon: Trophy, text: "Perfect Roster Challenge", path: "/perfect-roster" },
     { Icon: Settings, text: "Settings", path: "/settings" },
     { Icon: User, text: "Profile", path: "/profile" },
   ];
@@ -40,7 +42,7 @@ function App() {
   const menuItems = user ? authenticatedMenuItems : unauthenticatedMenuItems;
 
   return (
-    <BrowserRouter>
+    <Router>
       <Sidebar
         menuItems={menuItems}
         appName="Fantasy TFT"
@@ -48,19 +50,54 @@ function App() {
       >
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/leagues" element={<MyLeagues />} />
-          <Route path="/leagues/:leagueId" element={<LeagueView />} />
-          <Route path="/drafts" element={<MyDrafts />} />
-          <Route path="/drafts/:draftId" element={<Draft />} />
+          <Route path="/login" element={<Login />} />
+          
+          {/* Protected Routes */}
+          <Route path="/leagues" element={
+            <RequireAuth>
+              <MyLeagues />
+            </RequireAuth>
+          } />
+          <Route path="/leagues/:leagueId" element={
+            <RequireAuth>
+              <LeagueView />
+            </RequireAuth>
+          } />
+          <Route path="/drafts" element={
+            <RequireAuth>
+              <MyDrafts />
+            </RequireAuth>
+          } />
+          <Route path="/drafts/:draftId" element={
+            <RequireAuth>
+              <Draft />
+            </RequireAuth>
+          } />
           <Route path="/drafts/join/:inviteCode" element={<JoinDraft />} />
           <Route path="/join/:inviteCode" element={<JoinLeague />} />
-          <Route path="/findleagues" element={<FindLeagues />} />
-          <Route path="/settings" element={<UserSettings />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/perfect-roster" element={
+            <RequireAuth>
+              <PerfectRoster />
+            </RequireAuth>
+          } />
+          <Route path="/perfect-roster/:challengeId" element={
+            <RequireAuth>
+              <ChallengeView />
+            </RequireAuth>
+          } />
+          <Route path="/profile" element={
+            <RequireAuth>
+              <Profile />
+            </RequireAuth>
+          } />
+          <Route path="/settings" element={
+            <RequireAuth>
+              <UserSettings />
+            </RequireAuth>
+          } />
         </Routes>
       </Sidebar>
-    </BrowserRouter>
+    </Router>
   );
 }
 

@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import { signIn, signUp, createUserDocument } from "../firebase/auth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth } from "../firebase/config";
 
 export const Login = () => {
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(searchParams.get('mode') === 'signup');
   const [needsSetup, setNeedsSetup] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();

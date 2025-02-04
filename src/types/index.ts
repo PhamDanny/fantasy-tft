@@ -10,7 +10,8 @@ export interface Player {
   id: string;
   name: string;
   region: string;
-  scores: PlayerScores;
+  set: number;  // Add this to track which TFT set the player belongs to
+  scores: Record<string, number>;  // Remove optional marker (?)
   regionals?: {
     qualified: boolean;
     placement: number;
@@ -232,3 +233,39 @@ export const PLAYOFF_SCORES: Record<number, number> = {
   17: 18, 18: 17, 19: 16, 20: 15, 21: 14, 22: 13, 23: 12, 24: 11,
   25: 8, 26: 7, 27: 6, 28: 5, 29: 4, 30: 3, 31: 2, 32: 1
 };
+
+export interface PerfectRosterLineup {
+  captains: string[];  // Length 1, scores 1.5x points
+  naSlots: string[];   // Length 5 for regular cups
+  brLatamSlots: string[]; // Length 1
+  flexSlots: string[]; // Length 3
+  locked: boolean;
+  score?: number;  // Total score including 1.5x captain bonus
+  userId: string;
+  userName: string;
+  timestamp: string;
+}
+
+export interface PerfectRosterChallenge {
+  id: string;
+  name: string;
+  season: string;
+  set: number;  // Add this to track which TFT set this challenge is for
+  startDate: string;
+  endDate: string;
+  settings: {
+    captainSlots: number;
+    naSlots: number;
+    brLatamSlots: number;
+    flexSlots: number;
+  };
+  currentCup: string;
+  status: 'upcoming' | 'active' | 'completed';
+  entries: Record<string, PerfectRosterLineup>;
+}
+
+export interface UserData {
+  displayName: string;
+  leagues: string[];
+  admin?: boolean;  // Add this field
+}

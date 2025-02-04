@@ -1,7 +1,8 @@
 import './Sidebar.css';
 import { Link, useLocation } from "react-router-dom";
-import { ReactNode, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { ReactNode, useState, useEffect } from "react";
+import { Menu, X, Trophy, Home, Settings, FileText, User, Crown } from "lucide-react";
+import { useAuth } from "../firebase/auth";
 
 interface NavItemProps {
   Icon: React.ElementType;
@@ -34,12 +35,30 @@ const NavItem = ({ Icon, text, path, onClick }: NavItemProps & { onClick?: () =>
 };
 
 const Sidebar = ({
-  menuItems,
   appName = "Fantasy TFT",
   footerText = "Created by Dinodan",
   children,
 }: SidebarProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const unsubscribe = useAuth((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const updatedMenuItems = [
+    { Icon: Home, text: "Home", path: "/" },
+    { Icon: Trophy, text: "Leagues", path: "/leagues" },
+    { Icon: FileText, text: "Drafts", path: "/drafts" },
+    { Icon: Crown, text: "Perfect Roster Challenge", path: "/perfect-roster" },
+    { Icon: Settings, text: "Settings", path: "/settings" },
+    currentUser 
+      ? { Icon: User, text: "Profile", path: "/profile" }
+      : { Icon: User, text: "Login / Signup", path: "/login" }
+  ].filter(item => currentUser || !['Settings'].includes(item.text));
 
   return (
     <div className="d-flex min-vh-100">
@@ -72,7 +91,7 @@ const Sidebar = ({
             </h1>
           </div>
           <nav className="nav flex-column flex-grow-1 overflow-auto py-3">
-            {menuItems.map((item, index) => (
+            {updatedMenuItems.map((item, index) => (
               <NavItem 
                 key={index} 
                 {...item} 
