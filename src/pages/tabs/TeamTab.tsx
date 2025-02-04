@@ -66,12 +66,6 @@ const TeamTab: React.FC<TeamTabProps> = ({
     const cupKey = `cup${cupNumber}` as keyof typeof selectedTeam.cupLineups;
     const existingLineup = selectedTeam.cupLineups[cupKey];
 
-    console.log('Getting cup lineup:', {
-      cupNumber,
-      cupKey,
-      existingLineup,
-      selectedTeam
-    });
 
     if (existingLineup) {
       // Return the existing lineup directly instead of creating a new object
@@ -288,18 +282,6 @@ const TeamTab: React.FC<TeamTabProps> = ({
     slotIndex: number,
     showScore = false
   ) => {
-    // Debug all players in lineup slots
-    if (currentPlayer) {
-      console.log('Player slot debug:', {
-        currentPlayer,
-        playerInDatabase: players[currentPlayer],
-        inCurrentRoster: selectedTeam.roster.includes(currentPlayer),
-        cupNumber: selectedCup,
-        slotType,
-        scores: players[currentPlayer]?.scores,
-        showScore
-      });
-    }
 
     const isPastCup = selectedCup <= (league.settings?.currentCup || 0);
     const isSelected = canEdit && selectedPlayer === currentPlayer;

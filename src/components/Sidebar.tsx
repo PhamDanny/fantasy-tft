@@ -3,11 +3,16 @@ import { Link, useLocation } from "react-router-dom";
 import { ReactNode, useState, useEffect } from "react";
 import { Menu, X, Trophy, Settings, FileText, User, Crown } from "lucide-react";
 import { useAuth } from "../firebase/auth";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase/config";
+import type { PerfectRosterChallenge } from '../types';
 
 interface NavItemProps {
   Icon: React.ElementType;
   text: string;
   path: string;
+  badge?: string | number;
+  badgeColor?: string;
 }
 
 interface SidebarProps {
@@ -17,7 +22,7 @@ interface SidebarProps {
   children?: ReactNode;
 }
 
-const NavItem = ({ Icon, text, path, onClick }: NavItemProps & { onClick?: () => void }) => {
+const NavItem = ({ Icon, text, path, onClick, badge, badgeColor = "danger" }: NavItemProps & { onClick?: () => void }) => {
   const location = useLocation();
   const isActive = location.pathname === path;
   return (
@@ -28,8 +33,18 @@ const NavItem = ({ Icon, text, path, onClick }: NavItemProps & { onClick?: () =>
       }`}
       onClick={onClick}
     >
-      <Icon className="me-3" size={20} />
-      <span>{text}</span>
+      <div className="d-flex align-items-start position-relative flex-grow-1">
+        <Icon className="me-3" size={20} />
+        <div className="d-flex flex-column">
+          <span>{text}</span>
+          {badge && (
+            <span className={`mt-1 badge bg-${badgeColor} text-dark text-wrap d-inline-block`} 
+                  style={{ fontSize: '0.75rem', lineHeight: '1.2', width: 'fit-content' }}>
+              {badge}
+            </span>
+          )}
+        </div>
+      </div>
     </Link>
   );
 };
@@ -40,6 +55,8 @@ const Sidebar = ({
 }: SidebarProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [hasActiveChallenge, setHasActiveChallenge] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   useEffect(() => {
     const unsubscribe = useAuth((user) => {
@@ -48,10 +65,63 @@ const Sidebar = ({
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (currentUser) {
+      const checkChallengeStatus = async () => {
+        try {
+          // Get all challenges
+          const unsubscribe = onSnapshot(
+            collection(db, 'perfectRosterChallenges'),
+            (snapshot) => {
+              const challenges = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+              })) as PerfectRosterChallenge[];
+
+              // Find the latest active challenge
+              const now = new Date().toISOString();
+              const activeChallenge = challenges.find(challenge => 
+                now >= challenge.startDate && 
+                now <= challenge.endDate
+              );
+
+              if (activeChallenge) {
+                setHasActiveChallenge(true);
+                // Check if user has already submitted an entry
+                const hasEntry = !!activeChallenge.entries[currentUser.uid];
+                setHasSubmitted(hasEntry);
+              } else {
+                setHasActiveChallenge(false);
+                setHasSubmitted(false);
+              }
+            }
+          );
+
+          return () => unsubscribe();
+        } catch (error) {
+          console.error("Error checking challenge status:", error);
+          setHasActiveChallenge(false);
+          setHasSubmitted(false);
+        }
+      };
+
+      checkChallengeStatus();
+    } else {
+      setHasActiveChallenge(false);
+      setHasSubmitted(false);
+    }
+  }, [currentUser]);
+
   const updatedMenuItems = [
     { Icon: Trophy, text: "Leagues", path: "/leagues" },
     { Icon: FileText, text: "Drafts", path: "/drafts" },
-    { Icon: Crown, text: "Perfect Roster Challenge", path: "/perfect-roster" },
+    { 
+      Icon: Crown, 
+      text: "Perfect Roster Challenge", 
+      path: "/perfect-roster",
+      badge: hasActiveChallenge && !hasSubmitted ? "Jump right in!" : undefined,
+      badgeColor: "warning"
+    },
     { Icon: Settings, text: "Settings", path: "/settings" },
     currentUser 
       ? { Icon: User, text: "Profile", path: "/profile" }

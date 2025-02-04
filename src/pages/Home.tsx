@@ -5,6 +5,7 @@ import { Trophy, Crown } from 'lucide-react';
 
 const Home = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showChallengePromo, setShowChallengePromo] = useState(false);
 
   useEffect(() => {
     const unsubscribe = useAuth((user) => {
@@ -13,8 +14,52 @@ const Home = () => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (currentUser) {
+      const hasSeenPromo = localStorage.getItem('challengePromoDismissed');
+      if (!hasSeenPromo) {
+        setShowChallengePromo(true);
+      }
+    }
+  }, [currentUser]);
+
+  const dismissPromo = () => {
+    setShowChallengePromo(false);
+    localStorage.setItem('challengePromoDismissed', new Date().toISOString());
+    setTimeout(() => localStorage.removeItem('challengePromoDismissed'), 7 * 24 * 60 * 60 * 1000);
+  };
+
   return (
     <div className="container-fluid p-0">
+      {/* Challenge Promo Popup */}
+      {showChallengePromo && (
+        <div className="position-fixed bottom-0 end-0 m-3 z-3" style={{ maxWidth: '400px' }}>
+          <div className="card border-warning shadow">
+            <div className="card-body">
+              <button
+                type="button"
+                className="btn-close position-absolute top-0 end-0 m-2"
+                onClick={dismissPromo}
+                aria-label="Close"
+              />
+              <div className="d-flex align-items-center mb-2">
+                <Crown className="text-warning me-2" size={24} />
+                <h5 className="card-title mb-0">New Challenge Available!</h5>
+              </div>
+              <p className="card-text">
+                Join the Perfect Roster Challenge! Pick your dream lineup for the upcoming tournament
+                and compete for the top spot on the leaderboard.
+              </p>
+              <div className="d-flex justify-content-end">
+                <Link to="/perfect-roster" className="btn btn-warning" onClick={dismissPromo}>
+                  Join Now
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
       <div className="bg-primary bg-gradient text-white py-5 px-4 mb-5">
         <div className="row align-items-center">
