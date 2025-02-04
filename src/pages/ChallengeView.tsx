@@ -113,18 +113,16 @@ const ChallengeView = () => {
     try {
       const challengeRef = doc(db, 'perfectRosterChallenges', challengeId);
       
-      // Keep the existing userName if it exists, otherwise use current display name
-      const existingEntry = challenge.entries[currentUser.uid];
-      const userName = existingEntry?.userName || 
-                      currentUser.displayName || 
-                      `User${currentUser.uid.slice(0,4)}`;
+      // First, get the user's display name from Firestore
+      const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+      const userName = userDoc.exists() ? userDoc.data().displayName : "Unknown";
 
       const updateData = {
         entries: {
           [currentUser.uid]: {
             ...newLineup,
             userId: currentUser.uid,
-            userName: currentUser.displayName || userName, // Prioritize current displayName
+            userName: userName,  // Use the name from Firestore
             timestamp: serverTimestamp(),
             locked: false
           }
