@@ -212,6 +212,22 @@ const TeamTab: React.FC<TeamTabProps> = ({
         flexSlots: [...lineup.flexSlots],
       };
 
+      // If there's a player in the target slot and they're not in any other slot,
+      // and they're not in the current roster, we need to drop them
+      if (currentPlayer) {
+        const isInOtherSlot = [
+          ...newLineup.captains,
+          ...newLineup.naSlots,
+          ...newLineup.brLatamSlots,
+          ...newLineup.flexSlots
+        ].filter(id => id === currentPlayer).length > 1;
+
+        if (!isInOtherSlot && !selectedTeam.roster.includes(currentPlayer)) {
+          // Drop the player
+          await handleDropPlayer(currentPlayer);
+        }
+      }
+
       // Remove selected player from current position if they're in one
       newLineup.captains = newLineup.captains.map((id) =>
         id === selectedPlayer ? null : id
@@ -225,22 +241,6 @@ const TeamTab: React.FC<TeamTabProps> = ({
       newLineup.flexSlots = newLineup.flexSlots.map((id) =>
         id === selectedPlayer ? null : id
       );
-
-      // If there's a player in the target slot, remove them
-      if (currentPlayer) {
-        newLineup.captains = newLineup.captains.map((id) =>
-          id === currentPlayer ? null : id
-        );
-        newLineup.naSlots = newLineup.naSlots.map((id) =>
-          id === currentPlayer ? null : id
-        );
-        newLineup.brLatamSlots = newLineup.brLatamSlots.map((id) =>
-          id === currentPlayer ? null : id
-        );
-        newLineup.flexSlots = newLineup.flexSlots.map((id) =>
-          id === currentPlayer ? null : id
-        );
-      }
 
       // Place selected player in new slot
       switch (slotType) {
@@ -387,12 +387,6 @@ const TeamTab: React.FC<TeamTabProps> = ({
     }
 
     setLoading(true);
-    console.log('Before drop:', {
-      currentCup: league.settings?.currentCup,
-      cupLineups: selectedTeam.cupLineups,
-      roster: selectedTeam.roster,
-      playerId
-    });
 
     try {
       const teamRef = doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId);
@@ -421,6 +415,36 @@ const TeamTab: React.FC<TeamTabProps> = ({
         }
       };
 
+      const updates: any = {
+        roster: newRoster
+      };
+
+      // Remove player from future cup lineups (after current cup)
+      const currentCup = league.settings?.currentCup || 0;
+      if (selectedTeam.cupLineups) {
+        for (let cupNumber = currentCup + 1; cupNumber <= 3; cupNumber++) {
+          const cupKey = `cup${cupNumber}` as keyof typeof selectedTeam.cupLineups;
+          if (selectedTeam.cupLineups[cupKey]) {
+            const newLineup = {
+              ...selectedTeam.cupLineups[cupKey],
+              captains: selectedTeam.cupLineups[cupKey].captains.map((id: string | null) => 
+                id === playerId ? null : id
+              ),
+              naSlots: selectedTeam.cupLineups[cupKey].naSlots.map((id: string | null) => 
+                id === playerId ? null : id
+              ),
+              brLatamSlots: selectedTeam.cupLineups[cupKey].brLatamSlots.map((id: string | null) => 
+                id === playerId ? null : id
+              ),
+              flexSlots: selectedTeam.cupLineups[cupKey].flexSlots.map((id: string | null) => 
+                id === playerId ? null : id
+              ),
+            };
+            updates[`cupLineups.${cupKey}`] = newLineup;
+          }
+        }
+      }
+
       // Only update the roster - preserve all cup lineups
       await updateDoc(doc(db, "leagues", leagueId.toString()), {
         transactions: [...league.transactions, transaction]
@@ -429,21 +453,10 @@ const TeamTab: React.FC<TeamTabProps> = ({
       // If in playoffs, also remove from playoff roster if present
       if (league.settings?.playoffs && selectedTeam.playoffRoster) {
         const newPlayoffRoster = selectedTeam.playoffRoster.filter(id => id !== playerId);
-        await updateDoc(teamRef, {
-          roster: newRoster,
-          playoffRoster: newPlayoffRoster
-        });
-      } else {
-        await updateDoc(teamRef, {
-          roster: newRoster
-        });
+        updates.playoffRoster = newPlayoffRoster;
       }
 
-      console.log('After drop:', {
-        newRoster,
-        cupLineups: selectedTeam.cupLineups
-      });
-
+      await updateDoc(teamRef, updates);
     } catch (err) {
       console.error(err instanceof Error ? err.message : "Failed to drop player");
     } finally {
