@@ -14,41 +14,47 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
   currentCup
 }) => {
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const entriesPerPage = 20;
 
   // Calculate scores for entries
-  const entriesWithScores = Object.values(entries).map(entry => {
-    if (entry.score !== undefined) return entry;
+  const calculatePlayerScore = (playerId: string, isCapt: boolean): number => {
+    const player = players[playerId];
+    if (!player || !player.scores || !player.scores[currentCup]) return 0;
+    return player.scores[currentCup] * (isCapt ? 1.5 : 1);
+  };
 
-    let totalScore = 0;
-    
-    // Calculate captain score (1.5x)
-    entry.captains.forEach(playerId => {
-      const player = players[playerId];
-      if (player && player.scores && currentCup in player.scores) {
-        totalScore += player.scores[currentCup] * 1.5;
-      }
-    });
+  const getEntriesWithScores = () => {
+    return Object.entries(entries).map(([_, entry]) => {
+      let totalScore = 0;
 
-    // Calculate other slots
-    ['naSlots', 'brLatamSlots', 'flexSlots'].forEach(slotType => {
-      entry[slotType].forEach(playerId => {
-        const player = players[playerId];
-        if (player && player.scores && currentCup in player.scores) {
-          totalScore += player.scores[currentCup];
-        }
+      // Calculate captain scores
+      entry.captains.forEach((playerId: string) => {
+        totalScore += calculatePlayerScore(playerId, true);
       });
-    });
 
-    return {
-      ...entry,
-      score: totalScore
-    };
-  });
+      // Calculate NA player scores
+      entry.naSlots.forEach((playerId: string) => {
+        totalScore += calculatePlayerScore(playerId, false);
+      });
 
-  const sortedEntries = entriesWithScores
+      // Calculate BR/LATAM player scores
+      entry.brLatamSlots.forEach((playerId: string) => {
+        totalScore += calculatePlayerScore(playerId, false);
+      });
+
+      // Calculate flex player scores
+      entry.flexSlots.forEach((playerId: string) => {
+        totalScore += calculatePlayerScore(playerId, false);
+      });
+
+      return {
+        ...entry,
+        score: totalScore
+      };
+    })
     .sort((a, b) => (b.score || 0) - (a.score || 0));
+  };
+
+  const sortedEntries = getEntriesWithScores();
 
   const getRankStyle = (rank: number): string => {
     switch (rank) {
@@ -70,15 +76,18 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
     const contributions: Record<string, number> = {};
     
     // Calculate captain contributions (1.5x)
-    entry.captains.forEach(playerId => {
+    entry.captains.forEach((playerId: string) => {
       if (playerId && players[playerId]?.scores?.[currentCup]) {
         contributions[playerId] = players[playerId].scores[currentCup] * 1.5;
       }
     });
 
     // Calculate other slot contributions
-    ['naSlots', 'brLatamSlots', 'flexSlots'].forEach(slotType => {
-      entry[slotType].forEach(playerId => {
+    const slotTypes = ['naSlots', 'brLatamSlots', 'flexSlots'] as const;
+    slotTypes.forEach(slotType => {
+      // Type assertion to ensure TypeScript knows these are arrays
+      const slots = entry[slotType] as string[];
+      slots.forEach((playerId: string) => {
         if (playerId && players[playerId]?.scores?.[currentCup]) {
           contributions[playerId] = players[playerId].scores[currentCup];
         }

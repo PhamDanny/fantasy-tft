@@ -17,9 +17,9 @@ const PerfectLineup: React.FC<PerfectLineupProps> = ({
 }) => {
   const calculatePerfectLineup = () => {
     const playersWithScores = Object.entries(players)
-      .map(([id, player]) => ({
-        id,
+      .map(([playerId, player]) => ({
         ...player,
+        id: playerId,
         currentScore: player.scores[currentCup] || 0
       }))
       .filter(p => p.currentScore > 0);

@@ -235,15 +235,15 @@ export const PLAYOFF_SCORES: Record<number, number> = {
 };
 
 export interface PerfectRosterLineup {
-  captains: string[];  // Length 1, scores 1.5x points
-  naSlots: string[];   // Length 5 for regular cups
-  brLatamSlots: string[]; // Length 1
-  flexSlots: string[]; // Length 3
+  captains: string[];
+  naSlots: string[];
+  brLatamSlots: string[];
+  flexSlots: string[];
   locked: boolean;
-  score?: number;  // Total score including 1.5x captain bonus
   userId: string;
   userName: string;
   timestamp: string;
+  score?: number;  // Add optional score field
 }
 
 export interface PerfectRosterChallenge {

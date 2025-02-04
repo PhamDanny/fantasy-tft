@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../firebase/auth';
 
-const RequireAuth = ({ children }: { children: JSX.Element }) => {
+const RequireAuth = ({ children }: { children: ReactElement }) => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const navigate = useNavigate();
 
