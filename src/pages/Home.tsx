@@ -44,25 +44,27 @@ const Home = () => {
         <div className="row g-4 justify-content-center">
           <div className="col-md-6 col-lg-5">
             <div className="card h-100">
-              <div className="card-body">
+              <div className="card-body d-flex flex-column">
                 <div className="d-flex align-items-center mb-3">
                   <Trophy className="text-primary me-2" size={24} />
                   <h3 className="h5 mb-0">Fantasy Leagues</h3>
                 </div>
                 <p className="card-text">
-                  Create a league, invite friends, and draft your dream TFT roster. Compete over
+                  Create a league, invite friends, and draft your favorite TFT competitors. Compete over
                   multiple tournaments and track your standings throughout the season.
                 </p>
-                <Link to="/leagues" className="btn btn-primary">
-                  Browse Leagues
-                </Link>
+                <div className="mt-auto text-center">
+                  <Link to="/leagues" className="btn btn-primary">
+                    Browse Leagues
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
 
           <div className="col-md-6 col-lg-5">
             <div className="card h-100">
-              <div className="card-body">
+              <div className="card-body d-flex flex-column">
                 <div className="d-flex align-items-center mb-3">
                   <Crown className="text-warning me-2" size={24} />
                   <h3 className="h5 mb-0">Perfect Roster Challenge</h3>
@@ -72,9 +74,11 @@ const Home = () => {
                   Pick your ideal lineup for a single tournament and compete against everyone to score the most points.
                   Can you pick the perfect roster? 
                 </p>
-                <Link to="/perfect-roster" className="btn btn-warning text-dark">
-                  Join Challenge
-                </Link>
+                <div className="mt-auto text-center">
+                  <Link to="/perfect-roster" className="btn btn-warning text-dark">
+                    Join Challenge
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
@@ -88,8 +92,11 @@ const Home = () => {
           <div className="row g-4">
             <div className="col-md-4">
               <div className="text-center">
-                <div className="badge bg-primary rounded-circle p-3 mb-3" style={{ width: '45px', height: '45px', fontSize: '1.2rem' }}>
-                  1
+                <div className="d-flex justify-content-center">
+                  <div className="badge bg-primary rounded-circle p-3 mb-3 d-flex align-items-center justify-content-center" 
+                       style={{ width: '45px', height: '45px', fontSize: '1.2rem' }}>
+                    1
+                  </div>
                 </div>
                 <h3 className="h5">Draft Your Teams</h3>
                 <p className="text-muted">
@@ -99,8 +106,11 @@ const Home = () => {
             </div>
             <div className="col-md-4">
               <div className="text-center">
-                <div className="badge bg-primary rounded-circle p-3 mb-3" style={{ width: '45px', height: '45px', fontSize: '1.2rem' }}>
-                  2
+                <div className="d-flex justify-content-center">
+                  <div className="badge bg-primary rounded-circle p-3 mb-3 d-flex align-items-center justify-content-center" 
+                       style={{ width: '45px', height: '45px', fontSize: '1.2rem' }}>
+                    2
+                  </div>
                 </div>
                 <h3 className="h5">Create Your League</h3>
                 <p className="text-muted">
@@ -110,8 +120,11 @@ const Home = () => {
             </div>
             <div className="col-md-4">
               <div className="text-center">
-                <div className="badge bg-primary rounded-circle p-3 mb-3" style={{ width: '45px', height: '45px', fontSize: '1.2rem' }}>
-                  3
+                <div className="d-flex justify-content-center">
+                  <div className="badge bg-primary rounded-circle p-3 mb-3 d-flex align-items-center justify-content-center" 
+                       style={{ width: '45px', height: '45px', fontSize: '1.2rem' }}>
+                    3
+                  </div>
                 </div>
                 <h3 className="h5">Compete & Win</h3>
                 <p className="text-muted">
