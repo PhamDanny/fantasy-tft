@@ -81,11 +81,11 @@ const Sidebar = ({
               })) as PerfectRosterChallenge[];
 
               // Find the latest active challenge
-              const now = new Date().toISOString();
-              const activeChallenge = challenges.find(challenge => 
-                now >= challenge.startDate && 
-                now <= challenge.endDate
-              );
+              const now = new Date();
+              const activeChallenge = challenges.find(challenge => {
+                const endDate = challenge.endDate.toDate();
+                return now <= endDate;
+              });
 
               if (activeChallenge) {
                 setHasActiveChallenge(true);
@@ -121,7 +121,7 @@ const Sidebar = ({
       Icon: Crown, 
       text: "Perfect Roster Challenge", 
       path: "/perfect-roster",
-      badge: hasActiveChallenge && !hasSubmitted ? "Jump right in!" : undefined,
+      badge: hasActiveChallenge && !hasSubmitted ? "New Challenge!" : undefined,
       badgeColor: "warning"
     },
     { Icon: Settings, text: "Settings", path: "/settings" },
