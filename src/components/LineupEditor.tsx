@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Player, PerfectRosterLineup } from '../types';
 import { Search } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface LineupEditorProps {
   players: Record<string, Player>;
@@ -17,6 +18,7 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
   isLocked,
   set
 }) => {
+  const { isDarkMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -121,8 +123,10 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
     return (
       <div 
         className={`d-flex align-items-center p-2 border rounded mb-2 ${
-          player ? 'border-dark' : 'border-secondary'
-        }`}
+          player 
+            ? isDarkMode ? 'border-light' : 'border-dark'
+            : 'border-secondary'
+        } ${isDarkMode ? 'bg-dark' : ''}`}
         style={{ cursor: isLocked ? 'default' : 'pointer' }}
         onClick={() => !isLocked && handleSlotClick(slotType, index)}
       >
@@ -227,7 +231,9 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
                   style={{ 
                     cursor: isLocked || isUsed ? 'default' : 'pointer',
                     opacity: isUsed ? 0.5 : 1,
-                    backgroundColor: isUsed ? '#f8f9fa' : 'white'
+                    backgroundColor: isDarkMode 
+                      ? (isUsed ? '#2d3238' : '#212529')
+                      : (isUsed ? '#f8f9fa' : 'white')
                   }}
                   onClick={() => !isLocked && !isUsed && setSelectedPlayer(id)}
                 >

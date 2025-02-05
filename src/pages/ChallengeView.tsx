@@ -9,6 +9,7 @@ import LineupEditor from '../components/LineupEditor';
 import ChallengeLeaderboard from '../components/ChallengeLeaderboard';
 import PerfectLineup from '../components/PerfectLineup';
 import PopularRoster from '../components/PopularRoster';
+import { useTheme } from '../contexts/ThemeContext';
 
 const ChallengeView = () => {
   const { challengeId } = useParams();
@@ -22,6 +23,7 @@ const ChallengeView = () => {
     'leaderboard'  // Default to leaderboard
   );
   const navigate = useNavigate();
+  const { isDarkMode } = useTheme();
 
   // Update auth state
   useEffect(() => {
@@ -225,7 +227,7 @@ const ChallengeView = () => {
 
       {/* Sign up banner for logged out users - moved under tabs */}
       {!currentUser && (
-        <div className="alert alert-info mb-4 d-flex justify-content-between align-items-center">
+        <div className={`alert ${isDarkMode ? 'alert-dark' : 'alert-info'} mb-4 d-flex justify-content-between align-items-center`}>
           <div>
             <strong>Want to participate?</strong> Sign up to create and submit your own lineup!
           </div>

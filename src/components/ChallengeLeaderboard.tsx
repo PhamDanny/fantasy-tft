@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { PerfectRosterLineup, Player } from '../types';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ChallengeLeaderboardProps {
   entries: Record<string, PerfectRosterLineup>;
@@ -13,6 +14,7 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
   players,
   currentCup
 }) => {
+  const { isDarkMode } = useTheme();
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
 
   // Calculate scores for entries
@@ -108,7 +110,7 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
       <div className="card-body">
         <div className="table-responsive">
           <table className="table table-hover mb-0">
-            <thead className="table-light">
+            <thead className={isDarkMode ? 'table-dark' : 'table-light'}>
               <tr>
                 <th style={{ width: '60px' }} className="text-center">Rank</th>
                 <th>Player</th>
@@ -155,7 +157,7 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
                       <tr>
                         <td></td>
                         <td colSpan={2}>
-                          <div className="bg-light p-3">
+                          <div className={`${isDarkMode ? 'bg-dark' : 'bg-light'} p-3`}>
                             <h6 className="mb-3">Roster</h6>
                             <table className="table table-sm mb-0">
                               <thead>

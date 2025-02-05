@@ -6,6 +6,7 @@ import { useAuth } from "../firebase/auth";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
 import type { PerfectRosterChallenge } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface NavItemProps {
   Icon: React.ElementType;
@@ -53,6 +54,7 @@ const Sidebar = ({
   footerText = "Created by Dinodan",
   children,
 }: SidebarProps) => {
+  const { isDarkMode } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [hasActiveChallenge, setHasActiveChallenge] = useState(false);
@@ -141,10 +143,13 @@ const Sidebar = ({
 
       {/* Sidebar */}
       <div
-        className={`bg-dark text-white position-fixed h-100 z-2 ${
+        className={`text-white position-fixed h-100 z-2 ${
           isMobileMenuOpen ? "d-block" : "d-none"
         } d-md-block`}
-        style={{ width: "250px" }}
+        style={{ 
+          width: "250px",
+          backgroundColor: isDarkMode ? '#1a1d20' : '#212529'
+        }}
       >
         <div className="d-flex flex-column h-100">
           <div className="p-3">
@@ -174,8 +179,15 @@ const Sidebar = ({
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="d-none d-md-block" style={{ width: "250px", flexShrink: 0 }} />
+      {/* Main Content spacer - update background color here too */}
+      <div 
+        className="d-none d-md-block" 
+        style={{ 
+          width: "250px", 
+          flexShrink: 0,
+          backgroundColor: isDarkMode ? '#1a1d20' : '#212529'
+        }} 
+      />
       <main className="flex-grow-1">
         <div 
           className="container-fluid px-3 px-md-4 main-content"
