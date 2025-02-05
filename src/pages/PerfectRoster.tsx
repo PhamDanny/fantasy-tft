@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, doc, getDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../firebase/auth';
-import type { PerfectRosterChallenge, UserData } from '../types';
+import type { PerfectRosterChallenge } from '../types';
 import { Trophy, Clock, ChevronRight, Trash2 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import AdminPanel from '../components/AdminPanel';
