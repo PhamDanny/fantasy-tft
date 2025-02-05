@@ -49,8 +49,10 @@ const PerfectRoster = () => {
 
         // Filter out admin-only challenges for non-admin users
         const filteredChallenges = challengesData.filter(challenge => {
+          // If challenge is not admin-only, show it to everyone
           if (!challenge.adminOnly) return true;
-          return isAdmin;
+          // If challenge is admin-only, only show if user is explicitly marked as admin
+          return isAdmin === true;  // Explicit comparison to ensure admin field exists and is true
         });
 
         // Update challenge statuses based on dates
@@ -84,14 +86,18 @@ const PerfectRoster = () => {
 
   useEffect(() => {
     const checkAdminStatus = async () => {
-      if (!currentUser) return;
+      if (!currentUser) {
+        setIsAdmin(false);
+        return;
+      }
       
       try {
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        const userData = userDoc.data() as UserData;
-        setIsAdmin(userData?.admin === true);
+        // Only set isAdmin to true if the admin field explicitly exists and is true
+        setIsAdmin(userDoc.exists() && userDoc.data()?.admin === true);
       } catch (err) {
         console.error('Failed to check admin status:', err);
+        setIsAdmin(false);
       }
     };
 
