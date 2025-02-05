@@ -17,6 +17,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
     brLatamSlots: 1,
     flexSlots: 3
   });
+  const [isAdminOnly, setIsAdminOnly] = useState(false);
 
   const updateSlotCount = (
     slotType: keyof typeof rosterSettings,
@@ -55,7 +56,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
         endDate: rosterLockUTC,
         status: 'active',
         settings: rosterSettings,
-        entries: {}
+        entries: {},
+        adminOnly: isAdminOnly
       };
 
       await setDoc(doc(db, 'perfectRosterChallenges', challenge.id), challenge);
@@ -177,6 +179,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
             />
             <small className="text-muted">
               All times are in Pacific Time (PT)
+            </small>
+          </div>
+
+          <div className="form-check mb-3">
+            <input
+              type="checkbox"
+              className="form-check-input"
+              id="adminOnly"
+              checked={isAdminOnly}
+              onChange={(e) => setIsAdminOnly(e.target.checked)}
+            />
+            <label className="form-check-label" htmlFor="adminOnly">
+              Admin Only Challenge
+            </label>
+            <small className="form-text text-muted d-block">
+              Only admin users will be able to see this challenge
             </small>
           </div>
 

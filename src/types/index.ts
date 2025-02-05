@@ -250,7 +250,7 @@ export interface PerfectRosterChallenge {
   id: string;
   name: string;
   season: string;
-  set: number;  // Add this to track which TFT set this challenge is for
+  set: number;
   startDate: string;
   endDate: string;
   settings: {
@@ -262,6 +262,7 @@ export interface PerfectRosterChallenge {
   currentCup: string;
   status: 'upcoming' | 'active' | 'completed';
   entries: Record<string, PerfectRosterLineup>;
+  adminOnly?: boolean;  // Add this field
 }
 
 export interface UserData {

@@ -47,9 +47,15 @@ const PerfectRoster = () => {
           ...doc.data()
         })) as PerfectRosterChallenge[];
 
+        // Filter out admin-only challenges for non-admin users
+        const filteredChallenges = challengesData.filter(challenge => {
+          if (!challenge.adminOnly) return true;
+          return isAdmin;
+        });
+
         // Update challenge statuses based on dates
         const now = new Date().toISOString();
-        const updatedChallenges = challengesData.map(challenge => {
+        const updatedChallenges = filteredChallenges.map(challenge => {
           if (challenge.status === 'completed') return challenge;
           
           let newStatus: 'upcoming' | 'active' | 'completed';
@@ -74,7 +80,7 @@ const PerfectRoster = () => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
