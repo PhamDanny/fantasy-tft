@@ -97,7 +97,7 @@ const WaiverClaimDialog: React.FC<WaiverClaimDialogProps> = ({
             <button
               className="btn btn-primary"
               onClick={() => onSubmit(bidAmount, dropPlayer)}
-              disabled={loading || (isWaiver && bidAmount <= 0)}
+              disabled={loading}
             >
               {loading ? "Processing..." : isWaiver ? "Submit Claim" : "Add Player"}
             </button>
