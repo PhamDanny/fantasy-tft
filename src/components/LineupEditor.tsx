@@ -615,7 +615,7 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
                 </div>
               ) : (
                 <div className="alert alert-warning mb-3">
-                  <strong>How to Play:</strong> Select a player from the list on the right, then click on a slot below to add them to your lineup.
+                  <strong>How to Play:</strong> Drag and drop players from the player list into appropriate lineup slots.
                   Scoring is based on Qualification Points (QP) earned from the event, not game-to-game placements. 
                   Select players playing in Tactician's Trials at your own risk!
                 </div>
