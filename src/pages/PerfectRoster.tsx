@@ -7,9 +7,10 @@ import { Trophy, Clock, ChevronRight, Trash2 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import AdminPanel from '../components/AdminPanel';
 import { useNavigate } from 'react-router-dom';
+import { Timestamp } from 'firebase/firestore';
 
-const formatPacificTime = (isoString: string) => {
-  const date = new Date(isoString);
+const formatPacificTime = (timestamp: Timestamp) => {
+  const date = timestamp.toDate();
   return date.toLocaleString('en-US', {
     timeZone: 'America/Los_Angeles',
     month: 'short',
@@ -49,27 +50,14 @@ const PerfectRoster = () => {
 
         // Filter out admin-only challenges for non-admin users
         const filteredChallenges = challengesData.filter(challenge => {
-          // If challenge is not admin-only, show it to everyone
           if (!challenge.adminOnly) return true;
-          // If challenge is admin-only, only show if user is explicitly marked as admin
-          return isAdmin === true;  // Explicit comparison to ensure admin field exists and is true
+          return isAdmin;
         });
 
         // Update challenge statuses based on dates
-        const now = new Date().toISOString();
         const updatedChallenges = filteredChallenges.map(challenge => {
-          if (challenge.status === 'completed') return challenge;
-          
-          let newStatus: 'upcoming' | 'active' | 'completed';
-          if (now < challenge.startDate) {
-            newStatus = 'upcoming';
-          } else if (now >= challenge.startDate && now <= challenge.endDate) {
-            newStatus = 'active';
-          } else {
-            newStatus = 'completed';
-          }
-
-          return { ...challenge, status: newStatus };
+          const status = getStatus(challenge);
+          return { ...challenge, status };
         });
 
         setChallenges(updatedChallenges);
@@ -122,20 +110,22 @@ const PerfectRoster = () => {
   if (error) return <div className="alert alert-danger">{error}</div>;
 
   const renderChallengeCards = () => {
-    const activeAndUpcoming = challenges.filter(c => c.status !== 'completed');
-    
-    if (activeAndUpcoming.length === 0) {
+    // Sort all challenges by end date (roster lock), newest first
+    const sortedChallenges = [...challenges].sort((a, b) => 
+      b.endDate.toMillis() - a.endDate.toMillis()
+    );
+
+    if (sortedChallenges.length === 0) {
       return (
         <div className="alert alert-warning">
-          No active or upcoming challenges at this time
+          No challenges available
         </div>
       );
     }
 
     return (
       <div className="row g-4">
-        {activeAndUpcoming.map(challenge => {
-          const isActive = challenge.status === 'active';
+        {sortedChallenges.map(challenge => {
           const userEntry = currentUser ? challenge.entries[currentUser.uid] : null;
           const participantCount = Object.keys(challenge.entries).length;
 
@@ -144,9 +134,7 @@ const PerfectRoster = () => {
               <div 
                 className="card h-100"
                 style={{ cursor: 'pointer' }}
-                onClick={() => {
-                  navigate(`/perfect-roster/${challenge.id}`);
-                }}
+                onClick={() => navigate(`/perfect-roster/${challenge.id}`)}
               >
                 <div className="card-body">
                   <div className="d-flex justify-content-between align-items-center">
@@ -196,11 +184,13 @@ const PerfectRoster = () => {
 
                     <div className="col-md-4">
                       <div className={`badge ${
-                        isActive 
+                        challenge.endDate.toDate() > new Date()
                           ? 'bg-success'
-                          : 'bg-warning text-dark'
+                          : 'bg-secondary'
                       } p-2`}>
-                        {isActive ? 'Active' : 'Coming Soon'}
+                        {challenge.endDate.toDate() > new Date()
+                          ? 'Submissions Open'
+                          : 'Submissions Closed'}
                       </div>
                       {userEntry && (
                         <div className="badge bg-info ms-2 p-2">
@@ -238,10 +228,19 @@ const PerfectRoster = () => {
         </div>
       )}
 
-      {/* Challenge Cards */}
       {renderChallengeCards()}
     </div>
   );
+};
+
+const getStatus = (challenge: PerfectRosterChallenge): 'active' | 'completed' => {
+  const now = new Date();
+  
+  if (now <= challenge.endDate.toDate()) {
+    return 'active';  // Submissions still open
+  } else {
+    return 'completed';  // Submissions closed
+  }
 };
 
 export default PerfectRoster; 

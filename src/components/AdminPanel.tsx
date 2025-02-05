@@ -3,6 +3,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { PerfectRosterChallenge } from '../types';
 import { Plus, Minus } from 'lucide-react';
+import { Timestamp } from 'firebase/firestore';
 
 interface AdminPanelProps {
   onClose: () => void;
@@ -42,9 +43,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
     const rosterLockLocal = formData.get('rosterLock') as string;
 
     try {
-      // Convert local roster lock time to UTC ISO string
+      // Create date from the local input, maintaining the timezone
       const rosterLockDate = new Date(rosterLockLocal);
-      const rosterLockUTC = rosterLockDate.toISOString();
+      console.log('Input value:', rosterLockLocal);
+      console.log('Created date:', rosterLockDate);
 
       const challenge: PerfectRosterChallenge = {
         id: `${name.toLowerCase().replace(/\s+/g, '_')}_${new Date().getTime()}`,
@@ -52,8 +54,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
         season,
         set,
         currentCup,
-        startDate: new Date().toISOString(),
-        endDate: rosterLockUTC,
+        startDate: Timestamp.fromDate(new Date()),
+        endDate: Timestamp.fromDate(rosterLockDate),
         status: 'active',
         settings: rosterSettings,
         entries: {},
@@ -63,6 +65,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       await setDoc(doc(db, 'perfectRosterChallenges', challenge.id), challenge);
       onClose();
     } catch (err) {
+      console.error('Date error:', err);
       setError(err instanceof Error ? err.message : 'Failed to create challenge');
     } finally {
       setLoading(false);

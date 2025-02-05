@@ -1,5 +1,7 @@
 // src/types/index.ts
 
+import { Timestamp } from 'firebase/firestore';
+
 export interface PlayerScores {
   cup1: number;
   cup2: number;
@@ -251,8 +253,8 @@ export interface PerfectRosterChallenge {
   name: string;
   season: string;
   set: number;
-  startDate: string;
-  endDate: string;
+  startDate: string | Timestamp;  // Allow both types
+  endDate: Timestamp;
   settings: {
     captainSlots: number;
     naSlots: number;
@@ -260,7 +262,7 @@ export interface PerfectRosterChallenge {
     flexSlots: number;
   };
   currentCup: string;
-  status: 'upcoming' | 'active' | 'completed';
+  status: 'active' | 'completed';
   entries: Record<string, PerfectRosterLineup>;
   adminOnly?: boolean;  // Add this field
 }

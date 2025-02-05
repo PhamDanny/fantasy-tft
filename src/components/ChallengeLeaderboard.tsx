@@ -2,17 +2,20 @@ import React, { useState } from 'react';
 import type { PerfectRosterLineup, Player } from '../types';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { Timestamp } from 'firebase/firestore';
 
 interface ChallengeLeaderboardProps {
   entries: Record<string, PerfectRosterLineup>;
   players: Record<string, Player>;
   currentCup: string;
+  endDate: Timestamp;
 }
 
 const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
   entries,
   players,
-  currentCup
+  currentCup,
+  endDate
 }) => {
   const { isDarkMode } = useTheme();
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
@@ -105,9 +108,32 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
     return score % 1 === 0 ? score.toFixed(0) : score.toFixed(1);
   };
 
+  const formatEndDate = (timestamp: Timestamp) => {
+    return timestamp.toDate().toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }) + ' PT';
+  };
+
   return (
     <div className="card">
       <div className="card-body">
+        <div className={`alert ${isDarkMode ? 'alert-dark' : 'alert-secondary'} mb-4`}>
+          {new Date().toISOString() <= endDate.toDate().toISOString() ? (
+            <>
+              <strong>Submissions close at:</strong> {formatEndDate(endDate)}
+            </>
+          ) : (
+            <>
+              <strong>Submissions closed at:</strong> {formatEndDate(endDate)}
+            </>
+          )}
+        </div>
+
         <div className="table-responsive">
           <table className="table table-hover mb-0">
             <thead className={isDarkMode ? 'table-dark' : 'table-light'}>

@@ -7,8 +7,11 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Database backups
+# Database backups and scripts
 players_backup*
+*.csv
+/src/scripts/
+/scripts/
 
 node_modules
 dist
@@ -38,10 +41,6 @@ dist-ssr
 /build
 /dist
 
-# Scripts
-/scripts
-/src/scripts
-
 # Environment files
 .env
 .env.local
@@ -57,4 +56,20 @@ yarn-error.log*
 # Editor directories
 .idea/
 .vscode/
+
+# Firebase
+.firebase/
+!.firebase/test-data/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+.firebaserc
+firebase.json
 firestore.rules
+firestore.indexes.json
+firebase-export-1738779286864glMt8B/firebase-export-metadata.json
+firebase-export-1738779286864glMt8B/auth_export/accounts.json
+firebase-export-1738779286864glMt8B/auth_export/config.json
+firebase-export-1738779286864glMt8B/firestore_export/firestore_export.overall_export_metadata
+firebase-export-1738779286864glMt8B/firestore_export/all_namespaces/all_kinds/all_namespaces_all_kinds.export_metadata
+firebase-export-1738779286864glMt8B/firestore_export/all_namespaces/all_kinds/output-0

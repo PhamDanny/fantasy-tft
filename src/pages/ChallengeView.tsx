@@ -45,10 +45,21 @@ const ChallengeView = () => {
     return () => unsubscribe();
   }, []);
 
+  // Add this helper function
+  const canSubmitLineup = () => {
+    return (
+      currentUser && // User is logged in
+      challenge && // Challenge exists
+      (challenge.entries[currentUser.uid] || // Has an existing entry
+       (challenge.endDate && challenge.endDate.toDate() > new Date())) // Or submissions are still open
+    );
+  };
+
   // Update active tab when user auth state changes
   useEffect(() => {
-    setActiveTab(currentUser ? 'lineup' : 'leaderboard');
-  }, [currentUser]);
+    // If user can't submit, default to leaderboard
+    setActiveTab(canSubmitLineup() ? 'lineup' : 'leaderboard');
+  }, [currentUser, challenge]);
 
   useEffect(() => {
     if (!challengeId) {
@@ -118,12 +129,13 @@ const ChallengeView = () => {
     }
   };
 
-  const handleSaveLineup = async (newLineup: PerfectRosterLineup) => {
+  const handleSaveLineup = async (lineup: PerfectRosterLineup) => {
     if (!challengeId) throw new Error('Challenge ID is missing');
     if (!currentUser?.uid) throw new Error('You must be logged in to save a lineup');
     if (!challenge) throw new Error('Challenge data is missing');
 
     try {
+      setError(null); // Clear any existing errors
       const challengeRef = doc(db, 'perfectRosterChallenges', challengeId);
       
       // First, get the user's display name from Firestore
@@ -133,7 +145,7 @@ const ChallengeView = () => {
       const updateData = {
         entries: {
           [currentUser.uid]: {
-            ...newLineup,
+            ...lineup,
             userId: currentUser.uid,
             userName: userName,  // Use the name from Firestore
             timestamp: serverTimestamp(),
@@ -148,7 +160,11 @@ const ChallengeView = () => {
         { merge: true }
       );
     } catch (err) {
-      throw new Error(`Failed to save lineup: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      if (err instanceof Error && err.message.includes('PERMISSION_DENIED')) {
+        setError('Unable to save lineup: The submission deadline has passed.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to save lineup');
+      }
     }
   };
 
@@ -187,9 +203,9 @@ const ChallengeView = () => {
         )}
       </div>
 
-      {/* Challenge Navigation - hide lineup tab for logged out users */}
+      {/* Challenge Navigation - hide lineup tab when appropriate */}
       <ul className="nav nav-tabs mb-4">
-        {currentUser && (
+        {canSubmitLineup() && (
           <li className="nav-item">
             <button
               className={`nav-link ${activeTab === 'lineup' ? 'active' : ''}`}
@@ -225,7 +241,7 @@ const ChallengeView = () => {
         </li>
       </ul>
 
-      {/* Sign up banner for logged out users - moved under tabs */}
+      {/* Sign up banner for logged out users */}
       {!currentUser && (
         <div className={`alert ${isDarkMode ? 'alert-dark' : 'alert-info'} mb-4 d-flex justify-content-between align-items-center`}>
           <div>
@@ -239,27 +255,37 @@ const ChallengeView = () => {
 
       {/* Tab Content */}
       {activeTab === 'lineup' && currentUser && (
-        <LineupEditor
-          players={players}
-          lineup={
-            challenge.entries[currentUser.uid] || {
-              captains: Array(challenge.settings.captainSlots).fill(null),
-              naSlots: Array(challenge.settings.naSlots).fill(null),
-              brLatamSlots: Array(challenge.settings.brLatamSlots).fill(null),
-              flexSlots: Array(challenge.settings.flexSlots).fill(null),
-              locked: false,
-              userId: currentUser.uid,
-              userName: currentUser.displayName || `User${currentUser.uid.slice(0,4)}`,
-              timestamp: new Date().toISOString()
+        <>
+          {error && (
+            <div className={`alert ${isDarkMode ? 'alert-dark' : 'alert-danger'} mb-4`}>
+              {error}
+            </div>
+          )}
+          <LineupEditor
+            players={players}
+            lineup={
+              challenge.entries[currentUser.uid] || {
+                captains: Array(challenge.settings.captainSlots).fill(null),
+                naSlots: Array(challenge.settings.naSlots).fill(null),
+                brLatamSlots: Array(challenge.settings.brLatamSlots).fill(null),
+                flexSlots: Array(challenge.settings.flexSlots).fill(null),
+                locked: false,
+                userId: currentUser.uid,
+                userName: currentUser.displayName || `User${currentUser.uid.slice(0,4)}`,
+                timestamp: new Date().toISOString()
+              }
             }
-          }
-          onSave={handleSaveLineup}
-          isLocked={
-            challenge.entries[currentUser.uid]?.locked ||
-            new Date().toISOString() > challenge.endDate
-          }
-          set={challenge.set}
-        />
+            onSave={handleSaveLineup}
+            isLocked={
+              challenge.entries[currentUser.uid]?.locked ||
+              challenge.endDate.toDate() < new Date()
+            }
+            set={challenge.set}
+            currentCup={challenge.currentCup}
+            entries={challenge.entries}
+            currentUser={currentUser}
+          />
+        </>
       )}
 
       {activeTab === 'leaderboard' && (
@@ -267,6 +293,7 @@ const ChallengeView = () => {
           entries={challenge.entries}
           players={players}
           currentCup={challenge.currentCup}
+          endDate={challenge.endDate}
         />
       )}
 
