@@ -207,13 +207,8 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
       return;
     }
 
-    const otherBidsTotal = pendingBids.reduce(
-      (sum, bid, idx) => (idx === bidIndex ? sum : sum + bid.amount),
-      0
-    );
-
-    if (newAmount + otherBidsTotal > faabBudget) {
-      setError("Total bids would exceed FAAB budget");
+    if (newAmount > faabBudget) {
+      setError("Bid amount cannot exceed FAAB budget");
       return;
     }
 
