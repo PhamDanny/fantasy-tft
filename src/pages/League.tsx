@@ -10,7 +10,7 @@ import PlayersTab from "./tabs/PlayersTab";
 import TradeTab from "./tabs/TradeTab";
 import TransactionHistoryTab from "./tabs/TransactionHistoryTab";
 import LeagueSettingsTab from "./tabs/LeagueSettingsTab";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import { collection, onSnapshot, query, getDoc, doc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import DraftTab from "./tabs/DraftTab";
 import PlayoffsTab from "./tabs/PlayoffsTab";
@@ -28,6 +28,18 @@ const TABS = {
 
 type TabType = (typeof TABS)[keyof typeof TABS];
 
+function hasLeagueAccess(league: League, userId: string, isAdmin: boolean) {
+  if (isAdmin) return true;
+  
+  // Check if user is commissioner
+  if (league.commissioner === userId) return true;
+  
+  // Check if user has a team (either as owner or co-owner)
+  return Object.values(league.teams).some(team => 
+    team.ownerID === userId || team.coOwners?.includes(userId)
+  );
+}
+
 export const LeagueView: React.FC = () => {
   const { leagueId } = useParams();
   const numericLeagueId = parseInt(leagueId || "");
@@ -41,15 +53,20 @@ export const LeagueView: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [userTeam, setUserTeam] = useState<Team | null>(null);
   const [teams, setTeams] = useState<Record<string, Team>>({});
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     let leagueUnsubscribe: (() => void) | undefined;
     let teamsUnsubscribe: (() => void) | undefined;
 
-    const authUnsubscribe = useAuth((authUser) => {
+    const authUnsubscribe = useAuth(async (authUser) => {
       setUser(authUser);
       if (authUser) {
         setLoading(true);
+
+        // Check if user is admin
+        const userDoc = await getDoc(doc(db, 'users', authUser.uid));
+        setIsAdmin(userDoc.exists() && userDoc.data().admin === true);
 
         // Subscribe to teams subcollection
         const teamsQuery = query(collection(db, "leagues", numericLeagueId.toString(), "teams"));
@@ -112,8 +129,18 @@ export const LeagueView: React.FC = () => {
   if (loading) return <div className="p-4">Loading...</div>;
   if (error) return <div className="p-4 text-danger">Error: {error}</div>;
   if (!league) return <div className="p-4">League not found</div>;
-  if (!user)
-    return <div className="p-4">Please log in to view league details</div>;
+  if (!user) return <div className="p-4">Please log in to view league details</div>;
+
+  // Check access after loading
+  if (!hasLeagueAccess(league, user.uid, isAdmin)) {
+    return (
+      <div className="container mt-4">
+        <div className="alert alert-danger">
+          You do not have permission to view this league.
+        </div>
+      </div>
+    );
+  }
 
   // Calculate pending items
   const pendingWaivers = userTeam?.pendingBids?.length || 0;

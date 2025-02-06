@@ -4,7 +4,6 @@ import type { League, Team, Player } from '../types';
 import { onSnapshot } from 'firebase/firestore';
 
 export const fetchLeague = async (leagueId: number): Promise<League> => {
-
   const leagueDoc = await getDoc(doc(db, 'leagues', leagueId.toString()));
 
   if (!leagueDoc.exists()) {
@@ -59,10 +58,10 @@ export const fetchUserLeagues = async (userId: string): Promise<League[]> => {
   const userDoc = await getDoc(doc(db, 'users', userId));
   if (!userDoc.exists()) return [];
 
+  // For regular users, only fetch their leagues
   const leagueIds = userDoc.data().leagues || [];
   const leagues: League[] = [];
 
-  // Fetch leagues
   for (const leagueId of leagueIds) {
     try {
       const league = await fetchLeague(parseInt(leagueId));

@@ -245,7 +245,7 @@ export interface PerfectRosterLineup {
   userId: string;
   userName: string;
   timestamp: string;
-  score?: number;  // Add optional score field
+  score?: number;
 }
 
 export interface PerfectRosterChallenge {
@@ -253,7 +253,7 @@ export interface PerfectRosterChallenge {
   name: string;
   season: string;
   set: number;
-  startDate: string | Timestamp;  // Allow both types
+  startDate: string | Timestamp;
   endDate: Timestamp;
   settings: {
     captainSlots: number;
@@ -264,11 +264,11 @@ export interface PerfectRosterChallenge {
   currentCup: string;
   status: 'active' | 'completed';
   entries: Record<string, PerfectRosterLineup>;
-  adminOnly?: boolean;  // Add this field
+  adminOnly?: boolean;
 }
 
 export interface UserData {
   displayName: string;
   leagues: string[];
-  admin?: boolean;  // Add this field
+  admin?: boolean;
 }
