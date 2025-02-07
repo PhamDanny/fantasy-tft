@@ -23,8 +23,8 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
   // Calculate scores for entries
   const calculatePlayerScore = (playerId: string, isCapt: boolean): number => {
     const player = players[playerId];
-    if (!player || !player.scores || !player.scores[currentCup]) return 0;
-    return player.scores[currentCup] * (isCapt ? 1.5 : 1);
+    if (!player || !player.scores || !(currentCup in player.scores)) return 0;
+    return player.scores[currentCup as keyof typeof player.scores] * (isCapt ? 1.5 : 1);
   };
 
   const getEntriesWithScores = () => {

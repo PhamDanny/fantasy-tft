@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { League, Player, Team, PlayoffNomination, AuctionLogEntry } from '../../types';
+import type { League, Player, Team, PlayoffNomination, AuctionLogEntry, PlayoffSettings } from '../../types';
 import { doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { User } from 'firebase/auth';
@@ -27,7 +27,7 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
   calculateTeamTotal,
   POINTS_PER_PLAYOFF_DOLLAR,
 }) => {
-  const [nomination, setNomination] = useState<PlayoffNomination | null>(null);
+  const [nomination, setNomination] = useState<PlayoffNomination | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [bidAmount, setBidAmount] = useState<number>(1);
   const [nominationOrder, setNominationOrder] = useState<string[]>([]);
@@ -36,7 +36,8 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
 
   useEffect(() => {
     // Sort teams by regular season points at the start
-    if (!league.settings.playoffSettings?.currentNominator) {
+    const playoffSettings = league.settings.playoffSettings as PlayoffSettings;
+    if (!playoffSettings?.currentNominator) {
       // Sort teams by their playoff dollars (which is based on regular season points)
       const sortedTeams = [...teams].sort((a, b) => 
         (b.playoffDollars || 0) - (a.playoffDollars || 0)
@@ -46,7 +47,11 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
       
       // Set initial nominator in Firebase
       updateDoc(doc(db, "leagues", league.id.toString()), {
-        "settings.playoffSettings.currentNominator": order[0]
+        "settings.playoffSettings": {
+          ...playoffSettings,
+          currentNominator: order[0],
+          nominationOrder: order
+        }
       });
     }
   }, [teams]);
@@ -84,8 +89,8 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
       const leagueData = doc.data();
       const settings = leagueData?.settings?.playoffSettings;
       
-      // Always set nomination state, even when null
-      const newNomination = settings?.currentNomination || null;
+      // Always set nomination state, even when undefined
+      const newNomination = settings?.currentNomination;
       setNomination(newNomination);
       
       if (settings?.currentNominator) {
@@ -177,14 +182,7 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
       const nextNominator = nominationOrder[nextIndex];
 
       // Update league state - preserve existing playoff settings
-      const currentSettings = league.settings.playoffSettings || {
-        captainSlots: 1,
-        naSlots: 1,
-        brLatamSlots: 1,
-        flexSlots: 3,
-        playoffAuctionStarted: true
-      };
-
+      const playoffSettings = league.settings.playoffSettings as PlayoffSettings;
       const newLogEntry: AuctionLogEntry = {
         timestamp: new Date().toISOString(),
         teamId: nomination.currentBid.teamId,
@@ -192,11 +190,11 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
         amount: nomination.currentBid.amount
       };
 
-      const newSettings = {
-        ...currentSettings,
-        currentNomination: null,
+      const newSettings: PlayoffSettings = {
+        ...playoffSettings,
+        currentNomination: undefined,
         currentNominator: nextNominator,
-        auctionLog: [...(currentSettings.auctionLog || []), newLogEntry]
+        auctionLog: [...(playoffSettings.auctionLog || []), newLogEntry]
       };
 
       await updateDoc(doc(db, "leagues", league.id.toString()), {
@@ -242,7 +240,7 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
 
     // Reset nomination state
     await updateDoc(doc(db, "leagues", league.id.toString()), {
-      "settings.playoffSettings.currentNomination": null
+      "settings.playoffSettings.currentNomination": undefined
     });
 
     // Reset all teams' playoff dollars and rosters
@@ -259,7 +257,7 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
       });
     }
 
-    setNomination(null);
+    setNomination(undefined);
     setCurrentNominator(nominationOrder[0]);
   };
 
@@ -279,15 +277,7 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
     }
 
     await updateDoc(doc(db, "leagues", league.id.toString()), {
-      "settings.playoffSettings.currentNomination": {
-        ...nomination,
-        currentBid: {
-          teamId: nomination.nominator,
-          amount: 0,
-          timestamp: new Date().toISOString()
-        },
-        passedTeams: []
-      }
+      "settings.playoffSettings.currentNomination": undefined
     });
   };
 
@@ -513,7 +503,7 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
             <div className="p-3">
               <h6 className="mb-3">Auction History</h6>
               <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-                {league.settings.playoffSettings?.auctionLog?.slice().reverse().map((entry, i) => {
+                {(league.settings.playoffSettings as PlayoffSettings)?.auctionLog?.slice().reverse().map((entry: AuctionLogEntry, i: number) => {
                   const team = teams.find(t => t.teamId === entry.teamId);
                   const player = players.find(p => p.id === entry.playerId);
                   return (
@@ -526,7 +516,7 @@ const AuctionDialog: React.FC<AuctionDialogProps> = ({
                     </div>
                   );
                 })}
-                {!league.settings.playoffSettings?.auctionLog?.length && (
+                {!(league.settings.playoffSettings as PlayoffSettings)?.auctionLog?.length && (
                   <div className="text-muted">No auction history yet</div>
                 )}
               </div>

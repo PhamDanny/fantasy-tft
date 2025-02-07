@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { Player, PerfectRosterLineup } from '../types';
+import type { Player, PerfectRosterLineup, PlayerScores } from '../types';
 import { Search } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { DndProvider, useDrag, useDrop, useDragLayer } from 'react-dnd';
@@ -11,7 +11,7 @@ interface LineupEditorProps {
   onSave: (lineup: PerfectRosterLineup) => Promise<void>;
   isLocked: boolean;
   set: number;
-  currentCup: string;
+  currentCup: keyof PlayerScores;
   entries: Record<string, PerfectRosterLineup>;
   currentUser: { uid: string };
 }
@@ -354,9 +354,7 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
 
   const getPlayerTotalQP = (player: Player): number => {
     if (!player.scores) return 0;
-    return Object.entries(player.scores)
-      .filter(([cup]) => cup.startsWith('cup'))
-      .reduce((total, [_, score]) => total + score, 0);
+    return Object.values(player.scores).reduce((total, score) => total + score, 0);
   };
 
   const filteredPlayers = useMemo(() => {

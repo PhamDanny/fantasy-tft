@@ -1,10 +1,10 @@
 import React from 'react';
-import type { Player, PerfectRosterChallenge } from '../types';
+import type { Player, PerfectRosterChallenge, PlayerScores } from '../types';
 import { Trophy } from 'lucide-react';
 
 interface PerfectLineupProps {
   players: Record<string, Player>;
-  currentCup: string;
+  currentCup: keyof PlayerScores;
   settings: PerfectRosterChallenge['settings'];
   isComplete: boolean;
 }
@@ -20,7 +20,7 @@ const PerfectLineup: React.FC<PerfectLineupProps> = ({
       .map(([playerId, player]) => ({
         ...player,
         id: playerId,
-        currentScore: player.scores[currentCup] || 0
+        currentScore: player.scores?.[currentCup] || 0
       }))
       .filter(p => p.currentScore > 0);
 

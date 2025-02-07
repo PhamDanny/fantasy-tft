@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, getDocs, onSnapshot, deleteDoc, setDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../firebase/auth';
-import type { PerfectRosterChallenge, PerfectRosterLineup, Player } from '../types';
+import type { PerfectRosterChallenge, PerfectRosterLineup, Player, PlayerScores } from '../types';
 import { Trash2 } from 'lucide-react';
 import LineupEditor from '../components/LineupEditor';
 import ChallengeLeaderboard from '../components/ChallengeLeaderboard';
@@ -168,14 +168,26 @@ const ChallengeView = () => {
     }
   };
 
-  // Add helper to check if tournament is complete
+  // Add helper to validate currentCup
+  const validateCurrentCup = (cup: string): keyof PlayerScores => {
+    if (cup === 'cup1' || cup === 'cup2' || cup === 'cup3') {
+      return cup;
+    }
+    // Default to cup1 if invalid
+    console.warn(`Invalid cup value: ${cup}, defaulting to cup1`);
+    return 'cup1';
+  };
+
+  // Update isTournamentComplete to use validated currentCup
   const isTournamentComplete = () => {
     if (!challenge) return false;
     
+    const validCup = validateCurrentCup(challenge.currentCup);
+    
     // If any player has a score, and there's a clear top scorer (no ties for first)
     const scores = Object.values(players)
-      .filter(p => p.scores?.[challenge.currentCup])
-      .map(p => p.scores[challenge.currentCup]);
+      .filter(p => p.scores?.[validCup])
+      .map(p => p.scores[validCup]);
     
     return scores.length > 0 && 
            scores.filter(score => score === Math.max(...scores)).length === 1;
@@ -184,6 +196,9 @@ const ChallengeView = () => {
   if (loading) return <div>Loading...</div>;
   if (error) return <div className="alert alert-danger">{error}</div>;
   if (!challenge) return <div>Challenge not found</div>;
+
+  // Validate currentCup before passing to components
+  const validatedCurrentCup = validateCurrentCup(challenge.currentCup);
 
   return (
     <div className="container-fluid">
@@ -281,7 +296,7 @@ const ChallengeView = () => {
               challenge.endDate.toDate() < new Date()
             }
             set={challenge.set}
-            currentCup={challenge.currentCup}
+            currentCup={validatedCurrentCup}
             entries={challenge.entries}
             currentUser={currentUser}
           />
@@ -292,7 +307,7 @@ const ChallengeView = () => {
         <ChallengeLeaderboard
           entries={challenge.entries}
           players={players}
-          currentCup={challenge.currentCup}
+          currentCup={validatedCurrentCup}
           endDate={challenge.endDate}
         />
       )}
@@ -308,7 +323,7 @@ const ChallengeView = () => {
       {activeTab === 'perfect' && challenge && (
         <PerfectLineup
           players={players}
-          currentCup={challenge.currentCup}
+          currentCup={validatedCurrentCup}
           settings={challenge.settings}
           isComplete={isTournamentComplete()}
         />
