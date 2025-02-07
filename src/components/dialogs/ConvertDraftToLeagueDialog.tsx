@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { doc, setDoc, updateDoc, collection, arrayUnion, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection, arrayUnion, deleteDoc, query, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import type { Draft, League } from '../../types';
+import type { Draft, League, DraftPick } from '../../types';
 
 interface ConvertDraftToLeagueDialogProps {
   draft: Draft;
@@ -56,31 +56,47 @@ const ConvertDraftToLeagueDialog: React.FC<ConvertDraftToLeagueDialogProps> = ({
       // Generate a new league ID
       const leagueId = Date.now().toString();
 
+      // Get the current global cup
+      const leaguesRef = collection(db, 'leagues');
+      const leaguesQuery = query(leaguesRef, orderBy('settings.currentCup', 'desc'), limit(1));
+      const leaguesSnapshot = await getDocs(leaguesQuery);
+      const currentCup = leaguesSnapshot.empty ? 1 : leaguesSnapshot.docs[0].data().settings.currentCup;
+
       // Create the league document
       const leagueData: Partial<League> = {
         id: parseInt(leagueId),
         name: draft.name,
-        creationDate: new Date().toISOString(),
         season: draft.season,
+        type: 'season-long',
+        phase: 'drafting',
         settings: {
           ...draft.settings,
           ...formState.settings,
+          draftStarted: false,
+          currentCup: currentCup,
         },
         commissioner: draft.commissioner,
+        teams: draft.teams,
         transactions: [],
         draftId: draft.id,
-        draftData: {
-          settings: {
-            draftOrder: draft.settings.draftOrder,
-          },
-          picks: draft.picks.map(pick => ({
+        // Handle both old and new draft formats
+        picks: draft.picks ? 
+          // New format - picks array is directly on draft
+          draft.picks.map((pick: DraftPick) => ({
             teamId: pick.teamId,
             playerId: pick.playerId,
             round: pick.round,
             pick: pick.pick,
             timestamp: pick.timestamp
-          }))
-        }
+          })) :
+          // Old format - picks are in draftData
+          draft.draftData?.picks?.map((pick: DraftPick) => ({
+            teamId: pick.teamId,
+            playerId: pick.playerId,
+            round: pick.round,
+            pick: pick.pick,
+            timestamp: pick.timestamp
+          })) || []
       };
 
       // Create the league document first

@@ -12,8 +12,12 @@ export interface Player {
   id: string;
   name: string;
   region: string;
-  set: number;  // Add this to track which TFT set the player belongs to
-  scores: Record<string, number>;  // Remove optional marker (?)
+  set: number;
+  scores: {
+    cup1: number;
+    cup2: number;
+    cup3: number;
+  };
   regionals?: {
     qualified: boolean;
     placement: number;
@@ -71,14 +75,29 @@ export interface Team {
   playoffBids?: Record<string, number>;  // Map of player ID to bid amount
 }
 
-export interface LeagueSettings extends RosterSlots {
+export interface LeagueSettings {
+  captainSlots: number;
+  naSlots: number;
+  brLatamSlots: number;
+  flexSlots: number;
+  benchSlots: number;
   teamsLimit: number;
   faabBudget: number;
-  currentCup: number;  // 0 for preseason, 1-3 for active cups
-  playoffs: boolean;   // Whether playoffs are enabled
-  playoffTeams: number; // Number of teams that make playoffs
-  waiversEnabled: boolean;  // When false, players can be added instantly as free agents
-  playoffSettings?: PlayoffSettings;
+  currentCup: number;
+  draftStarted?: boolean;
+  draftOrder?: string[];
+  playoffs: boolean;
+  playoffTeams: number;
+  waiversEnabled: boolean;
+  tradingEnabled: boolean;
+  freeAgencyEnabled: boolean;
+  playoffSettings?: {
+    captainSlots: number;
+    naSlots: number;
+    brLatamSlots: number;
+    flexSlots: number;
+    playoffAuctionStarted?: boolean;
+  };
 }
 
 export interface TradeOffer {
@@ -125,30 +144,31 @@ export interface Transaction {
   }
 }
 
+// Add these new types
+export type LeaguePhase = 'drafting' | 'in_season' | 'playoffs' | 'completed';
+export type LeagueType = 'season-long' | 'single-tournament';
+
 export interface League {
   id: number;
   name: string;
   creationDate: string;
   season: string;
-  settings: LeagueSettings;
+  type: LeagueType;
+  leagueType?: LeagueType;
+  phase: LeaguePhase;
+  settings: LeagueSettings & {
+    draftOrder: string[];
+    draftStarted: boolean;
+  };
   commissioner: string;
   teams: Record<string, Team>;
   trades?: Record<string, TradeOffer>;
   transactions: Transaction[];
-  invites?: Record<string, LeagueInvite>;
-  draftId?: string;  // ID of the draft this league was created from
-  draftData?: {
-    settings: {
-      draftOrder: string[];
-    };
-    picks: {
-      teamId: string;
-      playerId: string;
-      round: number;
-      pick: number;
-      timestamp: string;
-    }[];
-  };
+  invites: { [key: string]: LeagueInvite };
+  draftId?: string;  // Reference to the original draft if converted
+  currentRound?: number;
+  currentPick?: number;
+  picks?: DraftPick[];
 }
 
 export interface LeagueInvite {
@@ -190,6 +210,13 @@ export interface Draft {
   currentPick: number;
   picks: DraftPick[];
   invites?: Record<string, LeagueInvite>;
+  // Add legacy format support
+  draftData?: {
+    settings: {
+      draftOrder: string[];
+    };
+    picks: DraftPick[];
+  };
 }
 
 // Add playoff-specific types
@@ -271,4 +298,37 @@ export interface UserData {
   displayName: string;
   leagues: string[];
   admin?: boolean;
+  currentCup?: number;  // Add this to track global current cup
+}
+
+export const TABS = {
+  STANDINGS: 'Standings',
+  TEAM: 'Team',
+  PLAYERS: 'Players',
+  TRADE: 'Trade',
+  DRAFT: 'Draft',
+  PLAYOFFS: 'Playoffs',
+  TRANSACTIONS: 'History',
+  SETTINGS: 'League Settings'
+} as const;
+
+export type TabType = typeof TABS[keyof typeof TABS];
+
+// Add a helper function to get league type with default
+export function getLeagueType(league: League): LeagueType {
+  return league.leagueType || 'season-long';
+}
+
+export interface GlobalSettings {
+  currentCup: {
+    currentCup: number;
+    updatedAt: string;
+    updatedBy: string;
+  };
+  currentSet: {
+    set: string;  // e.g. "Set 13"
+    name: string; // e.g. "Into the Arcane"
+    updatedAt: string;
+    updatedBy: string;
+  };
 }

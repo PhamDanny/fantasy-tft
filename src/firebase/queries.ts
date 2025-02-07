@@ -27,25 +27,33 @@ export const fetchLeague = async (leagueId: number): Promise<League> => {
 export const fetchPlayers = async (playerIds?: string[]): Promise<Record<string, Player>> => {
   const players: Record<string, Player> = {};
 
-  if (playerIds) {
-    // Fetch specific players if IDs are provided
-    await Promise.all(
-      playerIds.map(async (playerId) => {
-        const playerDoc = await getDoc(doc(db, 'players', playerId));
-        if (playerDoc.exists()) {
-          players[playerId] = playerDoc.data() as Player;
-        }
-      })
-    );
-  } else {
-    // Fetch all players if no IDs are provided
-    const playersSnapshot = await getDocs(collection(db, 'players'));
-    playersSnapshot.forEach((doc) => {
-      players[doc.id] = { id: doc.id, ...doc.data() } as Player;
-    });
-  }
+  try {
 
-  return players;
+    if (playerIds) {
+      // Fetch specific players if IDs are provided
+      await Promise.all(
+        playerIds.map(async (playerId) => {
+          const playerDoc = await getDoc(doc(db, 'players', playerId));
+          if (playerDoc.exists()) {
+            players[playerId] = { id: playerId, ...playerDoc.data() } as Player;
+          }
+        })
+      );
+    } else {
+      // Fetch all players if no IDs are provided
+      const playersSnapshot = await getDocs(collection(db, 'players'));
+
+      playersSnapshot.forEach((doc) => {
+        const data = doc.data();
+        players[doc.id] = { id: doc.id, ...data } as Player;
+      });
+    }
+
+    return players;
+  } catch (error) {
+    console.error('Error in fetchPlayers:', error);
+    throw error;
+  }
 };
 
 export const addUserToLeague = async (userId: string, leagueId: string) => {

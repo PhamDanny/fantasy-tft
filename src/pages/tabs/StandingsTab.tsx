@@ -4,10 +4,9 @@ import type {
   League,
   Player,
   Team,
-  TeamLineup,
-  LeagueSettings,
+  TeamLineup
 } from "../../types";
-import { PLAYOFF_SCORES } from "../../types";
+import { PLAYOFF_SCORES, getLeagueType } from "../../types";
 import { User } from "firebase/auth";
 import InviteDialog from "../../components/dialogs/InviteDialog";
 import LeagueChat from "../../components/chat/LeagueChat";
@@ -18,6 +17,20 @@ interface StandingsTabProps {
   user: User;
   teams: Record<string, Team>;
 }
+
+// Add type for cup scores at the top of the file
+type CupScores = {
+  cup1: number;
+  cup2: number;
+  cup3: number;
+  total: number;
+};
+
+// Add helper function to get cup score safely
+const getCupScore = (scores: CupScores, cupNumber: number): number | null => {
+  const cupKey = `cup${cupNumber}` as keyof CupScores;
+  return scores[cupKey];
+};
 
 const StandingsTab: React.FC<StandingsTabProps> = ({
   league,
@@ -41,27 +54,27 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
     return Object.keys(teams).length >= league.settings.teamsLimit;
   };
 
-  const getEmptyLineup = (settings: LeagueSettings): TeamLineup => ({
-    captains: Array(settings.captainSlots).fill(null),
-    naSlots: Array(settings.naSlots).fill(null),
-    brLatamSlots: Array(settings.brLatamSlots).fill(null),
-    flexSlots: Array(settings.flexSlots).fill(null),
-    bench: [],
-  });
-
   const getTeamLineup = (team: Team, cupNumber: number): TeamLineup => {
     const cupKey = `cup${cupNumber}` as keyof typeof team.cupLineups;
-    return team.cupLineups[cupKey] || getEmptyLineup(league.settings);
+    const lineup = team.cupLineups[cupKey];
+
+    if (!lineup) {
+      return {
+        captains: [],
+        naSlots: [],
+        brLatamSlots: [],
+        flexSlots: [],
+        bench: []
+      };
+    }
+
+    return lineup;
   };
 
-  const getPlayerCupScore = (
-    player: Player,
-    cupNumber: number,
-    isCaptain: boolean
-  ): number => {
+  const getPlayerCupScore = (player: Player, cupNumber: number, isCaptain: boolean) => {
     const cupKey = `cup${cupNumber}` as keyof typeof player.scores;
-    const baseScore = player.scores[cupKey] ?? 0;
-    return isCaptain ? baseScore * 1.5 : baseScore;
+    const score = player.scores[cupKey] || 0;
+    return isCaptain ? score * 1.5 : score;
   };
 
   const calculateTeamCupScore = (team: Team, cupNumber: number): number => {
@@ -148,11 +161,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
       [...lineup.naSlots, ...lineup.brLatamSlots, ...lineup.flexSlots].forEach(
         (playerId) => {
           if (playerId && players[playerId]) {
-            const score = getPlayerCupScore(
-              players[playerId],
-              cupNumber,
-              false
-            );
+            const score = getPlayerCupScore(players[playerId], cupNumber, false);
             const existing = allContributions.get(playerId) || {
               cup1: 0,
               cup2: 0,
@@ -230,6 +239,16 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
       .every(player => 
         Object.values(teams).some(team => team.playoffRoster?.includes(player.id))
       );
+
+  // First, add a helper to determine which cup columns to show
+  const shouldShowCupColumn = (cupNumber: number) => {
+    // For single tournament leagues, only show the current cup
+    if (getLeagueType(league) === 'single-tournament') {
+      return cupNumber === league.settings.currentCup;
+    }
+    // For season-long leagues, show all cups up to current
+    return league.settings.currentCup >= cupNumber;
+  };
 
   return (
     <div className="row">
@@ -386,200 +405,221 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
           </div>
         )}
 
-        <h3 className="h5 mb-3">Regular Season Standings</h3>
-        <div className="table-responsive">
-          <table className="table table-hover">
-            <thead className="table-secondary">
-              <tr>
-                <th className="text-center" style={{ width: '60px' }}>Rank</th>
-                <th>Team</th>
-                {league.settings.currentCup >= 1 && (
-                  <th className="text-center">Cup 1</th>
-                )}
-                {league.settings.currentCup >= 2 && (
-                  <th className="text-center">Cup 2</th>
-                )}
-                {league.settings.currentCup >= 3 && (
-                  <th className="text-center">Cup 3</th>
-                )}
-                <th className="text-center">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedTeams.map(({ teamId, team, cupScores }, index) => {
-                const isExpanded = expandedTeams[teamId];
-                const contributions = getAllPlayerContributions(team);
-                const rank = index + 1;
-                const isLastPlayoffTeam = league.settings.playoffs && 
-                  rank === league.settings.playoffTeams;
+        <div className="card">
+          <div className="card-header">
+            <h4 className="h5 mb-0">
+              {getLeagueType(league) === 'season-long' ? 'Regular Season Standings' : 'Standings'}
+            </h4>
+          </div>
+          <div className="table-responsive">
+            <table className="table table-hover">
+              <thead className="table-secondary">
+                <tr>
+                  <th className="text-center" style={{ width: '60px' }}>Rank</th>
+                  <th>Team</th>
+                  {getLeagueType(league) === 'season-long' ? (
+                    // Show all cups for season-long leagues
+                    <>
+                      {shouldShowCupColumn(1) && <th className="text-center">Cup 1</th>}
+                      {shouldShowCupColumn(2) && <th className="text-center">Cup 2</th>}
+                      {shouldShowCupColumn(3) && <th className="text-center">Cup 3</th>}
+                    </>
+                  ) : (
+                    // Show only current cup for single tournament
+                    <th className="text-center">Cup {league.settings.currentCup}</th>
+                  )}
+                  <th className="text-center">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedTeams.map(({ teamId, team, cupScores }, index) => {
+                  const isExpanded = expandedTeams[teamId];
+                  const contributions = getAllPlayerContributions(team);
+                  const rank = index + 1;
+                  const isLastPlayoffTeam = league.settings.playoffs && 
+                    rank === league.settings.playoffTeams;
 
-                return (
-                  <React.Fragment key={teamId}>
-                    <tr
-                      className={`${
-                        team.ownerID === user.uid ? "table-info bg-opacity-50" : ""
-                      } cursor-pointer`}
-                      onClick={() => toggleTeamExpanded(teamId)}
-                    >
-                      <td className="text-center">
-                        <span 
-                          className={`badge ${getRankStyle(rank)} px-2 py-1`} 
-                          style={{ 
-                            minWidth: '42px',
-                            backgroundColor: rank === 3 ? '#CD7F32' : undefined 
-                          }}
-                        >
-                          {formatRank(rank)}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="d-flex align-items-center gap-2">
-                          {isExpanded ? (
-                            <ChevronUp size={16} />
-                          ) : (
-                            <ChevronDown size={16} />
-                          )}
-                          <div>
-                            <span className="fw-medium">{team.teamName}</span>
-                            <div className={`small ${
-                              team.ownerID === user.uid 
-                                ? "text-dark" 
-                                : "text-body-secondary"
-                            }`}>
-                              ${team.faabBudget}
+                  return (
+                    <React.Fragment key={teamId}>
+                      <tr
+                        className={`${
+                          team.ownerID === user.uid ? "table-info bg-opacity-50" : ""
+                        } cursor-pointer`}
+                        onClick={() => toggleTeamExpanded(teamId)}
+                      >
+                        <td className="text-center">
+                          <span 
+                            className={`badge ${getRankStyle(rank)} px-2 py-1`} 
+                            style={{ 
+                              minWidth: '42px',
+                              backgroundColor: rank === 3 ? '#CD7F32' : undefined 
+                            }}
+                          >
+                            {formatRank(rank)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="d-flex align-items-center gap-2">
+                            {isExpanded ? (
+                              <ChevronUp size={16} />
+                            ) : (
+                              <ChevronDown size={16} />
+                            )}
+                            <div>
+                              <span className="fw-medium">{team.teamName}</span>
+                              <div className={`small ${
+                                team.ownerID === user.uid 
+                                  ? "text-dark" 
+                                  : "text-body-secondary"
+                              }`}>
+                                ${team.faabBudget}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      {league.settings.currentCup >= 1 && (
-                        <td className="text-center">
-                          {typeof cupScores.cup1 === "number"
-                            ? formatScore(cupScores.cup1)
-                            : "-"}
                         </td>
-                      )}
-                      {league.settings.currentCup >= 2 && (
-                        <td className="text-center">
-                          {typeof cupScores.cup2 === "number"
-                            ? formatScore(cupScores.cup2)
-                            : "-"}
+                        {getLeagueType(league) === 'season-long' ? (
+                          <>
+                            {shouldShowCupColumn(1) && (
+                              <td className="text-center">
+                                {typeof cupScores.cup1 === "number" ? formatScore(cupScores.cup1) : "-"}
+                              </td>
+                            )}
+                            {shouldShowCupColumn(2) && (
+                              <td className="text-center">
+                                {typeof cupScores.cup2 === "number" ? formatScore(cupScores.cup2) : "-"}
+                              </td>
+                            )}
+                            {shouldShowCupColumn(3) && (
+                              <td className="text-center">
+                                {typeof cupScores.cup3 === "number" ? formatScore(cupScores.cup3) : "-"}
+                              </td>
+                            )}
+                          </>
+                        ) : (
+                          <td className="text-center">
+                            {(() => {
+                              const score = getCupScore(cupScores, league.settings.currentCup);
+                              return typeof score === "number" ? formatScore(score) : "-";
+                            })()}
+                          </td>
+                        )}
+                        <td className="text-center fw-bold">
+                          {typeof cupScores.total === "number" ? formatScore(cupScores.total) : "-"}
                         </td>
-                      )}
-                      {league.settings.currentCup >= 3 && (
-                        <td className="text-center">
-                          {typeof cupScores.cup3 === "number"
-                            ? formatScore(cupScores.cup3)
-                            : "-"}
-                        </td>
-                      )}
-                      <td className="text-center fw-bold">
-                        {typeof cupScores.total === "number"
-                          ? formatScore(cupScores.total)
-                          : "-"}
-                      </td>
-                    </tr>
+                      </tr>
 
-                    {isExpanded && (
-                      <tr>
-                        <td></td>
-                        <td colSpan={league.settings.currentCup + 2}>
-                          <div className="table-secondary p-3">
-                            <h6 className="mb-3 text-body">Player Contributions</h6>
-                            <table className="table table-sm">
-                              <thead>
-                                <tr>
-                                  <th>Player</th>
-                                  {league.settings.currentCup >= 1 && (
-                                    <th className="text-center">Cup 1</th>
-                                  )}
-                                  {league.settings.currentCup >= 2 && (
-                                    <th className="text-center">Cup 2</th>
-                                  )}
-                                  {league.settings.currentCup >= 3 && (
-                                    <th className="text-center">Cup 3</th>
-                                  )}
-                                  <th className="text-center">Total</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {contributions.map((contribution) => {
-                                  const player =
-                                    players[contribution.playerId];
-                                  if (!player) return null;
+                      {isExpanded && (
+                        <tr>
+                          <td></td>
+                          <td colSpan={league.settings.currentCup + 2}>
+                            <div className="table-secondary p-3">
+                              <h6 className="mb-3 text-body">Player Contributions</h6>
+                              <table className="table table-sm">
+                                <thead>
+                                  <tr>
+                                    <th>Player</th>
+                                    {getLeagueType(league) === 'season-long' ? (
+                                      <>
+                                        {shouldShowCupColumn(1) && <th className="text-center">Cup 1</th>}
+                                        {shouldShowCupColumn(2) && <th className="text-center">Cup 2</th>}
+                                        {shouldShowCupColumn(3) && <th className="text-center">Cup 3</th>}
+                                      </>
+                                    ) : (
+                                      <th className="text-center">Cup {league.settings.currentCup}</th>
+                                    )}
+                                    <th className="text-center">Total</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {contributions.map((contribution) => {
+                                    const player =
+                                      players[contribution.playerId];
+                                    if (!player) return null;
 
-                                  return (
-                                    <tr key={contribution.playerId}>
-                                      <td>
-                                        <div className="d-flex align-items-center gap-2">
-                                          <div>
-                                            <span>{player.name}</span>
-                                            <small className="text-muted">
-                                              ({player.region})
-                                            </small>
-                                            {!contribution.isOnTeam &&
-                                              contribution.total > 0 && (
-                                                <span className="badge bg-danger">
-                                                  Off Roster
-                                                </span>
-                                              )}
+                                    return (
+                                      <tr key={contribution.playerId}>
+                                        <td>
+                                          <div className="d-flex align-items-center gap-2">
+                                            <div>
+                                              <span>{player.name}</span>
+                                              <small className="text-muted">
+                                                ({player.region})
+                                              </small>
+                                              {!contribution.isOnTeam &&
+                                                contribution.total > 0 && (
+                                                  <span className="badge bg-danger">
+                                                    Off Roster
+                                                  </span>
+                                                )}
+                                            </div>
                                           </div>
-                                        </div>
-                                      </td>
-                                      {league.settings.currentCup >= 1 && (
-                                        <td className="text-center">
-                                          {contribution.cup1 > 0
-                                            ? formatScore(contribution.cup1)
+                                        </td>
+                                        {getLeagueType(league) === 'season-long' ? (
+                                          <>
+                                            {shouldShowCupColumn(1) && (
+                                              <td className="text-center">
+                                                {contribution.cup1 > 0
+                                                  ? formatScore(contribution.cup1)
+                                                  : "-"}
+                                              </td>
+                                            )}
+                                            {shouldShowCupColumn(2) && (
+                                              <td className="text-center">
+                                                {contribution.cup2 > 0
+                                                  ? formatScore(contribution.cup2)
+                                                  : "-"}
+                                              </td>
+                                            )}
+                                            {shouldShowCupColumn(3) && (
+                                              <td className="text-center">
+                                                {contribution.cup3 > 0
+                                                  ? formatScore(contribution.cup3)
+                                                  : "-"}
+                                              </td>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <td className="text-center">
+                                            {contribution.total > 0
+                                              ? formatScore(contribution.total)
+                                              : "-"}
+                                          </td>
+                                        )}
+                                        <td className="text-center fw-bold">
+                                          {contribution.total > 0
+                                            ? formatScore(contribution.total)
                                             : "-"}
                                         </td>
-                                      )}
-                                      {league.settings.currentCup >= 2 && (
-                                        <td className="text-center">
-                                          {contribution.cup2 > 0
-                                            ? formatScore(contribution.cup2)
-                                            : "-"}
-                                        </td>
-                                      )}
-                                      {league.settings.currentCup >= 3 && (
-                                        <td className="text-center">
-                                          {contribution.cup3 > 0
-                                            ? formatScore(contribution.cup3)
-                                            : "-"}
-                                        </td>
-                                      )}
-                                      <td className="text-center fw-bold">
-                                        {contribution.total > 0
-                                          ? formatScore(contribution.total)
-                                          : "-"}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-
-                    {/* Modified separator with text */}
-                    {isLastPlayoffTeam && (
-                      <tr className="playoff-separator">
-                        <td colSpan={league.settings.currentCup + 3} className="p-0">
-                          <div className="d-flex align-items-center gap-2 my-2">
-                            <div className="border-bottom border-2 border-secondary flex-grow-1"></div>
-                            <div className="text-muted small px-2">
-                              Top {league.settings.playoffTeams} teams qualify for playoffs
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
-                            <div className="border-bottom border-2 border-secondary flex-grow-1"></div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Modified separator with text */}
+                      {isLastPlayoffTeam && (
+                        <tr className="playoff-separator">
+                          <td colSpan={league.settings.currentCup + 3} className="p-0">
+                            <div className="d-flex align-items-center gap-2 my-2">
+                              <div className="border-bottom border-2 border-secondary flex-grow-1"></div>
+                              <div className="text-muted small px-2">
+                                Top {league.settings.playoffTeams} teams qualify for playoffs
+                              </div>
+                              <div className="border-bottom border-2 border-secondary flex-grow-1"></div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

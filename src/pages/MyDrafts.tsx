@@ -4,7 +4,6 @@ import { useAuth } from '../firebase/auth';
 import { collection, query, where, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { Draft } from '../types';
-import CreateDraftDialog from '../components/dialogs/CreateDraftDialog';
 import ConvertDraftToLeagueDialog from '../components/dialogs/ConvertDraftToLeagueDialog';
 
 const MyDrafts = () => {
@@ -91,11 +90,17 @@ const MyDrafts = () => {
         <h2>Drafts</h2>
       </div>
 
+      <div className="alert alert-warning mb-4">
+        <strong>Notice:</strong> The standalone draft system is being phased out and being built into the League creation process. For new leagues, please use the{' '}
+        <a href="/leagues" className="alert-link">Leagues</a> section to create a league directly. This will provide a much better experience than converting drafts into a League.
+        Existing drafts can still be converted, but there are no guarantees that it will work perfectly.
+      </div>
+
       {!user ? (
         // Show welcome banner for non-authenticated users
         <div className="alert alert-info mb-4 d-flex justify-content-between align-items-center">
           <div>
-            <strong>Want to participate in drafts?</strong> Sign up to start drafting your dream team!
+            <strong>Want to start a league?</strong> Sign up to create your own league!
           </div>
           <a href="/login?mode=signup" className="btn btn-primary btn-sm">
             Sign Up Now
@@ -104,12 +109,11 @@ const MyDrafts = () => {
       ) : drafts.length === 0 ? (
         <div className="text-center py-5">
           <p className="text-muted mb-4">
-            You haven't created or joined any drafts yet.
+            You haven't created any drafts yet. We recommend creating a new league instead!
           </p>
-          <CreateDraftDialog
-            userId={user.uid}
-            onDraftCreated={() => loadDrafts(user)}
-          />
+          <a href="/leagues" className="btn btn-primary">
+            Go to Leagues
+          </a>
         </div>
       ) : (
         <>
@@ -160,10 +164,14 @@ const MyDrafts = () => {
             ))}
           </div>
 
-          <CreateDraftDialog
-            userId={user.uid}
-            onDraftCreated={() => loadDrafts(user)}
-          />
+          <div className="text-center">
+            <p className="text-muted mb-3">
+              Need to create a new league? Head over to the Leagues section!
+            </p>
+            <a href="/leagues" className="btn btn-primary">
+              Go to Leagues
+            </a>
+          </div>
         </>
       )}
     </div>

@@ -6,6 +6,7 @@ import { getTotalRosterLimit } from "../../utils/rosterUtils";
 import WaiverHelpDialog from "../../components/dialogs/WaiverHelpDialog";
 import { processWaivers } from "../../utils/waiverUtils";
 import WaiverClaimDialog from "../../components/dialogs/WaiverClaimDialog";
+import { getLeagueType } from "../../types";
 
 interface PlayersTabProps {
   league: League;
@@ -413,7 +414,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
 
             {/* Add the info box here */}
             <div className="alert alert-info m-3 mb-0">
-              {league.settings.waiversEnabled ? (
+              {getLeagueType(league) === 'season-long' && league.settings.waiversEnabled ? (
                 <>
                   Waivers are enabled. Players must be claimed through the waiver system.
                   <button
@@ -645,23 +646,25 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
         </div>
 
         <div className="col-12 col-lg-4 mt-3 mt-lg-0">
-          {/* FAAB Budget Card */}
-          <div className="card mb-4">
-            <div className="card-header">
-              <h4 className="h5 mb-0">FAAB Budget</h4>
-            </div>
-            <div className="card-body">
-              <p className="mb-0">
-                <strong>Remaining Budget:</strong> ${faabBudget}
-              </p>
-            </div>
-          </div>
-
-          {/* Add new Commissioner Controls card */}
-          {league.commissioner === user.uid && (
+          {/* Only show FAAB Budget Card for season-long leagues with waivers enabled */}
+          {getLeagueType(league) === 'season-long' && league.settings.waiversEnabled && (
             <div className="card mb-4">
               <div className="card-header">
-                <h4 className="h5 mb-0">Commissioner Waiver Controls</h4>
+                <h4 className="h5 mb-0">FAAB Budget</h4>
+              </div>
+              <div className="card-body">
+                <p className="mb-0">
+                  <strong>Remaining Budget:</strong> ${faabBudget}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Add new Commissioner Controls card */}
+          {league.commissioner === user.uid && getLeagueType(league) === 'season-long' && (
+            <div className="card mb-4">
+              <div className="card-header">
+                <h4 className="h5 mb-0">Commissioner Controls</h4>
               </div>
               <div className="card-body">
                 <div className="d-grid gap-2">
@@ -710,73 +713,77 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
             </div>
           )}
 
-          <div className="card mb-4">
-            <div className="card-header">
-              <h4 className="h5 mb-0">Pending Claims</h4>
-            </div>
-            <div className="card-body">
-              <div className="alert alert-warning mb-3">
-                Any claim that causes you to go over the roster limit will be ignored.
-                Current roster size: {userTeam.roster.length}/{getTotalRosterLimit(league.settings)}
+          {/* Only show pending claims section for season-long leagues with waivers enabled */}
+          {getLeagueType(league) === 'season-long' && league.settings.waiversEnabled && (
+            <div className="card mb-4">
+              <div className="card-header">
+                <h4 className="h5 mb-0">Pending Claims</h4>
               </div>
-
-              {pendingBids.length === 0 ? (
-                <p className="text-muted">No pending claims</p>
-              ) : (
-                <div className="list-group">
-                  {pendingBids.map((bid, index) => {
-                    const player = allPlayers[bid.playerId];
-                    const dropPlayerInfo = bid.dropPlayerId
-                      ? players[bid.dropPlayerId]
-                      : null;
-
-                    return (
-                      <div key={index} className="list-group-item">
-                        <div className="d-flex justify-content-between align-items-center mb-2">
-                          <strong>{player?.name}</strong>
-                          <div className="btn-group">
-                            <button
-                              className="btn btn-sm btn-outline-secondary"
-                              onClick={() => {
-                                const newAmount = parseInt(
-                                  prompt(
-                                    "Enter new bid amount:",
-                                    bid.amount.toString()
-                                  ) || "0"
-                                );
-                                if (!isNaN(newAmount)) {
-                                  modifyBid(index, newAmount);
-                                }
-                              }}
-                              disabled={loading}
-                            >
-                              ${bid.amount}
-                            </button>
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={() => cancelBid(index)}
-                              disabled={loading}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                        {dropPlayerInfo && (
-                          <div className="small text-danger mb-2">
-                            Drop: {dropPlayerInfo.name}
-                          </div>
-                        )}
-                        <div className="small text-muted">
-                          Priority: {bid.processingOrder + 1}
-                        </div>
-                      </div>
-                    );
-                  })}
+              <div className="card-body">
+                <div className="alert alert-warning mb-3">
+                  Any claim that causes you to go over the roster limit will be ignored.
+                  Current roster size: {userTeam.roster.length}/{getTotalRosterLimit(league.settings)}
                 </div>
-              )}
-            </div>
-          </div>
 
+                {pendingBids.length === 0 ? (
+                  <p className="text-muted">No pending claims</p>
+                ) : (
+                  <div className="list-group">
+                    {pendingBids.map((bid, index) => {
+                      const player = allPlayers[bid.playerId];
+                      const dropPlayerInfo = bid.dropPlayerId
+                        ? players[bid.dropPlayerId]
+                        : null;
+
+                      return (
+                        <div key={index} className="list-group-item">
+                          <div className="d-flex justify-content-between align-items-center mb-2">
+                            <strong>{player?.name}</strong>
+                            <div className="btn-group">
+                              <button
+                                className="btn btn-sm btn-outline-secondary"
+                                onClick={() => {
+                                  const newAmount = parseInt(
+                                    prompt(
+                                      "Enter new bid amount:",
+                                      bid.amount.toString()
+                                    ) || "0"
+                                  );
+                                  if (!isNaN(newAmount)) {
+                                    modifyBid(index, newAmount);
+                                  }
+                                }}
+                                disabled={loading}
+                              >
+                                ${bid.amount}
+                              </button>
+                              <button
+                                className="btn btn-sm btn-danger"
+                                onClick={() => cancelBid(index)}
+                                disabled={loading}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                          {dropPlayerInfo && (
+                            <div className="small text-danger mb-2">
+                              Drop: {dropPlayerInfo.name}
+                            </div>
+                          )}
+                          <div className="small text-muted">
+                            Priority: {bid.processingOrder + 1}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Waiver Claim Dialog */}
           {selectedPlayer && (
             <WaiverClaimDialog
               show={showWaiverDialog}
@@ -788,10 +795,10 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                 if (league.settings.waiversEnabled) {
                   submitBid(bidAmount, dropPlayerId);
                 } else {
-                  addFreeAgent(selectedPlayer, dropPlayerId);
+                  addFreeAgent(selectedPlayer as string, dropPlayerId);
                 }
               }}
-              selectedPlayer={allPlayers[selectedPlayer]}
+              selectedPlayer={allPlayers[selectedPlayer as string] || null}
               roster={userTeam.roster}
               players={players}
               maxBid={faabBudget}

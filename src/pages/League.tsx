@@ -14,19 +14,8 @@ import { collection, onSnapshot, query, getDoc, doc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import DraftTab from "./tabs/DraftTab";
 import PlayoffsTab from "./tabs/PlayoffsTab";
-
-const TABS = {
-  STANDINGS: "Standings",
-  TEAM: "Team",
-  PLAYERS: "Players",
-  TRADE: "Trade",
-  DRAFT: "Draft",
-  PLAYOFFS: "Playoffs",
-  TRANSACTIONS: "Transaction History",
-  SETTINGS: "Edit League Settings",
-} as const;
-
-type TabType = (typeof TABS)[keyof typeof TABS];
+import { TABS } from '../types'; 
+import { getLeagueType } from "../types";
 
 function hasLeagueAccess(league: League, userId: string, isAdmin: boolean) {
   if (isAdmin) return true;
@@ -40,19 +29,103 @@ function hasLeagueAccess(league: League, userId: string, isAdmin: boolean) {
   );
 }
 
+const getAvailableTabs = (league: League, isCommissioner: boolean): Record<string, boolean> => {
+  const { phase } = league;
+
+  // Base tabs that are always false unless set to true
+  const baseTabs = {
+    STANDINGS: false,
+    TEAM: false,
+    PLAYERS: false,
+    TRADE: false,
+    DRAFT: false,
+    PLAYOFFS: false,
+    TRANSACTIONS: false,
+    SETTINGS: false,
+  };
+
+  switch (phase) {
+    case 'drafting':
+      // If draft is completed but still in drafting phase, show all in_season tabs
+      if (league.settings.draftStarted) {
+        return {
+          ...baseTabs,
+          STANDINGS: true,
+          TEAM: true,
+          PLAYERS: true,
+          TRADE: getLeagueType(league) === "season-long",
+          TRANSACTIONS: true,
+          SETTINGS: isCommissioner,
+          PLAYOFFS: true,
+          DRAFT: true,
+        };
+      }
+      // If draft hasn't started, only show draft and settings
+      return {
+        ...baseTabs,
+        DRAFT: true,
+        PLAYOFFS: true,
+        SETTINGS: isCommissioner,
+      };
+    
+    case 'in_season':
+      return {
+        ...baseTabs,
+        STANDINGS: true,
+        TEAM: true,
+        PLAYERS: true,
+        TRADE: getLeagueType(league) === "season-long",
+        TRANSACTIONS: true,
+        SETTINGS: isCommissioner,
+        PLAYOFFS: true,
+        DRAFT: true,
+      };
+    
+    case 'playoffs':
+      return {
+        ...baseTabs,
+        STANDINGS: true,
+        TEAM: true,
+        PLAYOFFS: true,
+        TRANSACTIONS: true,
+        SETTINGS: isCommissioner,
+        DRAFT: true,
+      };
+    
+    case 'completed':
+      return {
+        ...baseTabs,
+        STANDINGS: true,
+        TEAM: true,
+        PLAYOFFS: true,
+        TRANSACTIONS: true,
+        DRAFT: true,
+      };
+
+    default:
+      return baseTabs;
+  }
+};
+
+// Add this helper function to get tabs in order
+const getOrderedTabs = (availableTabs: Record<string, boolean>) => {
+  const orderedTabs = Object.entries(TABS)
+    .filter(([key, _]) => availableTabs[key]);  // Use the TABS key to look up in availableTabs
+  return orderedTabs;
+};
+
+
 export const LeagueView: React.FC = () => {
   const { leagueId } = useParams();
-  const numericLeagueId = parseInt(leagueId || "");
-  const [activeTab, setActiveTab] = useState<TabType>(TABS.STANDINGS);
-
   const [league, setLeague] = useState<League | null>(null);
   const [players, setPlayers] = useState<Record<string, Player>>({});
-  const [isCommissioner, setIsCommissioner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [userTeam, setUserTeam] = useState<Team | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('STANDINGS');
   const [teams, setTeams] = useState<Record<string, Team>>({});
+  const [isCommissioner, setIsCommissioner] = useState(false);
+  const [userTeam, setUserTeam] = useState<Team | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -61,61 +134,54 @@ export const LeagueView: React.FC = () => {
 
     const authUnsubscribe = useAuth(async (authUser) => {
       setUser(authUser);
-      if (authUser) {
-        setLoading(true);
-
-        // Check if user is admin
-        const userDoc = await getDoc(doc(db, 'users', authUser.uid));
-        setIsAdmin(userDoc.exists() && userDoc.data().admin === true);
-
-        // Subscribe to teams subcollection
-        const teamsQuery = query(collection(db, "leagues", numericLeagueId.toString(), "teams"));
-        teamsUnsubscribe = onSnapshot(teamsQuery, (snapshot) => {
-          const teamsData: Record<string, Team> = {};
-          snapshot.forEach((doc) => {
-            teamsData[doc.id] = doc.data() as Team;
-          });
-          setTeams(teamsData);
+      if (authUser && leagueId) {
+        const numericLeagueId = parseInt(leagueId);
+        try {
+          setLoading(true);
           
-          // Find user's team and set it
-          const foundUserTeam = Object.values(teamsData).find(team => 
-            team.ownerID === authUser.uid || team.coOwners?.includes(authUser.uid)
-          );
-          setUserTeam(foundUserTeam || null);
+          // Check if user is admin
+          const userDoc = await getDoc(doc(db, 'users', authUser.uid));
+          setIsAdmin(userDoc.exists() && userDoc.data().admin === true);
 
-          // Get all player IDs from rosters, playoff rosters, and cup lineups
-          const playerIds = Array.from(new Set(
-            Object.values(teamsData).flatMap(team => [
-              ...(team.roster || []),
-              ...(team.playoffRoster || []),
-              // Include players from all cup lineups
-              ...Object.values(team.cupLineups || {}).flatMap(cupLineup => [
-                ...(cupLineup.captains || []),
-                ...(cupLineup.naSlots || []),
-                ...(cupLineup.brLatamSlots || []),
-                ...(cupLineup.flexSlots || [])
-              ])
-            ].filter((id): id is string => id !== null))
-          ));
+          // Load all players first
+          const allPlayers = await fetchPlayers();
+          setPlayers(allPlayers);
 
-          // Fetch players
-          fetchPlayers(playerIds).then((playersData) => {
-            setPlayers(playersData);
-            setLoading(false);
+          // Subscribe to teams subcollection
+          const teamsQuery = query(collection(db, "leagues", numericLeagueId.toString(), "teams"));
+          teamsUnsubscribe = onSnapshot(teamsQuery, (snapshot) => {
+            const teamsData: Record<string, Team> = {};
+            snapshot.forEach((doc) => {
+              teamsData[doc.id] = doc.data() as Team;
+            });
+            setTeams(teamsData);
+            
+            // Find user's team and set it
+            const foundUserTeam = Object.values(teamsData).find(team => 
+              team.ownerID === authUser.uid || team.coOwners?.includes(authUser.uid)
+            );
+            setUserTeam(foundUserTeam || null);
           });
-        });
 
-        leagueUnsubscribe = subscribeToLeague(
-          numericLeagueId,
-          (leagueData: League) => {
-            setLeague(leagueData);
-            setIsCommissioner(leagueData.commissioner === authUser.uid);
-          },
-          (error: Error) => {
-            setError(error.message);
-            setLoading(false);
-          }
-        );
+          leagueUnsubscribe = subscribeToLeague(
+            numericLeagueId,
+            (leagueData: League) => {
+              setLeague(leagueData);
+              setIsCommissioner(leagueData.commissioner === authUser.uid);
+              setLoading(false);
+            },
+            (error: Error) => {
+              setError(error.message);
+              setLoading(false);
+            }
+          );
+        } catch (err) {
+          console.error('Error setting up league subscriptions:', err);
+          setError('Failed to load league data');
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
       }
     });
 
@@ -124,9 +190,34 @@ export const LeagueView: React.FC = () => {
       if (leagueUnsubscribe) leagueUnsubscribe();
       if (teamsUnsubscribe) teamsUnsubscribe();
     };
-  }, [numericLeagueId, activeTab]);
+  }, [leagueId]);
 
-  if (loading) return <div className="p-4">Loading...</div>;
+  useEffect(() => {
+    // When league phase changes, ensure selected tab is valid
+    if (league) {
+      const availableTabs = getAvailableTabs(league, isCommissioner);
+      if (!availableTabs[activeTab]) {
+        // Set to first available tab
+        const firstTab = Object.entries(availableTabs)
+          .find(([_, isAvailable]) => isAvailable)?.[0] as string;
+        setActiveTab(firstTab || 'STANDINGS');
+      }
+    }
+  }, [league?.phase, isCommissioner, activeTab]);
+
+  if (loading) {
+    return (
+      <div className="p-4">
+        <div className="d-flex align-items-center">
+          <div className="spinner-border me-2" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          Loading league data...
+        </div>
+      </div>
+    );
+  }
+
   if (error) return <div className="p-4 text-danger">Error: {error}</div>;
   if (!league) return <div className="p-4">League not found</div>;
   if (!user) return <div className="p-4">Please log in to view league details</div>;
@@ -151,6 +242,8 @@ export const LeagueView: React.FC = () => {
         trade.receiverId === userTeam?.teamId)
   ).length;
 
+  const availableTabs = getAvailableTabs(league, isCommissioner);
+
   return (
     <div className="container-fluid mt-4">
       <div className="card">
@@ -165,38 +258,21 @@ export const LeagueView: React.FC = () => {
         </div>
 
         <div className="card-body p-0">
-          {/* Mobile Tabs Dropdown */}
-          <div className="d-md-none p-2">
-            <select 
-              className="form-select"
-              value={activeTab}
-              onChange={(e) => setActiveTab(e.target.value as TabType)}
-            >
-              {Object.values(TABS).map((tab) => (
-                <option key={tab} value={tab}>
-                  {tab}
-                  {tab === TABS.PLAYERS && pendingWaivers > 0 && ` (${pendingWaivers})`}
-                  {tab === TABS.TRADE && pendingTrades > 0 && ` (${pendingTrades})`}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Desktop Tabs */}
           <ul className="nav nav-tabs d-none d-md-flex">
-            {Object.values(TABS).map((tab) => (
+            {getOrderedTabs(availableTabs).map(([tab, label]) => (
               <li className="nav-item" key={tab}>
                 <button
                   className={`nav-link ${activeTab === tab ? "active" : ""}`}
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => setActiveTab(tab as string)}
                 >
-                  {tab}
-                  {tab === TABS.PLAYERS && pendingWaivers > 0 && (
+                  {label}
+                  {tab === 'PLAYERS' && pendingWaivers > 0 && (
                     <span className="badge bg-danger rounded-pill ms-2">
                       {pendingWaivers}
                     </span>
                   )}
-                  {tab === TABS.TRADE && pendingTrades > 0 && (
+                  {tab === 'TRADE' && pendingTrades > 0 && (
                     <span className="badge bg-danger rounded-pill ms-2">
                       {pendingTrades}
                     </span>
@@ -206,60 +282,77 @@ export const LeagueView: React.FC = () => {
             ))}
           </ul>
 
+          {/* Mobile Tabs Dropdown */}
+          <div className="d-md-none p-2">
+            <select 
+              className="form-select"
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as string)}
+            >
+              {getOrderedTabs(availableTabs).map(([tab, label]) => (
+                <option key={tab} value={tab}>
+                  {label}
+                  {tab === 'PLAYERS' && pendingWaivers > 0 && ` (${pendingWaivers})`}
+                  {tab === 'TRADE' && pendingTrades > 0 && ` (${pendingTrades})`}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Tab Content */}
           <div className="p-2 p-md-4">
-            {activeTab === TABS.STANDINGS && (
+            {activeTab === 'STANDINGS' && (
               <StandingsTab league={league} players={players} user={user} teams={teams} />
             )}
-            {activeTab === TABS.TEAM && (
+            {activeTab === 'TEAM' && (
               <TeamTab
                 league={league}
                 players={players}
                 userTeam={userTeam}
-                leagueId={numericLeagueId}
+                leagueId={parseInt(leagueId || "")}
                 teams={teams}
                 user={user}
               />
             )}
-            {activeTab === TABS.PLAYERS && (
+            {activeTab === 'PLAYERS' && (
               <PlayersTab
                 league={league}
                 players={players}
                 userTeam={userTeam}
-                leagueId={numericLeagueId}
+                leagueId={parseInt(leagueId || "")}
                 teams={teams}
                 user={user}
               />
             )}
-            {activeTab === TABS.TRADE && (
+            {activeTab === 'TRADE' && (
               <TradeTab
                 league={league}
                 players={players}
                 userTeam={userTeam}
-                leagueId={numericLeagueId}
+                leagueId={parseInt(leagueId || "")}
                 teams={teams}
                 user={user}
               />
             )}
-            {activeTab === TABS.TRANSACTIONS && (
+            {activeTab === 'TRANSACTIONS' && (
               <TransactionHistoryTab league={league} players={players} teams={teams} />
             )}
-            {activeTab === TABS.SETTINGS && (
+            {activeTab === 'SETTINGS' && (
               <LeagueSettingsTab
                 league={league}
                 isCommissioner={isCommissioner}
-                leagueId={numericLeagueId}
+                leagueId={parseInt(leagueId || "")}
                 teams={teams}
               />
             )}
-            {activeTab === TABS.DRAFT && (
+            {activeTab === 'DRAFT' && (
               <DraftTab 
                 league={league} 
                 players={players}
                 teams={teams}
               />
             )}
-            {activeTab === TABS.PLAYOFFS && (
+            {activeTab === 'PLAYOFFS' && (
               <PlayoffsTab
                 league={league}
                 players={players}

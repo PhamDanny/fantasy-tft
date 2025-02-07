@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { addUserToLeague } from "../../firebase/queries";
-import type { LeagueSettings, CupLineup } from "../../types";
-import { Link } from "react-router-dom";
+import type { LeagueSettings, CupLineup, LeagueType, LeaguePhase } from "../../types";
+import { Plus, Minus } from 'lucide-react';
 
 const generateEmptyLineup = (settings: LeagueSettings): CupLineup => {
   return {
@@ -26,19 +26,42 @@ const isSlotSetting = (setting: string): setting is SlotSetting => {
   );
 };
 
-const CreateLeagueDialog = ({
-  userId,
-  onLeagueCreated,
-}: {
+// Add interface for form settings
+interface FormSettings {
+  captainSlots: number;
+  naSlots: number;
+  brLatamSlots: number;
+  flexSlots: number;
+  benchSlots: number;
+  teamsLimit: number;
+  faabBudget: number;
+  currentCup: number;
+  playoffs: boolean;
+  playoffTeams: number;
+  tradingEnabled: boolean;
+  freeAgencyEnabled: boolean;
+  waiversEnabled: boolean;
+}
+
+interface FormState {
+  name: string;
+  type: LeagueType;
+  settings: FormSettings;
+}
+
+const CreateLeagueDialog: React.FC<{
   userId: string;
   onLeagueCreated?: () => void;
+}> = ({
+  userId,
+  onLeagueCreated,
 }) => {
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [formState, setFormState] = useState({
+  const [formState, setFormState] = useState<FormState>({
     name: "",
-    season: "Set 13",
+    type: "season-long" as LeagueType,
     settings: {
       captainSlots: 1,
       naSlots: 5,
@@ -50,6 +73,9 @@ const CreateLeagueDialog = ({
       currentCup: 0,
       playoffs: false,
       playoffTeams: 4,
+      tradingEnabled: true,
+      freeAgencyEnabled: true,
+      waiversEnabled: true,
     },
   });
 
@@ -102,25 +128,75 @@ const CreateLeagueDialog = ({
     }
   };
 
+  const handleTypeChange = (newType: LeagueType) => {
+    setFormState(prev => ({
+      ...prev,
+      type: newType,
+      settings: {
+        ...prev.settings,
+        // Set appropriate defaults based on league type
+        ...(newType === 'single-tournament' ? {
+          captainSlots: 1,
+          naSlots: 1,
+          brLatamSlots: 1,
+          flexSlots: 2,
+          benchSlots: 0,
+          // Force these settings for single tournament leagues
+          waiversEnabled: false,
+          faabBudget: 0,
+          playoffs: false,
+          playoffTeams: 4,
+          // Keep trading and FA configurable
+          tradingEnabled: prev.settings.tradingEnabled,
+          freeAgencyEnabled: prev.settings.freeAgencyEnabled,
+        } : {
+          // Full season defaults
+          captainSlots: 1,
+          naSlots: 5,
+          brLatamSlots: 1,
+          flexSlots: 3,
+          benchSlots: 3,
+          waiversEnabled: true,
+          faabBudget: 1000,
+          playoffs: prev.settings.playoffs,
+          playoffTeams: prev.settings.playoffTeams,
+          tradingEnabled: prev.settings.tradingEnabled,
+          freeAgencyEnabled: prev.settings.freeAgencyEnabled,
+        })
+      }
+    }));
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Validate total slots
-      const totalStartingSlots =
-        formState.settings.captainSlots +
-        formState.settings.naSlots +
-        formState.settings.brLatamSlots +
-        formState.settings.flexSlots;
+      // Calculate total starting slots
+      const totalStartingSlots = 
+        Number(formState.settings.captainSlots) +
+        Number(formState.settings.naSlots) +
+        Number(formState.settings.brLatamSlots) +
+        Number(formState.settings.flexSlots);
 
       if (totalStartingSlots > 20) {
-        throw new Error("Total number of starting slots cannot exceed 20");
+        throw new Error('Total number of starting slots cannot exceed 20');
       }
 
-      if (totalStartingSlots === 0) {
-        throw new Error("There must be at least one starting slot");
-      }
+      // Get current cup and set from global settings
+      const [cupDoc, currentSetDoc] = await Promise.all([
+        getDoc(doc(db, 'globalSettings', 'currentCup')),
+        getDoc(doc(db, 'globalSettings', 'currentSet'))
+      ]);
+
+      const globalCup = cupDoc.exists() ? cupDoc.data()?.currentCup : 1;
+      const currentSet = currentSetDoc.exists() ? currentSetDoc.data()?.set : "Set 13";
+
+      // Use the current cup for all leagues
+      const settings = {
+        ...formState.settings,
+        currentCup: globalCup,
+      };
 
       // Get user's display name from their document
       const userDoc = await getDoc(doc(db, "users", userId));
@@ -135,20 +211,6 @@ const CreateLeagueDialog = ({
         .substr(2, 9)}`;
 
       // Create the commissioner's team
-      const settings = {
-        captainSlots: formState.settings.captainSlots,
-        naSlots: formState.settings.naSlots,
-        brLatamSlots: formState.settings.brLatamSlots,
-        flexSlots: formState.settings.flexSlots,
-        benchSlots: formState.settings.benchSlots,
-        teamsLimit: formState.settings.teamsLimit,
-        faabBudget: formState.settings.faabBudget,
-        currentCup: formState.settings.currentCup,
-        playoffs: formState.settings.playoffs,
-        playoffTeams: formState.settings.playoffTeams,
-        waiversEnabled: true,
-      };
-
       const commissionerTeam = {
         teamId,
         ownerID: userId,
@@ -164,13 +226,19 @@ const CreateLeagueDialog = ({
         pendingBids: [],
       };
 
-      // Create the league document without the teams field
+      // Create the league document
       const leagueData = {
         id: leagueId,
         name: formState.name,
         creationDate: new Date().toISOString(),
-        season: formState.season,
-        settings: formState.settings,
+        season: currentSet,
+        type: formState.type as LeagueType,
+        leagueType: formState.type as LeagueType,
+        phase: 'drafting' as LeaguePhase,
+        settings: {
+          ...formState.settings,
+          currentCup: globalCup,
+        },
         commissioner: userId,
         transactions: [],
       };
@@ -192,7 +260,7 @@ const CreateLeagueDialog = ({
       onLeagueCreated?.();
       setFormState({
         name: "",
-        season: "Set 13",
+        type: "season-long" as LeagueType,
         settings: {
           captainSlots: 1,
           naSlots: 5,
@@ -204,33 +272,54 @@ const CreateLeagueDialog = ({
           currentCup: 0,
           playoffs: false,
           playoffTeams: 4,
+          tradingEnabled: true,
+          freeAgencyEnabled: true,
+          waiversEnabled: true,
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create league");
+      setError(err instanceof Error ? err.message : 'Failed to create league');
     } finally {
       setLoading(false);
     }
   };
 
-  // Update the validateSlotInput function to use the SlotSetting type
+  // Update the validateSlotInput function to ensure we're working with numbers
   const validateSlotInput = (
     value: string,
     currentValue: number,
     field: SlotSetting
   ): number => {
     const newValue = parseInt(value) || 0;
-    const otherSlots =
-      formState.settings.captainSlots +
-      formState.settings.naSlots +
-      formState.settings.brLatamSlots +
-      formState.settings.flexSlots -
-      formState.settings[field];
+    const otherSlots = (
+      Number(formState.settings.captainSlots) +
+      Number(formState.settings.naSlots) +
+      Number(formState.settings.brLatamSlots) +
+      Number(formState.settings.flexSlots) -
+      Number(formState.settings[field])
+    );
 
     if (otherSlots + newValue > 20) {
       return currentValue;
     }
     return newValue;
+  };
+
+  const updateSlotCount = (
+    slotType: keyof typeof formState.settings,
+    increment: boolean,
+    setFormState: React.Dispatch<React.SetStateAction<typeof formState>>
+  ) => {
+    setFormState(prev => ({
+      ...prev,
+      settings: {
+        ...prev.settings,
+        [slotType]: Math.min(
+          slotType === 'benchSlots' ? Infinity : 10,
+          Math.max(0, Number(prev.settings[slotType]) + (increment ? 1 : -1))
+        )
+      }
+    }));
   };
 
   return (
@@ -257,22 +346,6 @@ const CreateLeagueDialog = ({
               </div>
 
               <div className="modal-body">
-                {error && <div className="alert alert-danger">{error}</div>}
-
-                <div className="alert alert-info">
-                  <i className="bi bi-info-circle me-2"></i>
-                  When creating a league from scratch, you will need to draft on another platform and manually
-                  import rosters. Want to draft here on Fantasy TFT instead? Consider{" "}
-                  <Link
-                    to="/drafts"
-                    className="alert-link"
-                    onClick={() => setShow(false)}
-                  >
-                    creating a draft
-                  </Link>{" "}
-                  . You can convert it to a league after the draft is complete.
-                </div>
-
                 <div className="mb-3">
                   <label className="form-label">League Name</label>
                   <input
@@ -298,164 +371,298 @@ const CreateLeagueDialog = ({
                 </div>
 
                 <div className="mb-3">
-                  <label className="form-label">Set</label>
+                  <label className="form-label">League Type</label>
                   <select
                     className="form-select"
-                    name="season"
-                    value={formState.season}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        season: e.target.value,
-                      }))
-                    }
+                    value={formState.type}
+                    onChange={(e) => handleTypeChange(e.target.value as LeagueType)}
                   >
-                    <option value="Set 13">Set 13: Into the Arcane</option>
-                    <option value="Set 14">Set 14</option>
-                    <option value="Set 15">Set 15</option>
-                    <option value="Set 16">Set 16</option>
+                    <option value="season-long">Full Season</option>
+                    <option value="single-tournament">Single Tournament</option>
                   </select>
+                  <small className="text-muted">
+                    {formState.type === 'season-long' 
+                      ? 'Compete over the entire TFT set. Carefully manage your lineup, make trades, and pick up free agents to try and come out on top at the end!'
+                      : 'Draft a team and score based on just the results of the upcoming tournament. No long term commitment!'}
+                  </small>
                 </div>
+
+                <div className="mb-3">
+                  <div className="form-check">
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      id="tradingEnabled"
+                      name="settings.tradingEnabled"
+                      checked={formState.settings.tradingEnabled}
+                      onChange={(e) => setFormState(prev => ({
+                        ...prev,
+                        settings: {
+                          ...prev.settings,
+                          tradingEnabled: e.target.checked
+                        }
+                      }))}
+                    />
+                    <label className="form-check-label" htmlFor="tradingEnabled">
+                      Enable Trading
+                    </label>
+                  </div>
+                  <small className="text-muted d-block mt-1">
+                    Allow team owners to propose and accept trades with other teams.
+                  </small>
+                </div>
+
+                <div className="mb-3">
+                  <div className="form-check">
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      id="freeAgencyEnabled"
+                      name="settings.freeAgencyEnabled"
+                      checked={formState.settings.freeAgencyEnabled}
+                      onChange={(e) => setFormState(prev => ({
+                        ...prev,
+                        settings: {
+                          ...prev.settings,
+                          freeAgencyEnabled: e.target.checked
+                        }
+                      }))}
+                    />
+                    <label className="form-check-label" htmlFor="freeAgencyEnabled">
+                      Enable Free Agency
+                    </label>
+                  </div>
+                  <small className="text-muted d-block mt-1">
+                    Allow teams to add un-owned players to their roster. You can have a FAAB bidding system, or simply do first come first served.
+                    In Single Tournament leagues, FAAB is disabled (all Free Agents are first come first served).
+                  </small>
+                </div>
+
+                {formState.type === 'season-long' && (
+                  <div className="mb-3">
+                    <div className="form-check">
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        id="playoffs"
+                        name="settings.playoffs"
+                        checked={formState.settings.playoffs}
+                        onChange={(e) => setFormState(prev => ({
+                          ...prev,
+                          settings: {
+                            ...prev.settings,
+                            playoffs: e.target.checked
+                          }
+                        }))}
+                      />
+                      <label className="form-check-label" htmlFor="playoffs">
+                        Enable Playoffs
+                      </label>
+                    </div>
+                    <small className="text-muted d-block mt-1">
+                      After the final Tactician's Cup, top teams compete based on the results of the Americas Golden Spatula (Regionals).
+                      If this option is not enabled, the winner will be determined by the standings at the end of the last Tactician's Cup instead.
+                    </small>
+                    
+                    {formState.settings.playoffs && (
+                      <div className="mt-2">
+                        <label className="form-label">Number of Playoff Teams</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          name="settings.playoffTeams"
+                          value={formState.settings.playoffTeams}
+                          onChange={handleInputChange}
+                          min="2"
+                          max={formState.settings.teamsLimit}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <h6 className="mb-3">Roster Settings</h6>
                 <div className="row g-3 mb-4">
                   <div className="col-md-6">
-                    <label className="form-label">Captain Slots</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      name="settings.captainSlots"
-                      value={formState.settings.captainSlots}
-                      onChange={handleInputChange}
-                      min="0"
-                    />
-                    <small className="text-muted">
-                      Players get 1.5x points in captain slots
-                    </small>
-                  </div>
-
-                  <div className="col-md-6">
-                    <label className="form-label">NA Slots</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      name="settings.naSlots"
-                      value={formState.settings.naSlots}
-                      onChange={handleInputChange}
-                      min="0"
-                    />
-                  </div>
-
-                  <div className="col-md-6">
-                    <label className="form-label">BR/LATAM Slots</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      name="settings.brLatamSlots"
-                      value={formState.settings.brLatamSlots}
-                      onChange={handleInputChange}
-                      min="0"
-                    />
-                  </div>
-
-                  <div className="col-md-6">
-                    <label className="form-label">Flex Slots</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      name="settings.flexSlots"
-                      value={formState.settings.flexSlots}
-                      onChange={handleInputChange}
-                      min="0"
-                    />
-                    <small className="text-muted">
-                      Can be filled by any player
-                    </small>
-                  </div>
-
-                  <div className="col-md-6">
-                    <label className="form-label">Bench Slots</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      name="settings.benchSlots"
-                      value={formState.settings.benchSlots}
-                      onChange={handleInputChange}
-                      min="0"
-                    />
-                  </div>
-
-                  <div className="col-md-6">
-                    <label className="form-label">Starting FAAB Budget</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      name="settings.faabBudget"
-                      value={formState.settings.faabBudget}
-                      onChange={handleInputChange}
-                      min="0"
-                    />
-                  </div>
-                </div>
-
-                <h6 className="mb-3">Playoff Settings</h6>
-                <div className="row g-3 mb-4">
-                  <div className="col-md-6">
-                    <div className="form-check form-switch">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="playoffsEnabled"
-                        checked={formState.settings.playoffs}
-                        onChange={handleInputChange}
-                      />
-                      <label
-                        className="form-check-label"
-                        htmlFor="playoffsEnabled"
-                      >
-                        Enable Playoffs
-                      </label>
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <label className="form-label mb-0">Captain Slots</label>
+                      <div className="input-group" style={{ width: 'auto' }}>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => updateSlotCount('captainSlots', false, setFormState)}
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="input-group-text" style={{ minWidth: '40px' }}>
+                          {formState.settings.captainSlots}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => updateSlotCount('captainSlots', true, setFormState)}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
                     </div>
+                    <small className="text-muted">
+                      Can be filled by a player from any region, and boosts their score by 1.5x
+                    </small>
                   </div>
 
-                  {formState.settings.playoffs && (
+                  <div className="col-md-6">
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <label className="form-label mb-0">NA Slots</label>
+                      <div className="input-group" style={{ width: 'auto' }}>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => updateSlotCount('naSlots', false, setFormState)}
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="input-group-text" style={{ minWidth: '40px' }}>
+                          {formState.settings.naSlots}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => updateSlotCount('naSlots', true, setFormState)}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    <small className="text-muted">
+                      Must be filled by an NA player
+                    </small>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <label className="form-label mb-0">BR/LATAM Slots</label>
+                      <div className="input-group" style={{ width: 'auto' }}>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => updateSlotCount('brLatamSlots', false, setFormState)}
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="input-group-text" style={{ minWidth: '40px' }}>
+                          {formState.settings.brLatamSlots}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => updateSlotCount('brLatamSlots', true, setFormState)}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    <small className="text-muted">
+                      Must be filled by a BR/LATAM player
+                    </small>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <label className="form-label mb-0">Flex Slots</label>
+                      <div className="input-group" style={{ width: 'auto' }}>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => updateSlotCount('flexSlots', false, setFormState)}
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="input-group-text" style={{ minWidth: '40px' }}>
+                          {formState.settings.flexSlots}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => updateSlotCount('flexSlots', true, setFormState)}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    <small className="text-muted">
+                      Can be filled by a player from any region
+                    </small>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <label className="form-label mb-0">Bench Slots</label>
+                      <div className="input-group" style={{ width: 'auto' }}>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => updateSlotCount('benchSlots', false, setFormState)}
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="input-group-text" style={{ minWidth: '40px' }}>
+                          {formState.settings.benchSlots}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => updateSlotCount('benchSlots', true, setFormState)}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    <small className="text-muted">
+                      Bench slots allow you to store players for the future, but they do not score any points.
+                      Not recommended for Single Tournament Leagues.
+                    </small>
+                  </div>
+
+                  {/* Only show FAAB for season-long leagues with free agency enabled */}
+                  {formState.type === 'season-long' && formState.settings.freeAgencyEnabled && (
                     <div className="col-md-6">
-                      <label className="form-label">
-                        Number of Playoff Teams
-                      </label>
+                      <label className="form-label">Starting FAAB Budget</label>
                       <input
                         type="number"
                         className="form-control"
-                        name="settings.playoffTeams"
-                        value={formState.settings.playoffTeams}
+                        name="settings.faabBudget"
+                        value={formState.settings.faabBudget}
                         onChange={handleInputChange}
-                        min="2"
-                        max={formState.settings.teamsLimit}
+                        min="0"
                       />
                       <small className="text-muted">
-                        Must be between 2 and total number of teams
+                        Free Agent Acquisition Budget (FAAB) is used to bid on available players. 
+                        All teams start with the same budget and must manage it throughout the season.
                       </small>
                     </div>
                   )}
                 </div>
-              </div>
 
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShow(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleSubmit}
-                  disabled={loading || !formState.name}
-                >
-                  {loading ? "Creating..." : "Create League"}
-                </button>
+                {/* Add total slots counter and error message above the footer */}
+                <div className="modal-footer">
+                  {error && <div className="alert alert-danger mb-3">{error}</div>}
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShow(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleSubmit}
+                    disabled={loading || !formState.name}
+                  >
+                    {loading ? "Creating..." : "Create League"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

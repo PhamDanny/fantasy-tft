@@ -35,9 +35,9 @@ const TeamTab: React.FC<TeamTabProps> = ({
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [selectedCup, setSelectedCup] = useState<number>(() => {
-    const currentCup = league.settings?.currentCup ?? 0;
+    const upcomingCup = Math.min(league.settings.currentCup + 1, 3);
     const maxCups = TWO_CUP_SETS.includes(league.season as TwoCupSet) ? 2 : 3;
-    return Math.min(currentCup + 1, maxCups);
+    return Math.min(upcomingCup, maxCups);
   });
   const [showCoOwnerDialog, setShowCoOwnerDialog] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -597,17 +597,23 @@ const TeamTab: React.FC<TeamTabProps> = ({
           {/* Cup Selection and Manage Co-Owners */}
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div className="btn-group">
-              {Array.from({ length: TWO_CUP_SETS.includes(league.season as TwoCupSet) ? 2 : 3 }, (_, i) => i + 1).map((cupNumber) => (
-                <button
-                  key={cupNumber}
-                  className={`btn btn-${
-                    selectedCup === cupNumber ? "primary" : "outline-primary"
-                  }`}
-                  onClick={() => setSelectedCup(cupNumber)}
-                >
-                  Cup {cupNumber}
-                </button>
-              ))}
+              {Array.from({ length: TWO_CUP_SETS.includes(league.season as TwoCupSet) ? 2 : 3 }, (_, i) => i + 1).map((cupNumber) => {
+                // Cup is locked if it's less than or equal to the current cup
+                const isLocked = cupNumber <= league.settings.currentCup;
+                
+                return (
+                  <button
+                    key={cupNumber}
+                    className={`btn ${selectedCup === cupNumber ? 'btn-primary' : 'btn-outline-primary'}`}
+                    onClick={() => setSelectedCup(cupNumber)}
+                  >
+                    Cup {cupNumber}
+                    {isLocked && (
+                      <i className="bi bi-lock-fill ms-1" title="Cup lineup is locked"></i>
+                    )}
+                  </button>
+                );
+              })}
               {league.settings.playoffs && league.settings.playoffSettings?.playoffAuctionStarted && isInPlayoffs && (
                 <button
                   className={`btn btn-${selectedCup === 0 ? "primary" : "outline-primary"}`}

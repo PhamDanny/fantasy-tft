@@ -45,8 +45,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
     try {
       // Create date from the local input, maintaining the timezone
       const rosterLockDate = new Date(rosterLockLocal);
-      console.log('Input value:', rosterLockLocal);
-      console.log('Created date:', rosterLockDate);
 
       const challenge: PerfectRosterChallenge = {
         id: `${name.toLowerCase().replace(/\s+/g, '_')}_${new Date().getTime()}`,

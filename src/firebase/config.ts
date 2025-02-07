@@ -17,7 +17,8 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-if (process.env.NODE_ENV === 'development') {
+// Always connect to emulator in development
+if (import.meta.env.DEV) {
   connectFirestoreEmulator(db, 'localhost', 8080);
   connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
   console.log('Using Firebase emulators');

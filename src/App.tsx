@@ -7,7 +7,6 @@ import LeagueView from "./pages/League";
 import UserSettings from "./pages/UserSettings";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
-import { JoinLeague } from "./pages/JoinLeague";
 import MyDrafts from "./pages/MyDrafts";
 import Draft from "./pages/Draft";
 import JoinDraft from './pages/JoinDraft';
@@ -17,6 +16,8 @@ import PerfectRoster from "./pages/PerfectRoster";
 import ChallengeView from "./pages/ChallengeView";
 import RequireAuth from './components/RequireAuth';
 import { ThemeProvider } from "./contexts/ThemeContext";
+import JoinLeague from "./pages/JoinLeague";
+import 'bootstrap-icons/font/bootstrap-icons.css';
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -83,6 +84,7 @@ function App() {
                 <UserSettings />
               </RequireAuth>
             } />
+            <Route path="/leagues/join/:leagueId" element={<JoinLeague />} />
           </Routes>
         </Sidebar>
       </Router>

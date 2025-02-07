@@ -44,39 +44,59 @@ const Home = () => {
       {/* Main Cards Section */}
       <div className="container mb-5">
         <div className="row g-4 justify-content-center">
-          <div className="col-md-6 col-lg-5">
+          <div className="col-md-6 col-lg-4">
             <div className="card h-100">
               <div className="card-body d-flex flex-column">
                 <div className="d-flex align-items-center mb-3">
                   <Trophy className="text-primary me-2" size={24} />
-                  <h3 className="h5 mb-0">Fantasy Leagues</h3>
+                  <h3 className="h5 mb-0">Full Season Leagues</h3>
                 </div>
                 <p className="card-text">
-                  Create a league, invite friends, and draft your favorite TFT competitors. Compete over
-                  multiple tournaments and track your standings throughout the season.
+                  The full Fantasy TFT experience. Compete over an entire TFT set through multiple tournaments. Manage your roster through trades 
+                  and free agency, and battle for the championship in the playoffs!
                 </p>
                 <div className="mt-auto text-center">
-                <Link to="/drafts" className="btn btn-primary me-2">
-                    Start a Fantasy Draft
+                  <Link to="/leagues" className="btn btn-primary">
+                    Create Season-Long League
                   </Link>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="col-md-6 col-lg-5">
+          <div className="col-md-6 col-lg-4">
             <div className="card h-100">
               <div className="card-body d-flex flex-column">
                 <div className="d-flex align-items-center mb-3">
-                  <Crown className="text-warning me-2" size={24} />
+                  <Trophy className="text-warning me-2" size={24} />
+                  <h3 className="h5 mb-0">Single Tournament</h3>
+                </div>
+                <p className="card-text">
+                  Quick, focused competition for a single Tactician's Cup or Golden Spatula. Perfect for a 
+                  low-commitment casual experience with simplified roster management.
+                </p>
+                <div className="mt-auto text-center">
+                  <Link to="/leagues" className="btn btn-warning text-dark">
+                    Create Single Tournament League
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-6 col-lg-4">
+            <div className="card h-100">
+              <div className="card-body d-flex flex-column">
+                <div className="d-flex align-items-center mb-3">
+                  <Crown className="text-success me-2" size={24} />
                   <h3 className="h5 mb-0">Perfect Roster Challenge</h3>
                 </div>
                 <p className="card-text">
-                  Don't have a group to play with yet? Try the Perfect Roster Challenge! 
-                  Pick your ideal lineup for an upcoming tournament and compete against everyone else to score the most points.
+                  Don't have a group to play with? Pick your ideal lineup for an upcoming tournament 
+                  and compete against everyone else to score the most points!
                 </p>
                 <div className="mt-auto text-center">
-                  <Link to="/perfect-roster" className="btn btn-warning text-dark">
+                  <Link to="/perfect-roster" className="btn btn-success">
                     Join the Challenge
                   </Link>
                 </div>
@@ -99,9 +119,10 @@ const Home = () => {
                     1
                   </div>
                 </div>
-                <h3 className="h5">Draft Your Teams</h3>
+                <h3 className="h5">Create Your League</h3>
                 <p className="text-body-secondary">
-                  You can draft your teams live right here on Fantasy TFT in the Drafts tab, or you can draft on your own platform and import your rosters later.
+                  Choose between a Full Season or Single Tournament league, customize your settings, 
+                  and invite your friends to join the competition.
                 </p>
               </div>
             </div>
@@ -113,9 +134,10 @@ const Home = () => {
                     2
                   </div>
                 </div>
-                <h3 className="h5">Create Your League</h3>
+                <h3 className="h5">Draft Your Team</h3>
                 <p className="text-body-secondary">
-                  Convert your Fantasy TFT Draft directly into a League, or create a new one from scratch and import your rosters later.
+                  Once your league is full, participate in a live snake draft to build your roster 
+                  of TFT competitors from NA, BR, and LATAM.
                 </p>
               </div>
             </div>
@@ -129,7 +151,7 @@ const Home = () => {
                 </div>
                 <h3 className="h5">Compete & Win</h3>
                 <p className="text-body-secondary">
-                  Manage your roster through trades and Free Agents. Compete for the highest season score, 
+                  Manage your roster through trades and Free Agents. Compete for the highest score, 
                   or battle it out in playoffs during the Americas Golden Spatula!
                 </p>
               </div>
