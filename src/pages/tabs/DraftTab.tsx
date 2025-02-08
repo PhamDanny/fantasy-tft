@@ -16,9 +16,12 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftOrder, setDraftOrder] = useState<string[]>(() => {
-    return league.settings.draftOrder?.length > 0 
-      ? league.settings.draftOrder 
-      : Object.keys(teams);
+    if (league.settings.draftOrder?.length > 0) {
+      const allTeamIds = Object.keys(teams);
+      const missingTeams = allTeamIds.filter(id => !league.settings.draftOrder.includes(id));
+      return [...league.settings.draftOrder, ...missingTeams];
+    }
+    return Object.keys(teams);
   });
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,20 +37,30 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
   }, []);
 
   useEffect(() => {
-    // Set up real-time listener for the league document
     const unsubscribe = onSnapshot(
       doc(db, 'leagues', league.id.toString()),
-      (doc) => {
-        if (doc.exists()) {
-          const leagueData = doc.data();
-          // Update local teams when changes occur
-          setLocalTeams(teams); // Update with latest teams prop
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const leagueData = snapshot.data();
+          setLocalTeams(teams);
           
-          // Update draft order, ensuring we have all current teams
           if (leagueData.settings?.draftOrder?.length > 0) {
-            setDraftOrder(leagueData.settings.draftOrder);
+            const allTeamIds = Object.keys(teams);
+            const currentDraftOrder = leagueData.settings.draftOrder;
+            const missingTeams = allTeamIds.filter(id => !currentDraftOrder.includes(id));
+            
+            if (missingTeams.length > 0 && !leagueData.settings.draftStarted) {
+              const updatedDraftOrder = [...currentDraftOrder, ...missingTeams];
+              setDraftOrder(updatedDraftOrder);
+              
+              // Update Firestore
+              void updateDoc(doc(db, 'leagues', league.id.toString()), {
+                'settings.draftOrder': updatedDraftOrder
+              });
+            } else {
+              setDraftOrder(currentDraftOrder);
+            }
           } else {
-            // If no draft order set, use all current team IDs
             setDraftOrder(Object.keys(teams));
           }
         }
@@ -58,12 +71,8 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
       }
     );
 
-    // Also update localTeams whenever the teams prop changes
-    setLocalTeams(teams);
-
-    // Cleanup listener on unmount
     return () => unsubscribe();
-  }, [league.id, teams]); // Add teams to dependency array
+  }, [league.id, teams]);
 
   // Filter players to only show current set players
   const currentSetPlayers = Object.values(players)
@@ -171,13 +180,26 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
     setError(null);
 
     try {
+      const allTeamIds = Object.keys(localTeams);
+      const updatedDraftOrder = [...draftOrder];
+      
+      allTeamIds.forEach(teamId => {
+        if (!updatedDraftOrder.includes(teamId)) {
+          updatedDraftOrder.push(teamId);
+        }
+      });
+
+      const finalDraftOrder = updatedDraftOrder.filter(teamId => allTeamIds.includes(teamId));
+
       await updateDoc(doc(db, 'leagues', league.id.toString()), {
-        'settings.draftOrder': draftOrder,
+        'settings.draftOrder': finalDraftOrder,
         'settings.draftStarted': true,
-        'settings.teamsLimit': currentTeamCount, // Reduce team limit to current count
+        'settings.teamsLimit': currentTeamCount,
         currentPick: 0,
         currentRound: 1,
       });
+
+      setDraftOrder(finalDraftOrder);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start draft');
     } finally {
