@@ -40,30 +40,33 @@ const JoinLeague = () => {
         let leagueIdToUse;
 
         if (inviteCode) {
-          // First get the league document that contains the invite
-          const [leagueIdFromUrl] = inviteCode.split('-');
-          leagueDoc = await getDoc(doc(db, 'leagues', leagueIdFromUrl));
-          
-          if (!leagueDoc.exists()) {
-            setError('League not found');
-            return;
+          // Get all leagues and find the one containing this invite code
+          const leaguesSnapshot = await getDocs(collection(db, 'leagues'));
+          let foundLeague = null;
+          let foundInvite = null;
+
+          for (const doc of leaguesSnapshot.docs) {
+            const leagueData = doc.data();
+            if (leagueData.invites?.[inviteCode]) {
+              foundLeague = doc;
+              foundInvite = leagueData.invites[inviteCode];
+              break;
+            }
           }
 
-          const leagueData = leagueDoc.data();
-          const inviteData = leagueData.invites?.[inviteCode];
-
-          if (!inviteData) {
+          if (!foundLeague || !foundInvite) {
             setError('Invalid invite code');
             return;
           }
 
-          if (inviteData.status !== 'active') {
+          if (foundInvite.status !== 'active') {
             setError('This invite has expired or been used');
             return;
           }
 
-          setInvite(inviteData);
-          leagueIdToUse = leagueIdFromUrl;
+          setInvite(foundInvite);
+          leagueIdToUse = foundLeague.id;
+          leagueDoc = foundLeague;
         } else {
           leagueIdToUse = leagueId!;
         }
