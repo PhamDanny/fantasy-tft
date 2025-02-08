@@ -73,7 +73,11 @@ function App() {
               </RequireAuth>
             } />
             <Route path="/drafts/join/:inviteCode" element={<JoinDraft />} />
+            
+            {/* Update these league join routes */}
+            <Route path="/leagues/join/:inviteCode" element={<JoinLeague />} />
             <Route path="/join/:inviteCode" element={<JoinLeague />} />
+            
             <Route path="/profile" element={
               <RequireAuth>
                 <Profile />
@@ -84,7 +88,6 @@ function App() {
                 <UserSettings />
               </RequireAuth>
             } />
-            <Route path="/leagues/join/:leagueId" element={<JoinLeague />} />
           </Routes>
         </Sidebar>
       </Router>
