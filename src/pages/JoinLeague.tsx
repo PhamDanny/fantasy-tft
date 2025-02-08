@@ -40,28 +40,36 @@ const JoinLeague = () => {
         let leagueIdToUse;
 
         if (inviteCode) {
-          // Get invite document
-          const inviteDoc = await getDoc(doc(db, 'invites', inviteCode));
-          if (!inviteDoc.exists()) {
+          // First get the league document that contains the invite
+          const [leagueIdFromUrl] = inviteCode.split('-');
+          leagueDoc = await getDoc(doc(db, 'leagues', leagueIdFromUrl));
+          
+          if (!leagueDoc.exists()) {
+            setError('League not found');
+            return;
+          }
+
+          const leagueData = leagueDoc.data();
+          const inviteData = leagueData.invites?.[inviteCode];
+
+          if (!inviteData) {
             setError('Invalid invite code');
             return;
           }
-          const inviteData = inviteDoc.data() as LeagueInvite;
-          setInvite(inviteData);
-          
+
           if (inviteData.status !== 'active') {
             setError('This invite has expired or been used');
             return;
           }
-          
-          // Get league ID from the invite data
-          leagueIdToUse = inviteData.leagueId.toString(); // Use leagueId field from invite
+
+          setInvite(inviteData);
+          leagueIdToUse = leagueIdFromUrl;
         } else {
           leagueIdToUse = leagueId!;
         }
 
-        // Get league document
-        leagueDoc = await getDoc(doc(db, 'leagues', leagueIdToUse));
+        // Get league document (we already have it if using invite code)
+        leagueDoc = leagueDoc || await getDoc(doc(db, 'leagues', leagueIdToUse));
 
         if (!leagueDoc.exists()) {
           setError('League not found');
@@ -194,10 +202,15 @@ const JoinLeague = () => {
 
       // If using invite code, mark it as used
       if (inviteCode && invite) {
-        await updateDoc(doc(db, 'invites', inviteCode), {
-          status: 'used',
-          usedBy: arrayUnion(user.uid),
-          usedCount: (invite.usedCount || 0) + 1
+        await updateDoc(doc(db, 'leagues', league.id.toString()), {
+          invites: {
+            ...league.invites,
+            [inviteCode]: {
+              ...invite,
+              usedBy: arrayUnion(user.uid),
+              usedCount: (invite.usedCount || 0) + 1
+            }
+          }
         });
       }
 
