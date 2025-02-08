@@ -377,14 +377,14 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                       <input
                         type="text"
                         className="form-control"
-                        value={`${window.location.origin}/leagues/join/${league.id}`}
+                        value={`${window.location.origin}/join/${league.id}-${Date.now()}`}
                         readOnly
                       />
                       <button
                         className="btn btn-outline-primary"
                         onClick={() => {
                           navigator.clipboard.writeText(
-                            `${window.location.origin}/leagues/join/${league.id}`
+                            `${window.location.origin}/join/${league.id}-${Date.now()}`
                           );
                         }}
                       >
