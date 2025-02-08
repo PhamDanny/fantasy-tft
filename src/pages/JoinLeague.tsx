@@ -40,7 +40,7 @@ const JoinLeague = () => {
         let leagueIdToUse;
 
         if (inviteCode) {
-          // Join via invite code
+          // Get invite document
           const inviteDoc = await getDoc(doc(db, 'invites', inviteCode));
           if (!inviteDoc.exists()) {
             setError('Invalid invite code');
@@ -54,7 +54,8 @@ const JoinLeague = () => {
             return;
           }
           
-          leagueIdToUse = inviteData.code.split('-')[0];
+          // Get league ID from the invite data
+          leagueIdToUse = inviteData.leagueId.toString(); // Use leagueId field from invite
         } else {
           leagueIdToUse = leagueId!;
         }
