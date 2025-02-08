@@ -373,26 +373,14 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                 <h6 className="mb-3">Invite Players</h6>
                 {Object.keys(localTeams).length < league.settings.teamsLimit ? (
                   <>
-                    <div className="input-group mb-3">
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={`${window.location.origin}/join/${league.id}-${Date.now()}`}
-                        readOnly
-                      />
-                      <button
-                        className="btn btn-outline-primary"
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            `${window.location.origin}/join/${league.id}-${Date.now()}`
-                          );
-                        }}
-                      >
-                        Copy
-                      </button>
-                    </div>
+                    <button
+                      className="btn btn-primary w-100"
+                      onClick={() => setShowInviteDialog(true)}
+                    >
+                      Generate Invite Link
+                    </button>
                     <small className="text-muted d-block mb-3">
-                      Share this link to invite players to join your league
+                      Generate a link to invite players to join your league
                     </small>
                   </>
                 ) : (
@@ -439,11 +427,13 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
         </div>
 
         {/* Invite Dialog */}
-        <InviteDialog 
-          league={league}
-          show={showInviteDialog}
-          onClose={() => setShowInviteDialog(false)}
-        />
+        {showInviteDialog && (
+          <InviteDialog
+            league={league}
+            show={showInviteDialog}
+            onClose={() => setShowInviteDialog(false)}
+          />
+        )}
       </div>
     );
   }
