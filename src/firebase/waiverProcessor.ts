@@ -111,9 +111,16 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
 
       // Check if this move would be valid
       if (bid.dropPlayerId) {
-        // With a drop, roster size stays the same
+        // Even if drop player isn't on roster anymore, we can still add the player
+        // as long as roster size allows it
         if (!team.roster.includes(bid.dropPlayerId)) {
-          reason = "Drop player not on roster";
+          // Calculate if adding the player would exceed roster limit
+          if (rosterSize >= getTotalRosterLimit(league.settings)) {
+            reason = "Roster would exceed limit";
+          } else {
+            success = true;
+            // Note: We won't try to drop the player since they're already gone
+          }
         } else {
           success = true;
         }
@@ -210,8 +217,8 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
     let newFaabBudget = team.faabBudget;
 
     for (const { bid } of successfulBids) {
-      // Remove dropped player if any
-      if (bid.dropPlayerId) {
+      // Remove dropped player if any (only if they're still on the roster)
+      if (bid.dropPlayerId && newRoster.includes(bid.dropPlayerId)) {
         newRoster = newRoster.filter(id => id !== bid.dropPlayerId);
       }
       // Add claimed player
