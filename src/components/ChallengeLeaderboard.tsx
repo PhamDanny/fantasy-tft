@@ -208,7 +208,7 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
                                       </div>
                                     </td>
                                     <td className="text-end">
-                                      {formatScore(0)}  {/* For now it's 0, but will format properly when scores are available */}
+                                      {formatScore(entry.playerContributions.find(p => p.playerId === playerId)?.score || 0)}
                                     </td>
                                   </tr>
                                 ))}
@@ -224,7 +224,7 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
                                       </div>
                                     </td>
                                     <td className="text-end">
-                                      {formatScore(0)}  {/* For now it's 0, but will format properly when scores are available */}
+                                      {formatScore(entry.playerContributions.find(p => p.playerId === playerId)?.score || 0)}
                                     </td>
                                   </tr>
                                 ))}
@@ -240,7 +240,7 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
                                       </div>
                                     </td>
                                     <td className="text-end">
-                                      {formatScore(0)}  {/* For now it's 0, but will format properly when scores are available */}
+                                      {formatScore(entry.playerContributions.find(p => p.playerId === playerId)?.score || 0)}
                                     </td>
                                   </tr>
                                 ))}
@@ -256,7 +256,7 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
                                       </div>
                                     </td>
                                     <td className="text-end">
-                                      {formatScore(0)}  {/* For now it's 0, but will format properly when scores are available */}
+                                      {formatScore(entry.playerContributions.find(p => p.playerId === playerId)?.score || 0)}
                                     </td>
                                   </tr>
                                 ))}
