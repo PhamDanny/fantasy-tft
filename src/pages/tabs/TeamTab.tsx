@@ -2,9 +2,11 @@ import React, { useState } from "react";
 import type { League, Player, Team, CupLineup } from "../../types";
 import { updateDoc, doc, runTransaction, collection, addDoc, deleteField } from "firebase/firestore";
 import { db } from "../../firebase/config";
-import { Trash2 } from "lucide-react";
 import CoOwnerDialog from "../../components/dialogs/CoOwnerDialog";
 import { useNavigate } from "react-router-dom";
+import { DndProvider, useDrag, useDrop, useDragLayer } from 'react-dnd';
+import { HTML5Backend, getEmptyImage } from 'react-dnd-html5-backend';
+import type { DropTargetMonitor } from 'react-dnd';
 
 interface TeamTabProps {
   league: League;
@@ -23,6 +25,308 @@ interface UserData {
   displayName: string;
   leagues: string[];
 }
+
+// Add these interfaces for DnD types
+interface DragItem {
+  type: 'PLAYER';
+  id: string | null;
+  slotType: "captains" | "naSlots" | "brLatamSlots" | "flexSlots" | "bench";
+  slotIndex: number;
+}
+
+// Create a separate component for bench players
+const BenchPlayer: React.FC<{
+  playerId: string;
+  player: Player;
+  isLineupLocked: boolean;
+  canEdit: boolean;
+  onDrop: (playerId: string) => void;
+  loading: boolean;
+}> = ({ playerId, player, isLineupLocked, canEdit, onDrop, loading }) => {
+  const [{ isDragging }, drag, preview] = useDrag<
+    DragItem,
+    unknown,
+    { isDragging: boolean }
+  >({
+    type: 'PLAYER',
+    item: { type: 'PLAYER', id: playerId, slotType: 'bench', slotIndex: -1 },
+    canDrag: () => !isLineupLocked && canEdit,
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging()
+    })
+  });
+
+  React.useEffect(() => {
+    preview(getEmptyImage());
+  }, [preview]);
+
+  // Create a ref function that properly handles the drag ref
+  const ref = (node: HTMLDivElement | null) => {
+    drag(node);
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={`p-3 border rounded mb-2`}
+      style={{ 
+        cursor: isLineupLocked || !canEdit ? 'default' : 'grab',
+        opacity: isDragging ? 0 : 1,
+        transition: 'opacity 0.2s ease'
+      }}
+    >
+      <div className="d-flex justify-content-between align-items-center">
+        <div>
+          <span>{player.name}</span>
+          <small className="text-muted"> ({player.region})</small>
+        </div>
+        {!isLineupLocked && canEdit && (
+          <button
+            className="btn btn-sm btn-outline-danger"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDrop(playerId);
+            }}
+            disabled={loading}
+          >
+            Drop
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Create a separate component for lineup slots
+const LineupSlot: React.FC<{
+  slotType: "captains" | "naSlots" | "brLatamSlots" | "flexSlots";
+  currentPlayer: string | null;
+  slotIndex: number;
+  showScore: boolean;
+  isLineupLocked: boolean;
+  canEdit: boolean;
+  isPastCup: boolean;
+  players: Record<string, Player>;
+  selectedCup: number;
+  selectedTeam: Team;
+  selectedPlayer: string | null;
+  onSlotClick: (slotType: "captains" | "naSlots" | "brLatamSlots" | "flexSlots", playerId: string | null, index: number) => void;
+  onDropPlayer: (playerId: string) => void;
+  loading: boolean;
+}> = ({ slotType, currentPlayer, slotIndex, showScore, isLineupLocked, canEdit, isPastCup, players, selectedCup, selectedTeam, selectedPlayer, onSlotClick, onDropPlayer, loading }) => {
+  const player = currentPlayer ? players[currentPlayer] : null;
+
+  const [{ isDragging }, drag, preview] = useDrag<
+    DragItem,
+    unknown,
+    { isDragging: boolean }
+  >({
+    type: 'PLAYER',
+    item: { type: 'PLAYER', id: currentPlayer, slotType, slotIndex },
+    canDrag: () => !isLineupLocked && canEdit && currentPlayer !== null && !isPastCup,
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging()
+    })
+  });
+
+  const [{ isOver, canDrop }, drop] = useDrop<
+    DragItem,
+    void,
+    { isOver: boolean; canDrop: boolean }
+  >({
+    accept: 'PLAYER',
+    canDrop: (item: DragItem) => {
+      if (!canEdit || isLineupLocked || isPastCup) return false;
+      const draggedPlayer = item.id ? players[item.id] : null;
+      if (!draggedPlayer) return false;
+      
+      switch (slotType) {
+        case "naSlots":
+          return draggedPlayer.region === "NA";
+        case "brLatamSlots":
+          return ["BR", "LATAM"].includes(draggedPlayer.region);
+        default:
+          return true;
+      }
+    },
+    drop: (item: DragItem) => {
+      if (item.id) {
+        onSlotClick(slotType, item.id, slotIndex);
+      }
+    },
+    collect: (monitor: DropTargetMonitor<DragItem>) => ({
+      isOver: monitor.isOver(),
+      canDrop: monitor.canDrop()
+    })
+  });
+
+  React.useEffect(() => {
+    preview(getEmptyImage());
+  }, [preview]);
+
+  const ref = (node: HTMLDivElement | null) => {
+    drag(node);
+    drop(node);
+  };
+
+  let className = "p-3 border rounded ";
+  if (currentPlayer && canEdit && selectedPlayer === currentPlayer) {
+    className += "bg-primary text-white ";
+  } else if (isOver) {
+    className += canDrop 
+      ? "bg-primary bg-opacity-25 border-primary border-2 " 
+      : "bg-danger bg-opacity-10 border-danger ";
+  } else if (canDrop) {
+    className += "border-primary border-2 ";
+  }
+  if (isPastCup && player && currentPlayer && !selectedTeam.roster.includes(currentPlayer)) {
+    className += "bg-light ";
+  }
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      onClick={() => canEdit && !isPastCup && onSlotClick(slotType, currentPlayer, slotIndex)}
+      style={{
+        cursor: isLineupLocked || !canEdit || isPastCup ? "default" : "grab",
+        opacity: isDragging ? 0 : (isLineupLocked || !canEdit ? 0.8 : 1),
+        transition: 'opacity 0.2s ease'
+      }}
+    >
+      {player ? (
+        <div className="d-flex justify-content-between align-items-center">
+          <div className="d-flex align-items-center gap-2">
+            <div>
+              <span>{player.name}</span>
+              <small className={currentPlayer && canEdit && selectedPlayer === currentPlayer ? "text-white-50" : "text-muted"}>
+                {" "}
+                ({player.region})
+              </small>
+            </div>
+            {isPastCup && currentPlayer && !selectedTeam.roster.includes(currentPlayer) && (
+              <span className="badge bg-danger">Off Roster</span>
+            )}
+          </div>
+          <div className="d-flex align-items-center gap-3">
+            {showScore && player.scores && (
+              <span className="fw-bold fs-5">
+                {slotType === "captains" 
+                  ? `${(player.scores[`cup${selectedCup}` as keyof typeof player.scores] * 1.5) % 1 === 0 
+                      ? Math.round(player.scores[`cup${selectedCup}` as keyof typeof player.scores] * 1.5)
+                      : (player.scores[`cup${selectedCup}` as keyof typeof player.scores] * 1.5).toFixed(1)
+                    }`
+                  : player.scores[`cup${selectedCup}` as keyof typeof player.scores]
+                }
+              </span>
+            )}
+            {!isLineupLocked && canEdit && !isPastCup && (
+              <button
+                className="btn btn-sm btn-outline-danger"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDropPlayer(currentPlayer!);
+                }}
+                disabled={loading}
+              >
+                Drop
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <span className="text-muted">Empty Slot</span>
+      )}
+    </div>
+  );
+};
+
+// Update the BenchDropZone component
+const BenchDropZone: React.FC<{
+  isLineupLocked: boolean;
+  canEdit: boolean;
+  onDrop: (playerId: string | null) => void;
+}> = ({ isLineupLocked, canEdit, onDrop }) => {
+  const [{ isOver, canDrop }, dropRef] = useDrop<
+    DragItem,
+    void,
+    { isOver: boolean; canDrop: boolean }
+  >({
+    accept: 'PLAYER',
+    canDrop: () => !isLineupLocked && canEdit,
+    drop: (item: DragItem) => {
+      if (item.id) {
+        onDrop(item.id);
+      }
+    },
+    collect: (monitor: DropTargetMonitor<DragItem>) => ({
+      isOver: monitor.isOver(),
+      canDrop: monitor.canDrop()
+    })
+  });
+
+  // Create a ref function that properly handles the drop ref
+  const ref = React.useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      dropRef(node);
+    }
+  }, [dropRef]);
+
+  return (
+    <div
+      ref={ref}
+      className={`p-3 border rounded mb-3 text-center ${
+        isOver && canDrop 
+          ? 'bg-primary bg-opacity-25 border-primary border-2' 
+          : canDrop 
+            ? 'border-primary border-2' 
+            : 'border-dashed'
+      }`}
+      style={{ 
+        minHeight: '60px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'all 0.2s ease'
+      }}
+    >
+      <span className={`text-muted ${canDrop ? 'text-primary' : ''}`}>
+        {isOver && canDrop 
+          ? 'Drop to move to bench' 
+          : canDrop 
+            ? 'Drop here to move to bench'
+            : 'Drag players here to move them to bench'
+        }
+      </span>
+    </div>
+  );
+};
+
+// Add this new component at the top level
+const DragPreview: React.FC<{ player: Player }> = ({ player }) => {
+  return (
+    <div
+      className="p-3 border rounded bg-white"
+      style={{ 
+        width: '300px',
+        transform: 'rotate(3deg)',
+        cursor: 'grabbing',
+        boxShadow: '0 5px 15px rgba(0,0,0,0.15)',
+        opacity: 1,
+        backgroundColor: 'white',
+        zIndex: 1000,
+        pointerEvents: 'none',  // Make sure it doesn't interfere with drops
+      }}
+    >
+      <div className="d-flex justify-content-between align-items-center">
+        <div>
+          <span className="fw-bold">{player.name}</span>
+          <small className="text-muted"> ({player.region})</small>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const TeamTab: React.FC<TeamTabProps> = ({
   league,
@@ -102,7 +406,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
   const isLineupLocked = lineup.locked;
 
   // Calculate bench as players not in starting lineup
-  const getBenchPlayers = (): string[] => {
+  const getBenchPlayers = () => {
     const startingPlayers = new Set(
       [
         ...lineup.captains,
@@ -112,18 +416,28 @@ const TeamTab: React.FC<TeamTabProps> = ({
       ].filter(Boolean)
     );
 
-    if (selectedCup === 0) {  // Regionals
-      // Get all players from playoff roster - both retained and acquired
-      const allPlayoffPlayers = selectedTeam.playoffRoster || [];
-      return allPlayoffPlayers.filter(
-        (playerId) => !startingPlayers.has(playerId)
-      );
-    }
+    const benchPlayerIds = selectedCup === 0
+      ? (selectedTeam.playoffRoster || [])
+      : selectedTeam.roster;
 
-    // For all other cases, bench is just current roster players not in starting lineup
-    return selectedTeam.roster.filter(
-      (playerId) => !startingPlayers.has(playerId)
-    );
+    return benchPlayerIds
+      .filter(playerId => !startingPlayers.has(playerId))
+      .map(playerId => {
+        const player = players[playerId];
+        if (!player) return null;
+
+        return (
+          <BenchPlayer
+            key={playerId}
+            playerId={playerId}
+            player={player}
+            isLineupLocked={isLineupLocked}
+            canEdit={canEdit}
+            onDrop={handleDropPlayer}
+            loading={loading}
+          />
+        );
+      });
   };
 
   const getPlayerCurrentSlot = (
@@ -131,71 +445,30 @@ const TeamTab: React.FC<TeamTabProps> = ({
     lineup: CupLineup
   ): { slotType: string; index: number } | null => {
     if (lineup.captains.includes(playerId)) {
-      return { slotType: "captain", index: lineup.captains.indexOf(playerId) };
+      return { slotType: "captains", index: lineup.captains.indexOf(playerId) };
     }
     if (lineup.naSlots.includes(playerId)) {
-      return { slotType: "na", index: lineup.naSlots.indexOf(playerId) };
+      return { slotType: "naSlots", index: lineup.naSlots.indexOf(playerId) };
     }
     if (lineup.brLatamSlots.includes(playerId)) {
       return {
-        slotType: "brLatam",
+        slotType: "brLatamSlots",
         index: lineup.brLatamSlots.indexOf(playerId),
       };
     }
     if (lineup.flexSlots.includes(playerId)) {
-      return { slotType: "flex", index: lineup.flexSlots.indexOf(playerId) };
+      return { slotType: "flexSlots", index: lineup.flexSlots.indexOf(playerId) };
     }
     return null;
   };
 
-  const canPlayerFitSlot = (playerId: string, slotType: string): boolean => {
-    const player = players[playerId];
-    if (!player) return false;
-
-    switch (slotType) {
-      case "captain":
-      case "flex":
-        return true;
-      case "na":
-        return player.region === "NA";
-      case "brLatam":
-        return player.region === "BR" || player.region === "LATAM";
-      default:
-        return false;
-    }
-  };
-
   const handleSlotClick = async (
-    slotType: "captain" | "na" | "brLatam" | "flex",
-    currentPlayer: string | null,
+    slotType: "captains" | "naSlots" | "brLatamSlots" | "flexSlots",
+    draggedPlayerId: string | null,
     slotIndex: number
   ) => {
-    if (!selectedTeam) return;  // Add early return if no selected team
-    
+    if (!selectedTeam) return;
     if (isLineupLocked || !canEdit) return;
-
-    // If clicking the same player that's selected, deselect it
-    if (selectedPlayer === currentPlayer) {
-      setSelectedPlayer(null);
-      return;
-    }
-
-    // If no player is selected and this slot has a player, select it
-    if (!selectedPlayer && currentPlayer && canEdit) {
-      setSelectedPlayer(currentPlayer);
-      return;
-    }
-
-    // If no player is selected and slot is empty, do nothing
-    if (!selectedPlayer) {
-      return;
-    }
-
-    // Verify the selected player can fit in the target slot
-    if (!canPlayerFitSlot(selectedPlayer, slotType)) {
-      setSelectedPlayer(null);
-      return;
-    }
 
     try {
       const newLineup = {
@@ -206,54 +479,25 @@ const TeamTab: React.FC<TeamTabProps> = ({
         flexSlots: [...lineup.flexSlots],
       };
 
-      // If there's a player in the target slot and they're not in any other slot,
-      // and they're not in the current roster, we need to drop them
-      if (currentPlayer) {
-        const isInOtherSlot = [
-          ...newLineup.captains,
-          ...newLineup.naSlots,
-          ...newLineup.brLatamSlots,
-          ...newLineup.flexSlots
-        ].filter(id => id === currentPlayer).length > 1;
+      // Get the player currently in the target slot
+      const targetSlots = newLineup[slotType];
+      const existingPlayerId = targetSlots[slotIndex];
 
-        if (!isInOtherSlot && !selectedTeam.roster.includes(currentPlayer)) {
-          // Drop the player
-          await handleDropPlayer(currentPlayer);
-        }
+      // Find where the dragged player currently is
+      const draggedPlayerCurrentSlot = draggedPlayerId ? getPlayerCurrentSlot(draggedPlayerId, lineup) : null;
+
+      // Handle the swap
+      if (draggedPlayerCurrentSlot && draggedPlayerCurrentSlot.slotType !== 'bench') {
+        // Remove dragged player from their current slot
+        const sourceSlots = newLineup[draggedPlayerCurrentSlot.slotType as keyof CupLineup] as (string | null)[];
+        sourceSlots[draggedPlayerCurrentSlot.index] = existingPlayerId;  // Put existing player in dragged player's old slot
       }
 
-      // Remove selected player from current position if they're in one
-      newLineup.captains = newLineup.captains.map((id) =>
-        id === selectedPlayer ? null : id
-      );
-      newLineup.naSlots = newLineup.naSlots.map((id) =>
-        id === selectedPlayer ? null : id
-      );
-      newLineup.brLatamSlots = newLineup.brLatamSlots.map((id) =>
-        id === selectedPlayer ? null : id
-      );
-      newLineup.flexSlots = newLineup.flexSlots.map((id) =>
-        id === selectedPlayer ? null : id
-      );
+      // Put dragged player in the target slot
+      targetSlots[slotIndex] = draggedPlayerId;
 
-      // Place selected player in new slot
-      switch (slotType) {
-        case "captain":
-          newLineup.captains[slotIndex] = selectedPlayer;
-          break;
-        case "na":
-          newLineup.naSlots[slotIndex] = selectedPlayer;
-          break;
-        case "brLatam":
-          newLineup.brLatamSlots[slotIndex] = selectedPlayer;
-          break;
-        case "flex":
-          newLineup.flexSlots[slotIndex] = selectedPlayer;
-          break;
-      }
-
-      // Update the lineup in Firebase
-      if (selectedCup === 0) {  // Regionals
+      // Update Firebase
+      if (selectedCup === 0) {
         await updateDoc(
           doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
           {
@@ -275,93 +519,6 @@ const TeamTab: React.FC<TeamTabProps> = ({
       console.error("Failed to update lineup:", error);
     }
   };
-
-  const renderSlot = (
-    slotType: "captain" | "na" | "brLatam" | "flex",
-    currentPlayer: string | null,
-    slotIndex: number,
-    showScore = false
-  ) => {
-
-    const isPastCup = selectedCup <= (league.settings?.currentCup || 0);
-    const isSelected = canEdit && selectedPlayer === currentPlayer;
-    const isValidTarget =
-      !isLineupLocked &&
-      canEdit &&
-      selectedPlayer &&
-      canPlayerFitSlot(selectedPlayer, slotType) &&
-      !isPastCup;
-
-    // Simply look up the player in the players database
-    const player = currentPlayer ? players[currentPlayer] : null;
-
-    let className = "p-3 border rounded ";
-    if (isSelected && currentPlayer) {
-      className += "bg-primary text-white ";
-    } else if (selectedPlayer && isValidTarget) {
-      className += "border-primary ";
-    }
-    if (isPastCup && player && currentPlayer && !selectedTeam.roster.includes(currentPlayer)) {
-      className += "bg-light "; // Visual indication this is a historical entry
-    }
-
-    return (
-      <div
-        className={className}
-        onClick={() => canEdit && !isPastCup && handleSlotClick(slotType, currentPlayer, slotIndex)}
-        style={{
-          cursor: isLineupLocked || !canEdit || isPastCup ? "default" : "pointer",
-          opacity: isLineupLocked || !canEdit ? 0.8 : 1,
-        }}
-      >
-        {player ? (
-          <div className="d-flex justify-content-between align-items-center">
-            <div className="d-flex align-items-center gap-2">
-              <div>
-                <span>{player.name}</span>
-                <small className={isSelected ? "text-white-50" : "text-muted"}>
-                  {" "}
-                  ({player.region})
-                </small>
-              </div>
-              {isPastCup && currentPlayer && !selectedTeam.roster.includes(currentPlayer) && (
-                <span className="badge bg-danger">Off Roster</span>
-              )}
-            </div>
-            <div className="d-flex align-items-center gap-3">
-              {showScore && player.scores && (
-                <span className="fw-bold fs-5">
-                  {slotType === "captain" 
-                    ? `${(player.scores[`cup${selectedCup}` as keyof typeof player.scores] * 1.5) % 1 === 0 
-                        ? Math.round(player.scores[`cup${selectedCup}` as keyof typeof player.scores] * 1.5)
-                        : (player.scores[`cup${selectedCup}` as keyof typeof player.scores] * 1.5).toFixed(1)
-                      }`
-                    : player.scores[`cup${selectedCup}` as keyof typeof player.scores]
-                  }
-                </span>
-              )}
-              {!isLineupLocked && canEdit && !isSelected && !isPastCup && (
-                <button
-                  className="btn btn-sm btn-outline-danger"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDropPlayer(currentPlayer!);
-                  }}
-                  disabled={loading}
-                >
-                  <Trash2 size={16} />
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <span className="text-muted">Empty Slot</span>
-        )}
-      </div>
-    );
-  };
-
-  const benchPlayers = getBenchPlayers();
 
   const handleDropPlayer = async (playerId: string) => {
     if (!window.confirm(`Are you sure you want to drop ${players[playerId]?.name}?`)) {
@@ -443,6 +600,49 @@ const TeamTab: React.FC<TeamTabProps> = ({
       console.error(err instanceof Error ? err.message : "Failed to drop player");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Add a function to handle moving players to bench
+  const handleMoveToBench = async (playerId: string | null) => {
+    if (!playerId || !selectedTeam || isLineupLocked || !canEdit) return;
+
+    try {
+      const newLineup = {
+        ...lineup,
+        captains: [...lineup.captains],
+        naSlots: [...lineup.naSlots],
+        brLatamSlots: [...lineup.brLatamSlots],
+        flexSlots: [...lineup.flexSlots],
+      };
+
+      // Remove player from all slots
+      newLineup.captains = newLineup.captains.map(id => id === playerId ? null : id);
+      newLineup.naSlots = newLineup.naSlots.map(id => id === playerId ? null : id);
+      newLineup.brLatamSlots = newLineup.brLatamSlots.map(id => id === playerId ? null : id);
+      newLineup.flexSlots = newLineup.flexSlots.map(id => id === playerId ? null : id);
+
+      // Update Firebase
+      if (selectedCup === 0) {
+        await updateDoc(
+          doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
+          {
+            playoffLineup: newLineup,
+          }
+        );
+      } else {
+        const cupKey = `cup${selectedCup}` as keyof typeof selectedTeam.cupLineups;
+        await updateDoc(
+          doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
+          {
+            [`cupLineups.${cupKey}`]: newLineup,
+          }
+        );
+      }
+
+      setSelectedPlayer(null);
+    } catch (error) {
+      console.error("Failed to move player to bench:", error);
     }
   };
 
@@ -564,8 +764,64 @@ const TeamTab: React.FC<TeamTabProps> = ({
     }
   };
 
+  const renderSlot = (
+    slotType: "captains" | "naSlots" | "brLatamSlots" | "flexSlots",
+    currentPlayer: string | null,
+    slotIndex: number,
+    showScore = false
+  ) => {
+    return (
+      <LineupSlot
+        slotType={slotType}
+        currentPlayer={currentPlayer}
+        slotIndex={slotIndex}
+        showScore={showScore}
+        isLineupLocked={isLineupLocked}
+        canEdit={canEdit}
+        isPastCup={selectedCup <= (league.settings?.currentCup || 0)}
+        players={players}
+        selectedCup={selectedCup}
+        selectedTeam={selectedTeam}
+        selectedPlayer={selectedPlayer}
+        onSlotClick={handleSlotClick}
+        onDropPlayer={handleDropPlayer}
+        loading={loading}
+      />
+    );
+  };
+
+  // Add this at the top level of the TeamTab component
+  const CustomDragLayer = () => {
+    const { isDragging, item, currentOffset } = useDragLayer((monitor) => ({
+      item: monitor.getItem(),
+      currentOffset: monitor.getSourceClientOffset(),
+      isDragging: monitor.isDragging(),
+    }));
+
+    if (!isDragging || !currentOffset || !item?.id) {
+      return null;
+    }
+
+    const player = players[item.id];
+    if (!player) return null;
+
+    return (
+      <div style={{
+        position: 'fixed',
+        pointerEvents: 'none',
+        zIndex: 100,
+        left: 0,
+        top: 0,
+        transform: `translate(${currentOffset.x}px, ${currentOffset.y}px)`
+      }}>
+        <DragPreview player={player} />
+      </div>
+    );
+  };
+
   return (
     <div className="row">
+      <CustomDragLayer />
       <div className="col-12 mb-4">
         <div className="d-flex gap-3 align-items-center mb-4">
           <div className="flex-grow-1">
@@ -636,6 +892,17 @@ const TeamTab: React.FC<TeamTabProps> = ({
 
           {/* Lineup Editor */}
           <div className="row">
+            {!isLineupLocked && canEdit && (
+              <div className="col-12 mb-4">
+                <div className="alert alert-info">
+                  Drag and drop players between slots to set your lineup. 
+                  Players can only be placed in slots matching their region, Captain and Flex slots can be filled by any player.
+                  <br></br><br></br>
+                  Scores recorded during the tournament are not final and may not be perfectly accurate until the tournament has completed.
+                </div>
+              </div>
+            )}
+
             <div className="col-md-8">
               <div className="card mb-4">
                 <div className="card-header">
@@ -648,7 +915,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                         <label className="form-label">Captain (1.5x Points)</label>
                         {lineup.captains.map((playerId, index) => (
                           <div key={index} className="mb-2">
-                            {renderSlot("captain", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
+                            {renderSlot("captains", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
                           </div>
                         ))}
                       </div>
@@ -657,7 +924,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                         <label className="form-label">NA</label>
                         {lineup.naSlots.map((playerId, index) => (
                           <div key={index} className="mb-2">
-                            {renderSlot("na", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
+                            {renderSlot("naSlots", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
                           </div>
                         ))}
                       </div>
@@ -666,7 +933,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                         <label className="form-label">BR/LATAM</label>
                         {lineup.brLatamSlots.map((playerId, index) => (
                           <div key={index} className="mb-2">
-                            {renderSlot("brLatam", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
+                            {renderSlot("brLatamSlots", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
                           </div>
                         ))}
                       </div>
@@ -675,7 +942,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                         <label className="form-label">Flex</label>
                         {lineup.flexSlots.map((playerId, index) => (
                           <div key={index} className="mb-2">
-                            {renderSlot("flex", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
+                            {renderSlot("flexSlots", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
                           </div>
                         ))}
                       </div>
@@ -691,6 +958,14 @@ const TeamTab: React.FC<TeamTabProps> = ({
                   <h4 className="card-title mb-0">Bench</h4>
                 </div>
                 <div className="card-body">
+                  {!isLineupLocked && canEdit && (
+                    <BenchDropZone
+                      isLineupLocked={isLineupLocked}
+                      canEdit={canEdit}
+                      onDrop={handleMoveToBench}
+                    />
+                  )}
+
                   <div className="list-group">
                     {/* Show temporary "Move to Bench" option when a starting player is selected */}
                     {selectedPlayer && canEdit && getPlayerCurrentSlot(selectedPlayer, lineup) && (
@@ -755,56 +1030,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
                       </div>
                     )}
 
-                    {benchPlayers.map((playerId) => {
-                      const player = players[playerId];
-                      if (!player) return null;
-
-                      const isSelected = canEdit && selectedPlayer === playerId;
-
-                      return (
-                        <button
-                          key={playerId}
-                          className={`list-group-item list-group-item-action ${
-                            isSelected ? "active" : ""
-                          }`}
-                          onClick={() =>
-                            !isLineupLocked &&
-                            canEdit &&
-                            setSelectedPlayer(isSelected ? null : playerId)
-                          }
-                          disabled={isLineupLocked || !canEdit}
-                        >
-                          <div className="d-flex justify-content-between align-items-center">
-                            <div>
-                              <span>{player.name}</span>
-                              <small className={isSelected ? "text-white-50" : "text-muted"}>
-                                {" "}
-                                ({player.region})
-                              </small>
-                            </div>
-                            <div className="d-flex align-items-center gap-3">
-                              {isLineupLocked && (
-                                <span className="fw-bold fs-5">
-                                  {player.scores[`cup${selectedCup}` as keyof typeof player.scores]}
-                                </span>
-                              )}
-                              {!isLineupLocked && canEdit && !isSelected && (
-                                <button
-                                  className="btn btn-sm btn-outline-danger"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDropPlayer(playerId);
-                                  }}
-                                  disabled={loading}
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    {getBenchPlayers()}
                   </div>
                 </div>
               </div>
@@ -842,4 +1068,11 @@ const TeamTab: React.FC<TeamTabProps> = ({
   );
 };
 
-export default TeamTab;
+// Wrap the exported component with DndProvider
+export default function TeamTabWithDnD(props: TeamTabProps) {
+  return (
+    <DndProvider backend={HTML5Backend}>
+      <TeamTab {...props} />
+    </DndProvider>
+  );
+}
