@@ -57,7 +57,7 @@ const Home = () => {
                 </p>
                 <div className="mt-auto text-center">
                   <Link to="/leagues" className="btn btn-primary">
-                    Create Season-Long League
+                    Create Full Season League
                   </Link>
                 </div>
               </div>
@@ -77,7 +77,7 @@ const Home = () => {
                 </p>
                 <div className="mt-auto text-center">
                   <Link to="/leagues" className="btn btn-warning text-dark">
-                    Create Single Tournament League
+                    Create Single Tourney League
                   </Link>
                 </div>
               </div>
