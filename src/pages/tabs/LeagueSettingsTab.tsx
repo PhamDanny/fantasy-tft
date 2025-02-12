@@ -6,6 +6,7 @@ import InviteDialog from '../../components/dialogs/InviteDialog';
 import CommissionerTeamEditDialog from "../../components/dialogs/CommissionerTeamEditDialog";
 import { processWaivers } from '../../utils/waiverUtils';
 import { getLeagueType } from "../../types";
+import TeamDisplay from '../../components/TeamDisplay';
 
 interface LeagueSettingsTabProps {
   league: League;
@@ -32,7 +33,7 @@ const LeagueMemberRow: React.FC<LeagueMemberRowProps> = ({
   <div className="border-bottom">
     <div className="d-flex align-items-center p-3">
       <div className="flex-grow-1">
-        <strong>{team.teamName}</strong>
+        <strong><TeamDisplay team={team} /></strong>
       </div>
       <button
         className="btn btn-sm btn-primary me-2"

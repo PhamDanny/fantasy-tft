@@ -7,6 +7,7 @@ import WaiverHelpDialog from "../../components/dialogs/WaiverHelpDialog";
 import { processWaivers } from "../../utils/waiverUtils";
 import WaiverClaimDialog from "../../components/dialogs/WaiverClaimDialog";
 import { getLeagueType } from "../../types";
+import TeamDisplay from "../../components/TeamDisplay";
 
 interface PlayersTabProps {
   league: League;
@@ -90,10 +91,10 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   };
 
   const getAvailablePlayers = () => {
-    const rosteredPlayersMap = new Map<string, string>();
-    Object.entries(teams).forEach(([_, team]) => {
+    const rosteredPlayersMap = new Map<string, Team>();
+    Object.entries(teams).forEach(([teamId, team]) => {
       team.roster.forEach(playerId => {
-        rosteredPlayersMap.set(playerId, team.teamName || "Unnamed Team");
+        rosteredPlayersMap.set(playerId, team);
       });
     });
 
@@ -515,13 +516,16 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                       const existingBid = pendingBids.find(
                         (bid) => bid.playerId === playerId
                       );
-                      const teamName = rosteredPlayersMap.get(playerId) || "Free Agent";
+                      const teamName = rosteredPlayersMap.get(playerId);
 
                       return (
                         <tr key={playerId}>
                           <td className="ps-3">{player.name}</td>
                           <td>{player.region}</td>
-                          <td>{teamName}</td>
+                          <td>{rosteredPlayersMap.get(playerId) ? 
+                            <TeamDisplay team={rosteredPlayersMap.get(playerId)} /> : 
+                            "Free Agent"}
+                          </td>
                           <td className="text-center">
                             {player.scores.cup1 > 0 ? formatScore(player.scores.cup1) : "-"}
                           </td>
@@ -588,7 +592,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                       </div>
                       {getAvailablePlayers().rosteredPlayersMap.has(playerId) ? (
                         <span className="badge bg-secondary">
-                          {getAvailablePlayers().rosteredPlayersMap.get(playerId)}
+                          {getAvailablePlayers().rosteredPlayersMap.get(playerId)?.teamName}
                         </span>
                       ) : (
                         <button

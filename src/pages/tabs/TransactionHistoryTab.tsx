@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { League, Player, Transaction, Team } from "../../types";
+import TeamDisplay from "../../components/TeamDisplay";
 
 interface TransactionHistoryTabProps {
   league: League;
@@ -26,8 +27,8 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
     drop: "Drop"
   };
 
-  const getTeamName = (teamId: string) =>
-    teams[teamId]?.teamName || "Unknown Team";
+  const getTeamName = (teamId: string): Team | null =>
+    teams[teamId] || null;
 
   const getPlayerName = (playerId: string, transaction?: Transaction) => {
     // First check if player name exists in this transaction's metadata
@@ -41,7 +42,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
   };
 
   interface BaseTransactionDetail {
-    team: string;
+    team: Team;
     added: string;
     dropped: string;
   }
@@ -70,7 +71,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
     switch (transaction.type) {
       case "trade":
         return transaction.teamIds.map((teamId) => ({
-          team: getTeamName(teamId),
+          team: teams[teamId],
           added: (transaction.adds[teamId] || [])
             .map((playerId) => getPlayerName(playerId, transaction))
             .join(", "),
@@ -86,7 +87,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
           if (!waiverSuccess) {
             const playerId = Object.keys(transaction.metadata.playerNames || {})[0];
             return {
-              team: getTeamName(teamId),
+              team: teams[teamId],
               added: `Failed to claim ${getPlayerName(playerId, transaction)} ($${transaction.metadata.waiver?.bidAmount})`,
               dropped: '',
               faabSpent: 0,
@@ -95,7 +96,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
           }
 
           return {
-            team: getTeamName(teamId),
+            team: teams[teamId],
             added: (transaction.adds[teamId] || [])
               .map((playerId) => `${getPlayerName(playerId, transaction)} ($${transaction.metadata.waiver?.bidAmount})`)
               .join(", "),
@@ -108,7 +109,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
 
       case "free_agent":
         return transaction.teamIds.map((teamId) => ({
-          team: getTeamName(teamId),
+          team: teams[teamId],
           added: (transaction.adds[teamId] || [])
             .map((playerId) => getPlayerName(playerId, transaction))
             .join(", "),
@@ -119,7 +120,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
 
       case "commissioner":
         return transaction.teamIds.map((teamId) => ({
-          team: getTeamName(teamId),
+          team: teams[teamId],
           added: (transaction.adds[teamId] || [])
             .map((playerId) => getPlayerName(playerId, transaction))
             .join(", "),
@@ -134,7 +135,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
 
       case "drop":
         return transaction.teamIds.map((teamId) => ({
-          team: getTeamName(teamId),
+          team: teams[teamId],
           added: "",
           dropped: (transaction.drops[teamId] || [])
             .map((playerId) => getPlayerName(playerId, transaction))
@@ -166,10 +167,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
   const filteredTransactions = transactions
     .filter((transaction) => {
       // Filter by selected types
-      if (
-        selectedTypes.length > 0 &&
-        !selectedTypes.includes(transaction.type)
-      ) {
+      if (selectedTypes.length > 0 && !selectedTypes.includes(transaction.type)) {
         return false;
       }
 
@@ -182,7 +180,7 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
       if (searchQuery) {
         const searchLower = searchQuery.toLowerCase();
         const teamsInvolved = transaction.teamIds
-          .map((id) => getTeamName(id).toLowerCase())
+          .map((id) => teams[id]?.teamName?.toLowerCase() || '')
           .join(" ");
         const playersInvolved = [
           ...Object.values(transaction.adds).flat(),
@@ -295,7 +293,9 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
 
                       {formattedDetails.map((detail, index) => (
                         <div key={index} className="mb-2">
-                          <strong>{detail.team}</strong>
+                          <strong>
+                            {detail.team ? <TeamDisplay team={detail.team} /> : "Unknown Team"}
+                          </strong>
                           <div className="ms-3">
                             {transaction.type === "trade" ? (
                               <>

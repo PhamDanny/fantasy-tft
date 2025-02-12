@@ -5,6 +5,7 @@ import { db } from '../../firebase/config';
 import { useAuth } from '../../firebase/auth';
 import InviteDialog from '../../components/dialogs/InviteDialog';
 import { getLeagueType } from '../../types';
+import TeamDisplay from '../../components/TeamDisplay';
 
 interface DraftTabProps {
   league: League;
@@ -110,7 +111,9 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                 <tr>
                   <th style={{ width: '60px' }}>Rd</th>
                   {draftOrder.map((teamId) => (
-                    <th key={teamId}>{localTeams[teamId]?.teamName || 'Unknown Team'}</th>
+                    <th key={teamId}>
+                      <TeamDisplay team={localTeams[teamId]} />
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -304,7 +307,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                     <div key={teamId} className="list-group-item d-flex justify-content-between align-items-center">
                       <div>
                         <span className="badge bg-secondary me-2">#{index + 1}</span>
-                        {localTeams[teamId]?.teamName}
+                        <TeamDisplay team={localTeams[teamId]} />
                         {localTeams[teamId]?.ownerID === user?.uid && (
                           <span className="badge bg-primary ms-2">Your Team</span>
                         )}
@@ -422,7 +425,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                       className="list-group-item d-flex justify-content-between align-items-center p-2"
                     >
                       <div>
-                        <div>{team.teamName}</div>
+                        <div>{<TeamDisplay team={team} />}</div>
                         <small className="text-muted">
                           {team.ownerID === user?.uid ? 'You' : 'Owner'}
                           {team.coOwners?.length ? 
@@ -627,7 +630,9 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
             <tr>
               <th style={{ width: '60px' }}>Rd</th>
               {draftOrder.map((teamId) => (
-                    <th key={teamId}>{localTeams[teamId]?.teamName || 'Unknown Team'}</th>
+                    <th key={teamId}>
+                      <TeamDisplay team={localTeams[teamId]} />
+                    </th>
               ))}
             </tr>
           </thead>

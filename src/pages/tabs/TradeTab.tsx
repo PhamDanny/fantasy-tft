@@ -9,6 +9,7 @@ import type {
 import { updateDoc, doc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { getTotalRosterLimit } from "../../utils/rosterUtils";
+import TeamDisplay from "../../components/TeamDisplay";
 
 interface TradeTabProps {
   league: League;
@@ -321,7 +322,7 @@ const TradeTab: React.FC<TradeTabProps> = ({
                   <option value="">Select a team...</option>
                   {otherTeams.map((team) => (
                     <option key={team.teamId} value={team.teamId}>
-                      {team.teamName}
+                      <TeamDisplay team={team} />
                     </option>
                   ))}
                 </select>
@@ -455,11 +456,11 @@ const TradeTab: React.FC<TradeTabProps> = ({
                     <div key={tradeId} className="list-group-item">
                       <div className="mb-3">
                         <p className="mb-1">
-                          <strong>{proposerTeam.teamName}</strong> receives:{" "}
+                          <strong><TeamDisplay team={proposerTeam} /></strong> receives:{" "}
                           {renderPlayerNames(trade.receiverPlayers)}
                         </p>
                         <p className="mb-0">
-                          <strong>{receiverTeam.teamName}</strong> receives:{" "}
+                          <strong><TeamDisplay team={receiverTeam} /></strong> receives:{" "}
                           {renderPlayerNames(trade.proposerPlayers)}
                         </p>
                       </div>
@@ -525,7 +526,7 @@ const TradeTab: React.FC<TradeTabProps> = ({
 
                         return (
                           <div key={teamId} className="mb-2">
-                            <strong>{team.teamName}</strong>
+                            <strong><TeamDisplay team={team} /></strong>
                             <div className="ms-3">
                               {addedPlayers.length > 0 && (
                                 <div className="text-success">

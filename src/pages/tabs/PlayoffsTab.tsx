@@ -6,6 +6,7 @@ import AuctionDialog from "../../components/dialogs/AuctionDialog";
 import { updateDoc, doc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { ChevronUp, ChevronDown } from "lucide-react";
+import TeamDisplay from "../../components/TeamDisplay";
 
 interface PlayoffsTabProps {
   league: League;
@@ -289,7 +290,7 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
                                   ) : (
                                     <ChevronDown size={16} />
                                   )}
-                                  <span className="h5 mb-0">{team.teamName}</span>
+                                  <span className="h5 mb-0"><TeamDisplay team={team} /></span>
                                 </div>
                               </td>
                               <td className="text-end">
@@ -407,7 +408,7 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
                           {playoffTeams.map(({ team, playoffDollars }, index) => (
                             <tr key={team.teamId}>
                               <td className="text-center">{index + 1}</td>
-                              <td>{team.teamName}</td>
+                              <td>{<TeamDisplay team={team} />}</td>
                               <td className="text-end">
                                 ${playoffDollars}
                               </td>
@@ -442,7 +443,7 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
                     {playoffTeams.map(({ team }) => (
                       <div key={team.teamId} className="card mb-3">
                         <div className="card-header">
-                          <h6 className="mb-0">{team.teamName}</h6>
+                          <h6 className="mb-0"><TeamDisplay team={team} /></h6>
                         </div>
                         <div className="card-body">
                           {getRetainedPlayerObjects(team).length > 0 ? (

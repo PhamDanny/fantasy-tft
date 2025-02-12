@@ -891,8 +891,12 @@ const TeamTab: React.FC<TeamTabProps> = ({
                 <button
                   className="btn btn-outline-primary"
                   onClick={() => {
-                    const newName = prompt("Enter new team name:", selectedTeam.teamName);
+                    const newName = prompt("Enter new team name (20 characters max):", selectedTeam.teamName);
                     if (newName && newName.trim() && newName !== selectedTeam.teamName) {
+                      if (newName.length > 20) {
+                        alert("Team name must be 20 characters or less");
+                        return;
+                      }
                       updateDoc(
                         doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
                         {

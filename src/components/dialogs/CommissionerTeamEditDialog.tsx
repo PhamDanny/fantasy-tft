@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { doc, updateDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import type { League, Player, CupLineup } from "../../types";
+import TeamDisplay from "../../components/TeamDisplay";
 
 interface CommissionerTeamEditDialogProps {
   league: League;
@@ -211,7 +212,9 @@ const CommissionerTeamEditDialog: React.FC<CommissionerTeamEditDialogProps> = ({
       <div className="modal-dialog modal-dialog-centered modal-lg">
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title">Edit {team.teamName}</h5>
+            <h5 className="modal-title">
+              Edit Team: <TeamDisplay team={team} />
+            </h5>
             <button
               type="button"
               className="btn-close"

@@ -86,6 +86,10 @@ const CreateDraftDialog: React.FC<CreateDraftDialogProps> = ({
       }
       const userName = userDoc.data().displayName || 'New Team';
 
+      if (userName.length > 20) {
+        throw new Error('Team name must be 20 characters or less');
+      }
+
       // Generate a new draft ID and team ID
       const draftId = `draft_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const teamId = `team_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

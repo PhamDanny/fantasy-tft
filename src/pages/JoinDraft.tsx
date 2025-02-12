@@ -50,6 +50,10 @@ const JoinDraft = () => {
 
   const handleJoin = async () => {
     if (!draft || !user || !teamName.trim()) return;
+    if (teamName.length > 20) {
+      setError("Team name must be 20 characters or less");
+      return;
+    }
 
     setJoining(true);
     setError(null);
@@ -212,6 +216,7 @@ const JoinDraft = () => {
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
                   placeholder="Enter your team name"
+                  maxLength={20}
                 />
               </div>
 

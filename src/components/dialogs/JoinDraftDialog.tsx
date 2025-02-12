@@ -23,11 +23,17 @@ const JoinDraftDialog: React.FC<JoinDraftDialogProps> = ({
     setLoading(true);
     setError(null);
 
-    try {
-      if (!teamName.trim()) {
-        throw new Error('Team name is required');
-      }
+    if (!teamName.trim()) {
+      setError("Team name is required");
+      return;
+    }
 
+    if (teamName.length > 20) {
+      setError("Team name must be 20 characters or less");
+      return;
+    }
+
+    try {
       // Check if user already has a team
       const hasTeam = Object.values(draft.teams).some(
         team => team.ownerID === userId || team.coOwners.includes(userId)
@@ -150,6 +156,7 @@ const JoinDraftDialog: React.FC<JoinDraftDialogProps> = ({
                     value={teamName}
                     onChange={(e) => setTeamName(e.target.value)}
                     placeholder="Enter your team name"
+                    maxLength={20}
                   />
                 </div>
               </div>
