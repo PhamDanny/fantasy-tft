@@ -59,8 +59,10 @@ export interface PendingBid {
 export interface Team {
   teamId: string;
   ownerID: string;
-  coOwners: string[];  // Add this field for co-owners
+  coOwners: string[];
   teamName: string;
+  ownerDisplayName: string;
+  coOwnerDisplayNames?: Record<string, string>;
   roster: string[];
   cupLineups: {
     cup1?: CupLineup;

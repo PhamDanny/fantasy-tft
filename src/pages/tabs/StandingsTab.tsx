@@ -10,7 +10,7 @@ import { PLAYOFF_SCORES, getLeagueType } from "../../types";
 import { User } from "firebase/auth";
 import InviteDialog from "../../components/dialogs/InviteDialog";
 import LeagueChat from "../../components/chat/LeagueChat";
-import { getDoc, doc } from "firebase/firestore";
+import { getDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 
 interface StandingsTabProps {
@@ -256,29 +256,74 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
   useEffect(() => {
     const fetchDisplayNames = async () => {
       const names: Record<string, string> = {};
+      const missingTeams: Team[] = [];
       
-      try {
-        // Fetch current user's display name from Firestore
-        const currentUserDoc = await getDoc(doc(db, "users", user.uid));
-        names[user.uid] = currentUserDoc.exists() ? currentUserDoc.data().displayName : "Anonymous";
+      // First use names from teams
+      for (const team of Object.values(teams)) {
+        if (team.ownerDisplayName) {
+          names[team.ownerID] = team.ownerDisplayName;
+        }
+        if (team.coOwnerDisplayNames) {
+          Object.assign(names, team.coOwnerDisplayNames);
+        }
+        
+        // Check if we need to fetch owner name
+        if (!team.ownerDisplayName || 
+            (team.coOwners?.length && !team.coOwnerDisplayNames)) {
+          missingTeams.push(team);
+        }
+      }
 
-        // Fetch for all other team owners
-        for (const team of Object.values(teams)) {
-          if (team.ownerID !== user.uid) {
-            const userDoc = await getDoc(doc(db, "users", team.ownerID));
-            if (userDoc.exists()) {
-              names[team.ownerID] = userDoc.data().displayName;
+      // Only fetch missing names
+      if (missingTeams.length > 0) {
+        try {
+          for (const team of missingTeams) {
+            const updates: Partial<Team> = {};
+            
+            // Fetch owner name if missing
+            if (!team.ownerDisplayName) {
+              const ownerDoc = await getDoc(doc(db, "users", team.ownerID));
+              if (ownerDoc.exists()) {
+                const displayName = ownerDoc.data().displayName;
+                names[team.ownerID] = displayName;
+                updates.ownerDisplayName = displayName;
+              }
+            }
+
+            // Fetch co-owner names if missing
+            if (team.coOwners?.length && !team.coOwnerDisplayNames) {
+              const coOwnerNames: Record<string, string> = {};
+              for (const coOwnerId of team.coOwners) {
+                const coOwnerDoc = await getDoc(doc(db, "users", coOwnerId));
+                if (coOwnerDoc.exists()) {
+                  const displayName = coOwnerDoc.data().displayName;
+                  names[coOwnerId] = displayName;
+                  coOwnerNames[coOwnerId] = displayName;
+                }
+              }
+              updates.coOwnerDisplayNames = coOwnerNames;
+            }
+
+            // Update team document if we have updates
+            if (Object.keys(updates).length > 0) {
+              await updateDoc(
+                doc(db, "leagues", league.id.toString(), "teams", team.teamId),
+                updates
+              );
             }
           }
+
+          setOwnerNames(names);
+        } catch (error) {
+          console.error("Error fetching display names:", error);
         }
+      } else {
         setOwnerNames(names);
-      } catch (error) {
-        console.error("Error fetching display names:", error);
       }
     };
 
     fetchDisplayNames();
-  }, [teams, user.uid]);
+  }, [league.id, teams]);
 
   return (
     <div className="row">
