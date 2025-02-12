@@ -6,11 +6,12 @@ import { fetchUserLeagues } from "../firebase/queries";
 import type { League } from "../types";
 import Login from "./Login";
 import { User } from "firebase/auth";
+import { Timestamp } from 'firebase/firestore';
 
 interface UserData {
   displayName: string;
   email: string;
-  createdAt: string;
+  createdAt: string | Timestamp;
   leagues?: string[];
 }
 
@@ -93,7 +94,9 @@ export const Profile = () => {
         <div className="mb-3">
           <label className="fw-bold">Account Created</label>
           <p className="mb-0">
-            {new Date(userData.createdAt).toLocaleDateString()}
+            {typeof userData.createdAt === 'string' 
+              ? new Date(userData.createdAt).toLocaleDateString()
+              : userData.createdAt.toDate().toLocaleDateString()}
           </p>
         </div>
 
