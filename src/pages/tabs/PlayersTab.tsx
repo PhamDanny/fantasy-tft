@@ -92,7 +92,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
 
   const getAvailablePlayers = () => {
     const rosteredPlayersMap = new Map<string, Team>();
-    Object.entries(teams).forEach(([teamId, team]) => {
+    Object.entries(teams).forEach(([_, team]) => {
       team.roster.forEach(playerId => {
         rosteredPlayersMap.set(playerId, team);
       });
@@ -516,15 +516,18 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                       const existingBid = pendingBids.find(
                         (bid) => bid.playerId === playerId
                       );
-                      const teamName = rosteredPlayersMap.get(playerId);
+                      const rosteredTeam = rosteredPlayersMap.get(playerId);
+                      const isRostered = rosteredPlayersMap.has(playerId);
 
                       return (
                         <tr key={playerId}>
                           <td className="ps-3">{player.name}</td>
                           <td>{player.region}</td>
-                          <td>{rosteredPlayersMap.get(playerId) ? 
-                            <TeamDisplay team={rosteredPlayersMap.get(playerId)} /> : 
-                            "Free Agent"}
+                          <td>
+                            {isRostered ? 
+                              <TeamDisplay team={rosteredTeam} /> : 
+                              "Free Agent"
+                            }
                           </td>
                           <td className="text-center">
                             {player.scores.cup1 > 0 ? formatScore(player.scores.cup1) : "-"}
@@ -557,7 +560,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                                   setSelectedPlayer(playerId);
                                   setShowWaiverDialog(true);
                                 }}
-                                disabled={loading || !hasTeam || teamName !== "Free Agent"}
+                                disabled={loading || !hasTeam || isRostered}
                               >
                                 {league.settings.waiversEnabled ? 'Place Bid' : 'Add'}
                               </button>
@@ -565,7 +568,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                               <button
                                 className="btn btn-sm btn-success"
                                 onClick={() => addFreeAgent(playerId, null)}
-                                disabled={loading || !hasTeam || teamName !== "Free Agent"}
+                                disabled={loading || !hasTeam || isRostered}
                               >
                                 Add Player
                               </button>
@@ -583,42 +586,47 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
             {/* Mobile View */}
             <div className="d-md-none">
               <div className="list-group list-group-flush">
-                {getAvailablePlayers().paginatedPlayers.map(([playerId, player]) => (
-                  <div key={playerId} className="list-group-item px-3">
-                    <div className="d-flex justify-content-between align-items-start mb-2">
-                      <div>
-                        <h6 className="mb-0">{player.name}</h6>
-                        <small className="text-muted">{player.region}</small>
+                {getAvailablePlayers().paginatedPlayers.map(([playerId, player]) => {
+                  const isRostered = getAvailablePlayers().rosteredPlayersMap.has(playerId);
+                  const rosteredTeam = getAvailablePlayers().rosteredPlayersMap.get(playerId);
+
+                  return (
+                    <div key={playerId} className="list-group-item px-3">
+                      <div className="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                          <h6 className="mb-0">{player.name}</h6>
+                          <small className="text-muted">{player.region}</small>
+                        </div>
+                        {isRostered ? (
+                          <span className="badge bg-secondary">
+                            <TeamDisplay team={rosteredTeam} />
+                          </span>
+                        ) : (
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={() => {
+                              setSelectedPlayer(playerId);
+                              setShowWaiverDialog(true);
+                            }}
+                            disabled={loading}
+                          >
+                            {league.settings.waiversEnabled ? 'Claim' : 'Add'}
+                          </button>
+                        )}
                       </div>
-                      {getAvailablePlayers().rosteredPlayersMap.has(playerId) ? (
-                        <span className="badge bg-secondary">
-                          {getAvailablePlayers().rosteredPlayersMap.get(playerId)?.teamName}
-                        </span>
-                      ) : (
-                        <button
-                          className="btn btn-sm btn-primary"
-                          onClick={() => {
-                            setSelectedPlayer(playerId);
-                            setShowWaiverDialog(true);
-                          }}
-                          disabled={loading}
-                        >
-                          {league.settings.waiversEnabled ? 'Claim' : 'Add'}
-                        </button>
-                      )}
+                      <div className="d-flex justify-content-between small">
+                        <div>
+                          <span className="me-2">Cup 1: {player.scores.cup1}</span>
+                          <span className="me-2">Cup 2: {player.scores.cup2}</span>
+                          <span>Cup 3: {player.scores.cup3}</span>
+                        </div>
+                        <div>
+                          Total: {player.scores.cup1 + player.scores.cup2 + player.scores.cup3}
+                        </div>
+                      </div>
                     </div>
-                    <div className="d-flex justify-content-between small">
-                      <div>
-                        <span className="me-2">Cup 1: {player.scores.cup1}</span>
-                        <span className="me-2">Cup 2: {player.scores.cup2}</span>
-                        <span>Cup 3: {player.scores.cup3}</span>
-                      </div>
-                      <div>
-                        Total: {player.scores.cup1 + player.scores.cup2 + player.scores.cup3}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
