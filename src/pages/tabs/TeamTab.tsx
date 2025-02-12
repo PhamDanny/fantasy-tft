@@ -881,12 +881,32 @@ const TeamTab: React.FC<TeamTabProps> = ({
             </div>
             
             {selectedTeam?.ownerID === user?.uid && (
-              <button
-                className="btn btn-outline-primary"
-                onClick={() => setShowCoOwnerDialog(true)}
-              >
-                Manage Co-Owners
-              </button>
+              <div className="btn-group">
+                <button
+                  className="btn btn-outline-primary"
+                  onClick={() => setShowCoOwnerDialog(true)}
+                >
+                  Manage Co-Owners
+                </button>
+                <button
+                  className="btn btn-outline-primary"
+                  onClick={() => {
+                    const newName = prompt("Enter new team name:", selectedTeam.teamName);
+                    if (newName && newName.trim() && newName !== selectedTeam.teamName) {
+                      updateDoc(
+                        doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
+                        {
+                          teamName: newName.trim()
+                        }
+                      ).catch(error => {
+                        console.error("Failed to update team name:", error);
+                      });
+                    }
+                  }}
+                >
+                  Change Team Name
+                </button>
+              </div>
             )}
           </div>
 

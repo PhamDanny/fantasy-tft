@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type {
   League,
@@ -10,6 +10,8 @@ import { PLAYOFF_SCORES, getLeagueType } from "../../types";
 import { User } from "firebase/auth";
 import InviteDialog from "../../components/dialogs/InviteDialog";
 import LeagueChat from "../../components/chat/LeagueChat";
+import { getDoc, doc } from "firebase/firestore";
+import { db } from "../../firebase/config";
 
 interface StandingsTabProps {
   league: League;
@@ -42,6 +44,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
     {}
   );
   const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [ownerNames, setOwnerNames] = useState<Record<string, string>>({});
 
   const toggleTeamExpanded = (teamId: string) => {
     setExpandedTeams((prev) => ({
@@ -249,6 +252,33 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
     // For season-long leagues, show all cups up to current
     return league.settings.currentCup >= cupNumber;
   };
+
+  useEffect(() => {
+    const fetchDisplayNames = async () => {
+      const names: Record<string, string> = {};
+      
+      try {
+        // Fetch current user's display name from Firestore
+        const currentUserDoc = await getDoc(doc(db, "users", user.uid));
+        names[user.uid] = currentUserDoc.exists() ? currentUserDoc.data().displayName : "Anonymous";
+
+        // Fetch for all other team owners
+        for (const team of Object.values(teams)) {
+          if (team.ownerID !== user.uid) {
+            const userDoc = await getDoc(doc(db, "users", team.ownerID));
+            if (userDoc.exists()) {
+              names[team.ownerID] = userDoc.data().displayName;
+            }
+          }
+        }
+        setOwnerNames(names);
+      } catch (error) {
+        console.error("Error fetching display names:", error);
+      }
+    };
+
+    fetchDisplayNames();
+  }, [teams, user.uid]);
 
   return (
     <div className="row">
@@ -467,6 +497,11 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
                             )}
                             <div>
                               <span className="fw-medium">{team.teamName}</span>
+                              {team.teamName !== ownerNames[team.ownerID] && (
+                                <small className="text-muted ms-2">
+                                  ({ownerNames[team.ownerID]})
+                                </small>
+                              )}
                               <div className={`small ${
                                 team.ownerID === user.uid 
                                   ? "text-dark" 
