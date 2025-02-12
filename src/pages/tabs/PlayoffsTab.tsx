@@ -28,10 +28,7 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
 
   const POINTS_PER_PLAYOFF_DOLLAR = 10;
 
-  // Update how we check for regionals started - only check qualified status
-  const regionalsStarted = Object.values(players).filter(p => 
-    p.regionals?.qualified === true  // Explicitly check for true
-  ).length >= 32;
+  const regionalsStarted = league.settings.currentCup === 4 && league.settings.playoffs;
 
   // Function to calculate team's total score (copied from StandingsTab)
   const calculateTeamTotal = (team: Team): number => {
@@ -313,7 +310,7 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
                                             return (
                                               <div key={player.id} className="list-group-item d-flex justify-content-between align-items-center">
                                                 <div>
-                                                  {player.name} ({player.region})
+                                                  {player.name} <span className="text-muted">({player.region})</span>
                                                   <small className="text-muted ms-2">
                                                     {placement ? `${placement.placement}${getOrdinalSuffix(placement.placement)}` : '-'}
                                                   </small>
@@ -336,7 +333,7 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
                                               return (
                                                 <div key={player.id} className="list-group-item d-flex justify-content-between align-items-center">
                                                   <div>
-                                                    {player.name} ({player.region})
+                                                    {player.name} <span className="text-muted">({player.region})</span>
                                                     <small className="text-muted ms-2">
                                                       {placement ? `${placement.placement}${getOrdinalSuffix(placement.placement)}` : '-'}
                                                     </small>
@@ -369,7 +366,18 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
           <div className="card-body">
             {!league.settings.playoffs ? (
               <div className="alert alert-info">
-                Playoffs are not enabled for this league. The commissioner can enable them in the settings tab.
+                {league.settings.currentCup === 4 ? (
+                  // If global cup is 4 but playoffs are disabled
+                  <div>
+                    Playoffs are not enabled for this league. Since the playoff phase has already started, 
+                    this setting cannot be changed.
+                  </div>
+                ) : (
+                  // Normal message when playoffs haven't started
+                  <div>
+                    Playoffs are not enabled for this league. The commissioner can enable them in the settings tab.
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -443,14 +451,14 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
                                 <thead>
                                   <tr>
                                     <th>Player</th>
-                                    <th>Region</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {getRetainedPlayerObjects(team).map(player => (
                                     <tr key={player.id}>
-                                      <td>{player.name}</td>
-                                      <td>{player.region}</td>
+                                      <td>
+                                        {player.name} <span className="text-muted">({player.region})</span>
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -474,7 +482,6 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
                               <thead>
                                 <tr>
                                   <th>Player</th>
-                                  <th>Region</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -482,8 +489,9 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
                                   .sort((a, b) => a.name.localeCompare(b.name))
                                   .map(player => (
                                     <tr key={player.id}>
-                                      <td>{player.name}</td>
-                                      <td>{player.region}</td>
+                                      <td>
+                                        {player.name} <span className="text-muted">({player.region})</span>
+                                      </td>
                                     </tr>
                                   ))}
                               </tbody>

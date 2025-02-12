@@ -15,6 +15,7 @@ const AdminCupPanel: React.FC<AdminCupPanelProps> = ({ isVisible, user }) => {
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedSet, setSelectedSet] = useState("Set 13");
   const [selectedCup, setSelectedCup] = useState<number>(1);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (!isVisible) return null;
 
@@ -43,13 +44,19 @@ const AdminCupPanel: React.FC<AdminCupPanelProps> = ({ isVisible, user }) => {
         // Skip completed leagues
         if (league.phase === 'completed') return;
 
-        // Update the cup number
+        // For Cup 4 (playoffs), only update leagues that have playoffs enabled
+        if (selectedCup === 4 && !league.settings.playoffs) {
+          // Skip leagues with playoffs disabled
+          return;
+        }
+
+        // Update the cup number and phase
         batch.update(doc.ref, {
           'settings.currentCup': selectedCup,
           // If moving to cup 1, set phase to in_season
-          // If moving to playoffs cup (4), set phase to playoffs
+          // If moving to playoffs cup (4), set phase to playoffs (only for leagues with playoffs enabled)
           phase: selectedCup === 0 ? 'drafting' 
-               : selectedCup === 4 ? 'playoffs'
+               : selectedCup === 4 && league.settings.playoffs ? 'playoffs'
                : 'in_season'
         });
         updateCount++;
@@ -119,72 +126,83 @@ const AdminCupPanel: React.FC<AdminCupPanelProps> = ({ isVisible, user }) => {
   };
 
   return (
-    <div className="card mb-4">
-      <div className="card-header bg-primary text-white">
-        <h4 className="h5 mb-0">Admin Controls: Cup Management</h4>
-      </div>
-      <div className="card-body">
-        {error && <div className="alert alert-danger">{error}</div>}
-        {success && <div className="alert alert-success">{success}</div>}
+    <div className="mb-4">
+      <button 
+        className="btn btn-primary w-100 mb-2"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {isExpanded ? 'Hide Admin Controls' : 'Show Admin Controls'}
+      </button>
 
-        <div className="row g-3">
-          <div className="col-md-4">
-            <label className="form-label">Set</label>
-            <select 
-              className="form-select"
-              value={selectedSet}
-              onChange={(e) => setSelectedSet(e.target.value)}
-              disabled={loading}
-            >
-              <option value="Set 13">Set 13</option>
-              <option value="Set 14">Set 14</option>
-              <option value="Set 15">Set 15</option>
-            </select>
+      {isExpanded && (
+        <div className="card">
+          <div className="card-header bg-primary text-white">
+            <h4 className="h5 mb-0">Admin Controls: Cup Management</h4>
           </div>
+          <div className="card-body">
+            {error && <div className="alert alert-danger">{error}</div>}
+            {success && <div className="alert alert-success">{success}</div>}
 
-          <div className="col-md-4">
-            <label className="form-label">Cup</label>
-            <select
-              className="form-select"
-              value={selectedCup}
-              onChange={(e) => setSelectedCup(parseInt(e.target.value))}
-              disabled={loading}
-            >
-              <option value={0}>Preseason</option>
-              <option value={1}>Cup 1</option>
-              <option value={2}>Cup 2</option>
-              <option value={3}>Cup 3</option>
-              <option value={4}>Playoffs</option>
-            </select>
-          </div>
+            <div className="row g-3">
+              <div className="col-md-4">
+                <label className="form-label">Set</label>
+                <select 
+                  className="form-select"
+                  value={selectedSet}
+                  onChange={(e) => setSelectedSet(e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="Set 13">Set 13</option>
+                  <option value="Set 14">Set 14</option>
+                  <option value="Set 15">Set 15</option>
+                </select>
+              </div>
 
-          <div className="col-md-4 d-flex align-items-end">
-            <button
-              className="btn btn-warning w-100"
-              onClick={handleUpdateCups}
-              disabled={loading}
-            >
-              {loading ? 'Updating...' : 'Update All Leagues'}
-            </button>
+              <div className="col-md-4">
+                <label className="form-label">Cup</label>
+                <select
+                  className="form-select"
+                  value={selectedCup}
+                  onChange={(e) => setSelectedCup(parseInt(e.target.value))}
+                  disabled={loading}
+                >
+                  <option value={0}>Preseason</option>
+                  <option value={1}>Cup 1</option>
+                  <option value={2}>Cup 2</option>
+                  <option value={3}>Cup 3</option>
+                  <option value={4}>Playoffs</option>
+                </select>
+              </div>
+
+              <div className="col-md-4 d-flex align-items-end">
+                <button
+                  className="btn btn-warning w-100"
+                  onClick={handleUpdateCups}
+                  disabled={loading}
+                >
+                  {loading ? 'Updating...' : 'Update All Leagues'}
+                </button>
+              </div>
+            </div>
+
+            <div className="alert alert-info mt-3">
+              <strong>Note:</strong> This will update all {selectedSet} leagues to Cup {selectedCup}. 
+              Completed leagues will not be affected.
+            </div>
+
+            <div className="mt-3">
+              <p>Current Cup: {user?.currentCup || 1}</p>
+              <button 
+                className="btn btn-warning"
+                onClick={handleAdvanceCup}
+                disabled={loading || (user?.currentCup || 1) >= 3}
+              >
+                {loading ? 'Advancing...' : `Advance to Cup ${(user?.currentCup || 1) + 1}`}
+              </button>
+            </div>
           </div>
         </div>
-
-        <div className="alert alert-info mt-3">
-          <strong>Note:</strong> This will update all {selectedSet} leagues to Cup {selectedCup}. 
-          Completed leagues will not be affected.
-        </div>
-
-        <div className="mt-3">
-          <p>Current Cup: {user?.currentCup || 1}</p>
-          <button 
-            className="btn btn-warning"
-            onClick={handleAdvanceCup}
-            disabled={loading || (user?.currentCup || 1) >= 3}
-          >
-            {loading ? 'Advancing...' : `Advance to Cup ${(user?.currentCup || 1) + 1}`}
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

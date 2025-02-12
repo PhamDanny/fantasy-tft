@@ -385,20 +385,23 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                         <h5 className="mb-0">Playoff Settings</h5>
                       </div>
                       <div className="card-body">
-                        <div className="mb-3">
-                          <div className="form-check">
-                            <input
-                              type="checkbox"
-                              className="form-check-input"
-                              id="playoffs"
-                              checked={settings.playoffs}
-                              onChange={(e) => handleSettingChange(e, "playoffs")}
-                              disabled={loading}
-                            />
-                            <label className="form-check-label" htmlFor="playoffs">
-                              Enable Playoffs
-                            </label>
+                        {league.settings.currentCup === 4 && (
+                          <div className="alert alert-warning mb-3">
+                            Playoff settings cannot be changed once the playoff phase has started.
                           </div>
+                        )}
+                        <div className="form-check form-switch">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="playoffsEnabled"
+                            checked={settings.playoffs}
+                            onChange={e => handleSettingChange(e, "playoffs")}
+                            disabled={league.settings.currentCup === 4}
+                          />
+                          <label className="form-check-label" htmlFor="playoffsEnabled">
+                            Enable Playoffs
+                          </label>
                         </div>
 
                         {settings.playoffs && (
