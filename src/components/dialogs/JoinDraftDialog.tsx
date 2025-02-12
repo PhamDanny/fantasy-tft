@@ -46,6 +46,7 @@ const JoinDraftDialog: React.FC<JoinDraftDialogProps> = ({
       if (!userDoc.exists()) {
         throw new Error('User not found');
       }
+      const displayName = userDoc.data().displayName || 'Anonymous';
 
       // Generate team ID
       const teamId = `team_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -56,6 +57,8 @@ const JoinDraftDialog: React.FC<JoinDraftDialogProps> = ({
         ownerID: userId,
         coOwners: [],
         teamName: teamName.trim(),
+        ownerDisplayName: displayName,
+        coOwnerDisplayNames: {},
         roster: [],
         faabBudget: 0,  // This will be set when converting to league
         pendingBids: [], // No bids in draft mode
