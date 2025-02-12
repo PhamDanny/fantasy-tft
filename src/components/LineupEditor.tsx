@@ -561,7 +561,8 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
   };
 
   const calculateRank = () => {
-    const sortedEntries = Object.values(entries)
+    // First, calculate all scores and sort them
+    const entriesWithScores = Object.values(entries)
       .map(entry => ({
         ...entry,
         totalScore: [
@@ -572,9 +573,31 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
         ].reduce((a, b) => a + b, 0)
       }))
       .sort((a, b) => b.totalScore - a.totalScore);
-    
-    const userRank = sortedEntries.findIndex(e => e.userId === currentUser.uid) + 1;
-    return `${userRank} of ${sortedEntries.length}`;
+
+    // Find the user's entry and determine their actual rank (accounting for ties)
+    let currentRank = 1;
+    let currentScore = entriesWithScores[0]?.totalScore ?? 0;
+    let skipCount = 0;
+    let userRank = 1;
+
+    for (let i = 0; i < entriesWithScores.length; i++) {
+      const entry = entriesWithScores[i];
+      
+      if (entry.totalScore !== currentScore) {
+        currentRank = currentRank + skipCount + 1;
+        currentScore = entry.totalScore;
+        skipCount = 0;
+      } else if (i > 0) {
+        skipCount++;
+      }
+
+      if (entry.userId === currentUser.uid) {
+        userRank = currentRank;
+        break;
+      }
+    }
+
+    return `${userRank} of ${entriesWithScores.length}`;
   };
 
   const formatScore = (score: number) => {
