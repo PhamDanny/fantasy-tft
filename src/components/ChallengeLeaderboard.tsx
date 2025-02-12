@@ -28,7 +28,7 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
   };
 
   const getEntriesWithScores = () => {
-    return Object.entries(entries).map(([userId, entry]) => {
+    const entriesWithScores = Object.entries(entries).map(([userId, entry]) => {
       let totalScore = 0;
       const playerContributions: Array<{playerId: string, score: number}> = [];
 
@@ -83,6 +83,26 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
         return (a.userName || '').localeCompare(b.userName || '');
       }
       return scoreCompare;
+    });
+
+    // Add actual rank that accounts for ties
+    let currentRank = 1;
+    let currentScore = entriesWithScores[0]?.score ?? 0;
+    let skipCount = 0;
+
+    return entriesWithScores.map((entry, index) => {
+      if (entry.score !== currentScore) {
+        currentRank = currentRank + skipCount + 1;
+        currentScore = entry.score;
+        skipCount = 0;
+      } else if (index > 0) {
+        skipCount++;
+      }
+
+      return {
+        ...entry,
+        rank: currentRank
+      };
     });
   };
 
@@ -144,8 +164,8 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
               </tr>
             </thead>
             <tbody>
-              {sortedEntries.map((entry, index) => {
-                const rank = index + 1;
+              {sortedEntries.map((entry) => {
+                const rank = entry.rank;
                 
                 return (
                   <React.Fragment key={entry.userId}>
