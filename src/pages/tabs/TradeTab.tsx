@@ -112,23 +112,14 @@ const TradeTab: React.FC<TradeTabProps> = ({
       return;
     }
 
-    // Calculate new roster sizes after trade
+    // Only check proposer's roster limit
     const proposerNewSize =
       userTeam.roster.length -
       selectedProposerPlayers.length +
       selectedReceiverPlayers.length;
-    const receiverNewSize =
-      selectedTeam.roster.length -
-      selectedReceiverPlayers.length +
-      selectedProposerPlayers.length;
 
     if (proposerNewSize > getTotalRosterLimit(league.settings)) {
       setError("Trade would exceed your roster limit");
-      return;
-    }
-
-    if (receiverNewSize > getTotalRosterLimit(league.settings)) {
-      setError("Trade would exceed other team's roster limit");
       return;
     }
 
@@ -174,21 +165,16 @@ const TradeTab: React.FC<TradeTabProps> = ({
         const proposerTeam = teams[trade.proposerId];
         const receiverTeam = teams[trade.receiverId];
 
-        // Calculate new roster sizes
-        const proposerNewSize =
-          proposerTeam.roster.length -
-          trade.proposerPlayers.length +
-          trade.receiverPlayers.length;
+        // Calculate new roster size
         const receiverNewSize =
           receiverTeam.roster.length -
           trade.receiverPlayers.length +
           trade.proposerPlayers.length;
 
-        if (
-          proposerNewSize > getTotalRosterLimit(league.settings) ||
-          receiverNewSize > getTotalRosterLimit(league.settings)
-        ) {
-          setError("Trade would exceed roster size limits");
+        // Only check receiver's roster size when accepting
+        if (receiverNewSize > getTotalRosterLimit(league.settings)) {
+          setError("You must drop players to make room for this trade");
+          setLoading(false);
           return;
         }
 

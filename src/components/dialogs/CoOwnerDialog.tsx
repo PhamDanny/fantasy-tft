@@ -92,29 +92,14 @@ const CoOwnerDialog: React.FC<CoOwnerDialogProps> = ({
   const removeCoOwner = async (coOwnerId: string) => {
     setLoading(true);
     try {
-      // Get owner's display name
-      const ownerDoc = await getDoc(doc(db, "users", team.ownerID));
-      const ownerName = ownerDoc.exists() ? ownerDoc.data().displayName : "Unknown";
-
-      // Get removed co-owner's name and data
+      // Get removed co-owner's data
       const coOwnerDoc = await getDoc(doc(db, "users", coOwnerId));
       const coOwnerName = coOwnerDoc.exists() ? coOwnerDoc.data().displayName : "Unknown";
       const coOwnerLeagues = coOwnerDoc.exists() ? coOwnerDoc.data().leagues || [] : [];
 
-      // Get remaining co-owner names
-      const remainingCoOwners = team.coOwners.filter(id => id !== coOwnerId);
-      let newTeamName = ownerName;
-
-      if (remainingCoOwners.length > 0) {
-        const remainingCoOwnerDoc = await getDoc(doc(db, "users", remainingCoOwners[0]));
-        const remainingCoOwnerName = remainingCoOwnerDoc.exists() ? remainingCoOwnerDoc.data().displayName : "Unknown";
-        newTeamName = `${ownerName}/${remainingCoOwnerName}`;
-      }
-
-      // Update team
+      // Update team - only remove from coOwners array, don't change team name
       await updateDoc(doc(db, 'leagues', league.id.toString(), 'teams', team.teamId), {
-        coOwners: remainingCoOwners,
-        teamName: newTeamName
+        coOwners: team.coOwners.filter(id => id !== coOwnerId)
       });
 
       // Update co-owner's leagues array
