@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { ReactNode, useState, useEffect } from "react";
 import { Menu, X, Trophy, Settings, FileText, User, Crown } from "lucide-react";
 import { useAuth } from "../firebase/auth";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query, getDocs, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import type { PerfectRosterChallenge } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
@@ -59,6 +59,7 @@ const Sidebar = ({
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [hasActiveChallenge, setHasActiveChallenge] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [hasDrafts, setHasDrafts] = useState(false);
 
   useEffect(() => {
     const unsubscribe = useAuth((user) => {
@@ -114,9 +115,35 @@ const Sidebar = ({
     }
   }, [currentUser]);
 
+  useEffect(() => {
+    const checkForDrafts = async () => {
+      if (!currentUser) {
+        setHasDrafts(false);
+        return;
+      }
+
+      try {
+        // Query the legacy drafts collection where user is commissioner
+        const draftsQuery = query(
+          collection(db, 'drafts'), 
+          where('commissioner', '==', currentUser.uid)
+        );
+        const querySnapshot = await getDocs(draftsQuery);
+        
+        // Set hasDrafts based on whether any drafts exist
+        setHasDrafts(!querySnapshot.empty);
+      } catch (error) {
+        console.error("Error checking for drafts:", error);
+        setHasDrafts(false);
+      }
+    };
+
+    checkForDrafts();
+  }, [currentUser]);
+
   const updatedMenuItems = [
     { Icon: Trophy, text: "Leagues", path: "/leagues" },
-    { Icon: FileText, text: "Drafts", path: "/drafts" },
+    ...(currentUser && hasDrafts ? [{ Icon: FileText, text: "Drafts", path: "/drafts" }] : []),
     { 
       Icon: Crown, 
       text: "Perfect Roster Challenge", 
