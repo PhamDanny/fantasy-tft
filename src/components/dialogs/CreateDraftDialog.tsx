@@ -96,6 +96,8 @@ const CreateDraftDialog: React.FC<CreateDraftDialogProps> = ({
         ownerID: userId,
         coOwners: [],
         teamName: userName,
+        ownerDisplayName: userName,
+        coOwnerDisplayNames: {},
         roster: [],
         faabBudget: 0,  // This will be set when converting to league
         pendingBids: [], // No bids in draft mode

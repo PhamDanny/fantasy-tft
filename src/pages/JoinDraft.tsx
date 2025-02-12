@@ -97,6 +97,8 @@ const JoinDraft = () => {
         ownerID: user.uid,
         coOwners: [],
         teamName: teamName.trim(),
+        ownerDisplayName: user.displayName || "Anonymous",
+        coOwnerDisplayNames: {},
         roster: [],
         faabBudget: 0,  // This will be set when converting to league
         pendingBids: [], // No bids in draft mode
