@@ -229,101 +229,45 @@ const DragLayer: React.FC = () => {
 // Add a new component for placed players
 const PlacedPlayer: React.FC<{
   player: Player;
-  playerId: string;
-  slotType: 'captains' | 'naSlots' | 'brLatamSlots' | 'flexSlots';
-  index: number;
   isDarkMode: boolean;
   isLocked: boolean;
   onRemove: (e: React.MouseEvent) => void;
   onDrop: (playerId: string) => void;
   score?: number;
-}> = ({
-  player,
-  playerId,
-  slotType,
-  index,
-  isDarkMode,
-  isLocked,
-  onRemove,
-  onDrop,
-  score
+}> = ({ 
+  player, 
+  isDarkMode, 
+  isLocked, 
+  onRemove, 
+  score 
 }) => {
-  const [{ isDragging }, dragRef, dragPreview] = useDrag<DragItem, unknown, { isDragging: boolean }>({
-    type: 'PLAYER',
-    item: { type: 'PLAYER', id: playerId, player, sourceSlot: { type: slotType, index } },
-    collect: monitor => ({
-      isDragging: !!monitor.isDragging(),
-    }),
-    canDrag: !isLocked,
-  });
-
-  const [, dropRef] = useDrop<DragItem, void, {}>({
-    accept: 'PLAYER',
-    canDrop: (item) => {
-      // Don't allow dropping on itself
-      if (item.id === playerId) return false;
-      
-      // Check if the incoming player can go in this slot type
-      const incomingPlayer = item.player;
-      if (slotType === 'naSlots') {
-        return incomingPlayer.region === 'NA';
-      }
-      if (slotType === 'brLatamSlots') {
-        return ['BR', 'LATAM'].includes(incomingPlayer.region);
-      }
-      return true;
-    },
-    drop: (item) => {
-      onDrop(item.id);
-    },
-  });
-
-  React.useEffect(() => {
-    dragPreview(getEmptyImage());
-  }, [dragPreview]);
-
-  // Combine drag and drop refs
-  const ref = (el: HTMLDivElement) => {
-    dragRef(el);
-    dropRef(el);
-  };
-
-  const formatScore = (score: number) => {
-    return score % 1 === 0 ? score.toFixed(0) : score.toFixed(1);
-  };
-
   return (
-    <div
-      ref={ref as unknown as React.RefObject<HTMLDivElement>}
-      className={`d-flex align-items-center p-2 border rounded mb-2 ${
-        isDarkMode ? 'border-light' : 'border-dark'
-      } ${isDarkMode ? 'bg-dark' : ''}`}
-      style={{ 
-        cursor: isLocked ? 'default' : 'grab',
-        opacity: isDragging ? 0 : 1,
-        transition: 'all 0.2s ease',
-      }}
-    >
-      <div className="d-flex justify-content-between align-items-center w-100">
-        <div>
-          <div className="fw-bold">{player.name}</div>
-          <small className="text-muted">{player.region}</small>
-        </div>
-        <div className="d-flex align-items-center gap-3">
-          {score !== undefined && isLocked && (
-            <span className="fw-bold fs-5">{formatScore(score)}</span>
-          )}
-          {!isLocked && (
-            <button
-              className="btn btn-sm text-danger"
-              onClick={onRemove}
-              style={{ padding: '4px 8px' }}
-            >
-              ×
-            </button>
-          )}
-        </div>
+    <div className={`d-flex align-items-center p-2 border rounded mb-2 ${isDarkMode ? 'bg-dark' : ''}`}>
+      <div className="flex-grow-1">
+        <a 
+          href={player.profileLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-decoration-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {player.name}
+        </a>
+        <span className="text-muted ms-2">({player.region})</span>
       </div>
+      {score !== undefined && (
+        <div className="ms-2">
+          <span className="badge bg-secondary">{score.toFixed(1)}</span>
+        </div>
+      )}
+      {!isLocked && (
+        <button
+          className="btn btn-sm btn-outline-danger ms-2"
+          onClick={onRemove}
+        >
+          Remove
+        </button>
+      )}
     </div>
   );
 };
@@ -528,9 +472,6 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
         {player ? (
           <PlacedPlayer
             player={player}
-            playerId={playerId}
-            slotType={slotType}
-            index={index}
             isDarkMode={isDarkMode}
             isLocked={isLocked}
             onRemove={(e) => handleRemovePlayer(slotType, index, e)}

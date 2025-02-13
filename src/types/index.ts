@@ -10,9 +10,13 @@ export interface PlayerScores {
 
 export interface Player {
   id: string;
+  fullName: string;
   name: string;
+  tag: string;
   region: string;
+  ladderRegion: string;
   set: number;
+  profileLink: string;
   scores: {
     cup1: number;
     cup2: number;

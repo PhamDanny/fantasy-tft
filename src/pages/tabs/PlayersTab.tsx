@@ -521,7 +521,16 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
 
                       return (
                         <tr key={playerId}>
-                          <td className="ps-3">{player.name}</td>
+                          <td className="ps-3">
+                            <a 
+                              href={player.profileLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-decoration-none"
+                            >
+                              {player.name}
+                            </a>
+                          </td>
                           <td>{player.region}</td>
                           <td>
                             {isRostered ? 
@@ -594,7 +603,16 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                     <div key={playerId} className="list-group-item px-3">
                       <div className="d-flex justify-content-between align-items-start mb-2">
                         <div>
-                          <h6 className="mb-0">{player.name}</h6>
+                          <h6 className="mb-0">
+                            <a 
+                              href={player.profileLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-decoration-none"
+                            >
+                              {player.name}
+                            </a>
+                          </h6>
                           <small className="text-muted">{player.region}</small>
                         </div>
                         {isRostered ? (
