@@ -33,6 +33,10 @@ interface DroppableSlotProps {
   children: React.ReactNode;
 }
 
+const formatScore = (score: number): string => {
+  return score % 1 === 0 ? score.toFixed(0) : score.toFixed(1);
+};
+
 const DroppableSlot: React.FC<DroppableSlotProps> = ({ slotType, onDrop, children }) => {
   const [{ isOver, canDrop }, dropRef] = useDrop<DragItem, void, { isOver: boolean; canDrop: boolean }>({
     accept: 'PLAYER',
@@ -257,7 +261,9 @@ const PlacedPlayer: React.FC<{
       </div>
       {score !== undefined && (
         <div className="ms-2">
-          <span className="badge bg-secondary">{score.toFixed(1)}</span>
+          <span className="badge bg-secondary">
+            {formatScore(score)}
+          </span>
         </div>
       )}
       {!isLocked && (
@@ -539,10 +545,6 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
     }
 
     return `${userRank} of ${entriesWithScores.length}`;
-  };
-
-  const formatScore = (score: number) => {
-    return score % 1 === 0 ? score.toFixed(0) : score.toFixed(1);
   };
 
   return (
