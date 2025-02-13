@@ -49,7 +49,7 @@ const DroppableSlot: React.FC<DroppableSlotProps> = ({ slotType, onDrop, childre
         return player.region === 'NA';
       }
       if (slotType === 'brLatamSlots') {
-        return ['BR', 'LATAM'].includes(player.region);
+        return ['BR', 'LAN','LAS','LATAM'].includes(player.region);
       }
       return true;
     },
@@ -345,7 +345,7 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
       setError('This slot requires an NA player');
       return;
     }
-    if (slotType === 'brLatamSlots' && !['BR', 'LATAM'].includes(player.region)) {
+    if (slotType === 'brLatamSlots' && !['BR', 'LAN','LAS','LATAM'].includes(player.region)) {
       setError('This slot requires a BR/LATAM player');
       return;
     }
@@ -426,7 +426,7 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
           return player.region === 'NA';
         }
         if (slotType === 'brLatamSlots') {
-          return ['BR', 'LATAM'].includes(player.region);
+          return ['BR', 'LAN','LAS','LATAM'].includes(player.region);
         }
         return true; // captains and flex slots accept all regions
       };

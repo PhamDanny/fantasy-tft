@@ -250,7 +250,7 @@ const LineupSlot: React.FC<{
         case "naSlots":
           return draggedPlayer.region === "NA";
         case "brLatamSlots":
-          return ["BR", "LATAM"].includes(draggedPlayer.region);
+          return ["BR", "LAN", "LAS", "LATAM"].includes(draggedPlayer.region);
         default:
           return true;
       }
