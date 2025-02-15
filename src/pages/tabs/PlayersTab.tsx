@@ -100,9 +100,9 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
 
     const filteredPlayers = Object.entries(allPlayers)
       .filter(([playerId, player]) => {
-        if (!player) return false;
+        if (!player || !player.fullName) return false;
         const matchesSearch =
-          player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          player.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
           player.region.toLowerCase().includes(searchQuery.toLowerCase());
         
         return matchesSearch && (!hideRostered || !rosteredPlayersMap.has(playerId));
@@ -245,7 +245,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to ${dropPlayerId ? 'drop ' + players[dropPlayerId]?.name + ' and ' : ''}add ${allPlayers[playerId]?.name}?`)) {
+    if (!window.confirm(`Are you sure you want to ${dropPlayerId ? 'drop ' + players[dropPlayerId]?.fullName + ' and ' : ''}add ${allPlayers[playerId]?.fullName}?`)) {
       return;
     }
 
@@ -275,12 +275,12 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
           type: 'free_agent',
           playerNames: {
             [playerId]: {
-              name: allPlayers[playerId]?.name || 'Unknown Player',
+              name: allPlayers[playerId]?.fullName || 'Unknown Player',
               region: allPlayers[playerId]?.region || 'Unknown Region'
             },
             ...(dropPlayerId ? {
               [dropPlayerId]: {
-                name: allPlayers[dropPlayerId]?.name || players[dropPlayerId]?.name || 'Unknown Player',
+                name: allPlayers[dropPlayerId]?.fullName || players[dropPlayerId]?.fullName || 'Unknown Player',
                 region: allPlayers[dropPlayerId]?.region || players[dropPlayerId]?.region || 'Unknown Region'
               }
             } : {})
@@ -528,7 +528,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                               rel="noopener noreferrer"
                               className="text-decoration-none"
                             >
-                              {player.name}
+                              {player.fullName}
                             </a>
                           </td>
                           <td>{player.region}</td>
@@ -610,7 +610,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                               rel="noopener noreferrer"
                               className="text-decoration-none"
                             >
-                              {player.name}
+                              {player.fullName}
                             </a>
                           </h6>
                           <small className="text-muted">{player.region}</small>
@@ -768,7 +768,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                       return (
                         <div key={index} className="list-group-item">
                           <div className="d-flex justify-content-between align-items-center mb-2">
-                            <strong>{player?.name}</strong>
+                            <strong>{player?.fullName}</strong>
                             <div className="btn-group">
                               <button
                                 className="btn btn-sm btn-outline-secondary"
@@ -798,7 +798,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
                           </div>
                           {dropPlayerInfo && (
                             <div className="small text-danger mb-2">
-                              Drop: {dropPlayerInfo.name}
+                              Drop: {dropPlayerInfo.fullName}
                             </div>
                           )}
                           <div className="small text-muted">

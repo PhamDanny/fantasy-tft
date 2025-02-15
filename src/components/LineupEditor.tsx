@@ -111,7 +111,7 @@ const DragPreview: React.FC<{ player: Player; isDarkMode: boolean }> = ({ player
     >
       <div className="w-100">
         <div className="d-flex justify-content-between align-items-center">
-          <div className="fw-bold">{player.name}</div>
+          <div className="fw-bold">{player.fullName}</div>
           <small className="text-muted">
             {Object.entries(player.scores || {})
               .filter(([cup]) => cup.startsWith('cup'))
@@ -181,7 +181,7 @@ const DraggablePlayer: React.FC<{
       <div className="w-100">
         <div className="d-flex justify-content-between align-items-center">
           <div className="fw-bold">
-            {player.name}
+            {player.fullName}
             {isUsed && (
               <span className="badge bg-secondary ms-2">In Lineup</span>
             )}
@@ -255,7 +255,7 @@ const PlacedPlayer: React.FC<{
           className="text-decoration-none"
           onClick={(e) => e.stopPropagation()}
         >
-          {player.name}
+          {player.fullName}
         </a>
         <span className="text-muted ms-2">({player.region})</span>
       </div>
@@ -311,23 +311,26 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
     const searchLower = searchQuery.toLowerCase();
     
     return Object.entries(players)
-      .filter(([_, player]) => (
-        player.set === set &&
-        (player.name.toLowerCase().includes(searchLower) ||
-        player.region.toLowerCase().includes(searchLower))
-      ))
+      .filter(([_, player]) => {
+        if (!player || !player.fullName || !player.region) return false;
+        return (
+          player.set === set &&
+          (player.fullName.toLowerCase().includes(searchLower) ||
+          player.region.toLowerCase().includes(searchLower))
+        );
+      })
       .sort((a, b) => {
         const [, playerA] = a;
         const [, playerB] = b;
         
-        const qpA = getPlayerTotalQP(playerA);
-        const qpB = getPlayerTotalQP(playerB);
+        const qpA = playerA?.scores ? getPlayerTotalQP(playerA) : 0;
+        const qpB = playerB?.scores ? getPlayerTotalQP(playerB) : 0;
 
         if (qpA !== qpB) {
           return qpB - qpA;
         }
         
-        return playerA.name.localeCompare(playerB.name);
+        return playerA.fullName.localeCompare(playerB.fullName);
       });
   }, [players, set, searchQuery]);
 
@@ -433,13 +436,13 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
 
       // Check if the dragged player can go in the target slot
       if (!isValidMove(player, slotType)) {
-        setError(`${player.name} cannot be placed in ${slotType}`);
+        setError(`${player.fullName} cannot be placed in ${slotType}`);
         return;
       }
 
       // If there's an existing player, check if they can go in the source slot
       if (existingPlayer && sourceSlotType && !isValidMove(existingPlayer, sourceSlotType)) {
-        setError(`${existingPlayer.name} cannot be placed in ${sourceSlotType}`);
+        setError(`${existingPlayer.fullName} cannot be placed in ${sourceSlotType}`);
         return;
       }
 
