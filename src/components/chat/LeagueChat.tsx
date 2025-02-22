@@ -269,7 +269,27 @@ const LeagueChat = ({
           break;
 
         case "commissioner":
-          if (metadata.metadata?.action === 'roster_edit' && metadata.metadata.commissioner) {
+          if (metadata.metadata?.action === 'member_removed') {
+            content = (
+              <div>
+                <div className="h5 mb-2 text-center">Team Removed</div>
+                <div className="text-center">
+                  <div className="fw-medium mb-2">{metadata.metadata.teamName}</div>
+                  {metadata.drops[metadata.teamIds[0]]?.length > 0 && (
+                    <div className="text-danger">
+                      <div className="mb-2">Released Players:</div>
+                      {metadata.drops[metadata.teamIds[0]].map((playerId: string) => {
+                        const playerName = metadata.metadata?.playerNames?.[playerId]?.name;
+                        return playerName && (
+                          <div key={playerId} className="fs-5">- {playerName}</div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          } else if (metadata.metadata?.action === 'roster_edit') {
             content = (
               <div>
                 <div className="h5 mb-2 text-center">Commissioner Action</div>

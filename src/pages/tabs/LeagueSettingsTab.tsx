@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { doc, updateDoc, getDoc, runTransaction, collection, getDocs } from "firebase/firestore";
+import { doc, updateDoc, getDoc, runTransaction, collection, getDocs, deleteDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
-import type { League, Team, LeagueSettings } from "../../types";
+import type { League, Team, LeagueSettings, Player } from "../../types";
 import InviteDialog from '../../components/dialogs/InviteDialog';
 import CommissionerTeamEditDialog from "../../components/dialogs/CommissionerTeamEditDialog";
 import { processWaivers } from '../../utils/waiverUtils';
@@ -13,13 +13,14 @@ interface LeagueSettingsTabProps {
   isCommissioner: boolean;
   leagueId: number;
   teams: Record<string, Team>;
+  players: Record<string, Player>;
 }
 
 interface LeagueMemberRowProps {
   teamId: string;
   team: Team;
   onEditRoster: (teamId: string) => void;
-  onRemoveOwner: (teamId: string, team: Team) => void;
+  onRemoveOwner: (teamId: string) => void;
   onRemoveCoOwner: (teamId: string, coOwnerId: string) => void;
 }
 
@@ -43,7 +44,7 @@ const LeagueMemberRow: React.FC<LeagueMemberRowProps> = ({
       </button>
       <button
         className="btn btn-sm btn-danger"
-        onClick={() => onRemoveOwner(teamId, team)}
+        onClick={() => onRemoveOwner(teamId)}
       >
         Kick
       </button>
@@ -70,6 +71,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
   isCommissioner,
   leagueId,
   teams,
+  players,
 }) => {
   // Initialize settings with defaults for playoffs if not set
   const defaultSettings = {
@@ -99,13 +101,72 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
   const handleRemoveOwner = async (teamId: string) => {
     if (!window.confirm('Are you sure you want to remove this team?')) return;
 
+    setLoading(true);
+    setError(null);
+
     try {
-      await updateDoc(doc(db, 'leagues', leagueId.toString(), 'teams', teamId), {
-        ownerID: null,
-        coOwners: []
+      const teamRef = doc(db, 'leagues', leagueId.toString(), 'teams', teamId);
+      const teamDoc = await getDoc(teamRef);
+      
+      if (!teamDoc.exists()) {
+        throw new Error('Team not found');
+      }
+
+      const team = teamDoc.data() as Team;
+      const userIds = [team.ownerID, ...(team.coOwners || [])];
+
+      // Update all affected users (owner and co-owners)
+      await Promise.all(userIds.map(async (userId) => {
+        if (!userId) return;
+        const userRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          await updateDoc(userRef, {
+            leagues: userData.leagues.filter((id: string) => id !== leagueId.toString())
+          });
+        }
+      }));
+
+      // Create the transaction object
+      const transaction = {
+        id: crypto.randomUUID(),
+        type: 'commissioner' as const,
+        timestamp: new Date().toISOString(),
+        teamIds: [teamId],
+        adds: {},
+        drops: { [teamId]: team.roster || [] },
+        metadata: {
+          type: 'commissioner',
+          action: 'member_removed',
+          commissioner: league.commissioner,
+          reason: 'Kicked by commissioner',
+          teamName: team.teamName,
+          playerNames: team.roster?.reduce((acc, playerId) => ({
+            ...acc,
+            [playerId]: { 
+              name: players?.[playerId]?.name || 'Unknown Player',
+              region: players?.[playerId]?.region || 'Unknown Region'
+            }
+          }), {})
+        }
+      };
+
+      // Update the league document to add the transaction
+      const leagueRef = doc(db, 'leagues', leagueId.toString());
+      await updateDoc(leagueRef, {
+        transactions: [...(league.transactions || []), transaction]
       });
+
+      // Delete the team document
+      await deleteDoc(teamRef);
+
+      setSuccess('Team removed successfully');
     } catch (err) {
-      setError('Failed to remove owner');
+      setError('Failed to remove team: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      console.error('Error removing team:', err);
+    } finally {
+      setLoading(false);
     }
   };
 

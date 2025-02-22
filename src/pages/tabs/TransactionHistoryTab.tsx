@@ -119,19 +119,32 @@ const TransactionHistoryTab: React.FC<TransactionHistoryTabProps> = ({
         }));
 
       case "commissioner":
-        return transaction.teamIds.map((teamId) => ({
-          team: teams[teamId],
-          added: (transaction.adds[teamId] || [])
-            .map((playerId) => getPlayerName(playerId, transaction))
-            .join(", "),
-          dropped: (transaction.drops[teamId] || [])
-            .map((playerId) => getPlayerName(playerId, transaction))
-            .join(", "),
-          reason: transaction.metadata.reason,
-          commissioner: transaction.metadata.commissioner 
-            ? getTeamName(transaction.metadata.commissioner)
-            : "System"
-        }));
+        if (transaction.metadata.action === 'member_removed') {
+          return [{
+            team: { teamName: transaction.metadata.teamName } as Team, // Create minimal team object
+            added: "",
+            dropped: Object.values(transaction.metadata.playerNames || {})
+              .map(p => p.name)
+              .join(", "),
+            reason: "Team removed from league",
+            commissioner: transaction.metadata.commissioner
+          }];
+        } else if (transaction.metadata.action === 'roster_edit') {
+          return transaction.teamIds.map((teamId) => ({
+            team: teams[teamId],
+            added: (transaction.adds[teamId] || [])
+              .map((playerId) => getPlayerName(playerId, transaction))
+              .join(", "),
+            dropped: (transaction.drops[teamId] || [])
+              .map((playerId) => getPlayerName(playerId, transaction))
+              .join(", "),
+            reason: transaction.metadata.reason,
+            commissioner: transaction.metadata.commissioner 
+              ? getTeamName(transaction.metadata.commissioner)
+              : "System"
+          }));
+        }
+        return [];
 
       case "drop":
         return transaction.teamIds.map((teamId) => ({

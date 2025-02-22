@@ -56,7 +56,6 @@ const getAvailableTabs = (league: League, isCommissioner: boolean): Record<strin
           TRADE: getLeagueType(league) === "season-long",
           TRANSACTIONS: true,
           SETTINGS: isCommissioner,
-          PLAYOFFS: true,
           DRAFT: true,
         };
       }
@@ -64,7 +63,6 @@ const getAvailableTabs = (league: League, isCommissioner: boolean): Record<strin
       return {
         ...baseTabs,
         DRAFT: true,
-        PLAYOFFS: true,
         SETTINGS: isCommissioner,
       };
     
@@ -343,6 +341,7 @@ export const LeagueView: React.FC = () => {
                 isCommissioner={isCommissioner}
                 leagueId={parseInt(leagueId || "")}
                 teams={teams}
+                players={players}
               />
             )}
             {activeTab === 'DRAFT' && (

@@ -262,6 +262,90 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
     }
   };
 
+  const handleRemoveTeam = async (teamId: string, teamName: string) => {
+    if (!window.confirm(`Are you sure you want to remove ${teamName} from the league?`)) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const teamRef = doc(db, 'leagues', league.id.toString(), 'teams', teamId);
+      const teamDoc = await getDoc(teamRef);
+      
+      if (!teamDoc.exists()) {
+        throw new Error('Team not found');
+      }
+
+      const team = teamDoc.data() as Team;
+      const userIds = [team.ownerID, ...(team.coOwners || [])];
+
+      // Create batch for atomic updates
+      const batch = writeBatch(db);
+      const leagueRef = doc(db, 'leagues', league.id.toString());
+
+      // First update the league document with new draft order and transaction
+      const updatedDraftOrder = draftOrder.filter(id => id !== teamId);
+      const transaction = {
+        id: crypto.randomUUID(),
+        type: 'commissioner' as const,
+        timestamp: new Date().toISOString(),
+        teamIds: [teamId],
+        adds: {},
+        drops: { [teamId]: team.roster || [] },
+        metadata: {
+          type: 'commissioner',
+          action: 'member_removed',
+          commissioner: league.commissioner,
+          reason: 'Kicked by commissioner',
+          teamName: team.teamName,
+          playerNames: team.roster?.reduce((acc, playerId) => ({
+            ...acc,
+            [playerId]: { 
+              name: players?.[playerId]?.name || 'Unknown Player',
+              region: players?.[playerId]?.region || 'Unknown Region'
+            }
+          }), {})
+        }
+      };
+
+      batch.update(leagueRef, {
+        transactions: [...(league.transactions || []), transaction],
+        'settings.draftOrder': updatedDraftOrder
+      });
+
+      // Update all affected users (owner and co-owners)
+      await Promise.all(userIds.map(async (userId) => {
+        if (!userId) return;
+        const userRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          batch.update(userRef, {
+            leagues: userData.leagues.filter((id: string) => id !== league.id.toString())
+          });
+        }
+      }));
+
+      // Delete the team document
+      batch.delete(teamRef);
+
+      // Commit all changes atomically
+      await batch.commit();
+
+      // Update local state after successful commit
+      const newTeams = { ...localTeams };
+      delete newTeams[teamId];
+      setLocalTeams(newTeams);
+      setDraftOrder(updatedDraftOrder);
+
+    } catch (err) {
+      setError('Failed to remove team: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      console.error('Error removing team:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!league.settings.draftStarted) {
     return (
       <div className="row">
@@ -436,9 +520,8 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                       {isCommissioner && team.ownerID !== user?.uid && (
                         <button
                           className="btn btn-outline-danger btn-sm"
-                          onClick={() => {
-                            // Add remove team functionality
-                          }}
+                          onClick={() => handleRemoveTeam(teamId, team.teamName)}
+                          disabled={loading}
                         >
                           Remove
                         </button>

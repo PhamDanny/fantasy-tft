@@ -268,7 +268,7 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
         }
         
         // Check if we need to fetch owner name
-        if (!team.ownerDisplayName || 
+        if ((!team.ownerDisplayName && team.ownerID) || // Only if ownerID exists
             (team.coOwners?.length && !team.coOwnerDisplayNames)) {
           missingTeams.push(team);
         }
@@ -280,13 +280,22 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
           for (const team of missingTeams) {
             const updates: Partial<Team> = {};
             
-            // Fetch owner name if missing
-            if (!team.ownerDisplayName) {
-              const ownerDoc = await getDoc(doc(db, "users", team.ownerID));
-              if (ownerDoc.exists()) {
-                const displayName = ownerDoc.data().displayName;
-                names[team.ownerID] = displayName;
-                updates.ownerDisplayName = displayName;
+            // Fetch owner name if missing and ownerID exists
+            if (!team.ownerDisplayName && team.ownerID) {
+              try {
+                const ownerDoc = await getDoc(doc(db, "users", team.ownerID));
+                if (ownerDoc.exists()) {
+                  const displayName = ownerDoc.data().displayName;
+                  names[team.ownerID] = displayName;
+                  updates.ownerDisplayName = displayName;
+                } else {
+                  // User doesn't exist, use a fallback name
+                  names[team.ownerID] = "Unknown User";
+                  updates.ownerDisplayName = "Unknown User";
+                }
+              } catch (error) {
+                console.error(`Error fetching owner ${team.ownerID}:`, error);
+                names[team.ownerID] = "Unknown User";
               }
             }
 
@@ -294,11 +303,20 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
             if (team.coOwners?.length && !team.coOwnerDisplayNames) {
               const coOwnerNames: Record<string, string> = {};
               for (const coOwnerId of team.coOwners) {
-                const coOwnerDoc = await getDoc(doc(db, "users", coOwnerId));
-                if (coOwnerDoc.exists()) {
-                  const displayName = coOwnerDoc.data().displayName;
-                  names[coOwnerId] = displayName;
-                  coOwnerNames[coOwnerId] = displayName;
+                try {
+                  const coOwnerDoc = await getDoc(doc(db, "users", coOwnerId));
+                  if (coOwnerDoc.exists()) {
+                    const displayName = coOwnerDoc.data().displayName;
+                    names[coOwnerId] = displayName;
+                    coOwnerNames[coOwnerId] = displayName;
+                  } else {
+                    names[coOwnerId] = "Unknown User";
+                    coOwnerNames[coOwnerId] = "Unknown User";
+                  }
+                } catch (error) {
+                  console.error(`Error fetching co-owner ${coOwnerId}:`, error);
+                  names[coOwnerId] = "Unknown User";
+                  coOwnerNames[coOwnerId] = "Unknown User";
                 }
               }
               updates.coOwnerDisplayNames = coOwnerNames;
@@ -306,16 +324,20 @@ const StandingsTab: React.FC<StandingsTabProps> = ({
 
             // Update team document if we have updates
             if (Object.keys(updates).length > 0) {
-              await updateDoc(
-                doc(db, "leagues", league.id.toString(), "teams", team.teamId),
-                updates
-              );
+              try {
+                await updateDoc(
+                  doc(db, "leagues", league.id.toString(), "teams", team.teamId),
+                  updates
+                );
+              } catch (error) {
+                console.error(`Error updating team ${team.teamId}:`, error);
+              }
             }
           }
 
           setOwnerNames(names);
         } catch (error) {
-          console.error("Error fetching display names:", error);
+          console.error("Error in fetchDisplayNames:", error);
         }
       } else {
         setOwnerNames(names);
