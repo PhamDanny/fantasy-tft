@@ -19,6 +19,7 @@ const JoinLeague = () => {
   const [teamName, setTeamName] = useState('');
   const [user, setUser] = useState<any>(null);
   const [invite, setInvite] = useState<LeagueInvite | null>(null);
+  const [teamsCount, setTeamsCount] = useState(0);
 
   useEffect(() => {
     const unsubscribe = useAuth((authUser) => {
@@ -79,18 +80,14 @@ const JoinLeague = () => {
           return;
         }
 
-        // Get teams from subcollection
+        // Get teams count from subcollection
         const teamsSnapshot = await getDocs(collection(db, 'leagues', leagueIdToUse, 'teams'));
-        const teams: Record<string, Team> = {};
-        teamsSnapshot.forEach(doc => {
-          teams[doc.id] = doc.data() as Team;
-        });
+        setTeamsCount(teamsSnapshot.size);
 
         const leagueData = leagueDoc.data() as League;
         setLeague({ 
           ...leagueData, 
-          id: parseInt(leagueIdToUse),
-          teams // Use teams from subcollection
+          id: parseInt(leagueIdToUse)
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load league');
@@ -110,12 +107,16 @@ const JoinLeague = () => {
     setError(null);
 
     try {
-      // Initialize teams if it doesn't exist
-      const teams = league.teams || {};
+      // Get current teams from subcollection
+      const teamsSnapshot = await getDocs(collection(db, 'leagues', league.id.toString(), 'teams'));
+      const teams = {} as Record<string, Team>;
+      teamsSnapshot.forEach(doc => {
+        teams[doc.id] = doc.data() as Team;
+      });
 
       // Check if user already has a team
       const existingTeam = Object.values(teams).find(
-        team => team.ownerID === user.uid || team.coOwners?.includes(user.uid)
+        (team: Team) => team.ownerID === user.uid || team.coOwners?.includes(user.uid)
       );
 
       if (existingTeam) {
@@ -130,7 +131,7 @@ const JoinLeague = () => {
       }
 
       // Check if team name is taken
-      if (Object.values(teams).some(team => team.teamName === teamName)) {
+      if (Object.values(teams).some((team: Team) => team.teamName === teamName)) {
         setError('This team name is already taken');
         return;
       }
@@ -258,7 +259,7 @@ const JoinLeague = () => {
                   <strong>League Info:</strong>
                   <ul className="mb-0">
                     <li>Type: {getLeagueType(league) === 'season-long' ? 'Full Season' : 'Single Tournament'}</li>
-                    <li>Teams: {Object.keys(league.teams || {}).length + 1}/{league.settings.teamsLimit}</li>
+                    <li>Teams: {teamsCount}/{league.settings.teamsLimit}</li>
                     <li>Season: {league.season}</li>
                     <li>Phase: {league.phase}</li>
                   </ul>

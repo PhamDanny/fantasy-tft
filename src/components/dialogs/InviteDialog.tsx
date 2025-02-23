@@ -1,6 +1,6 @@
 // InviteDialog.tsx
-import React, { useState } from "react";
-import { doc, updateDoc } from "firebase/firestore";
+import React, { useState, useEffect } from "react";
+import { doc, updateDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import type { League, LeagueInvite } from "../../types/index";
 
@@ -13,13 +13,27 @@ interface InviteDialogProps {
 const InviteDialog: React.FC<InviteDialogProps> = ({ league, show, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [teamsCount, setTeamsCount] = useState(0);
   const [newInvite, setNewInvite] = useState({
     maxUses: 1,
     expiresInDays: 7,
   });
 
+  // Fetch teams count when dialog opens
+  useEffect(() => {
+    const fetchTeamsCount = async () => {
+      const teamsRef = collection(db, 'leagues', league.id.toString(), 'teams');
+      const teamsSnapshot = await getDocs(teamsRef);
+      setTeamsCount(teamsSnapshot.size);
+    };
+
+    if (show) {
+      fetchTeamsCount();
+    }
+  }, [league.id, show]);
+
   // Calculate remaining team slots
-  const remainingSlots = league.settings.teamsLimit - Object.keys(league.teams || {}).length;
+  const remainingSlots = league.settings.teamsLimit - teamsCount;
 
   const expirationOptions = [
     { label: "12 Hours", value: 0.5 },

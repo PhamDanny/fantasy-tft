@@ -23,6 +23,27 @@ const TeamEditor: React.FC<TeamEditorProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Add state for teams
+  const [teams, setTeams] = useState<Record<string, Team>>({});
+
+  // Add useEffect to fetch teams
+  useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        const teamsSnapshot = await getDocs(collection(db, "leagues", leagueId.toString(), "teams"));
+        const teamsData: Record<string, Team> = {};
+        teamsSnapshot.forEach((doc) => {
+          teamsData[doc.id] = doc.data() as Team;
+        });
+        setTeams(teamsData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to fetch teams");
+      }
+    };
+
+    fetchTeams();
+  }, [leagueId]);
+
   // Fetch all players on mount
   useEffect(() => {
     const fetchAllPlayers = async () => {
@@ -306,15 +327,15 @@ const TeamEditor: React.FC<TeamEditorProps> = ({
                     className="form-select"
                     value={selectedTeam?.teamId || ""}
                     onChange={(e) => {
-                      const team = Object.values(league.teams).find(
-                        (t) => t.teamId === e.target.value
+                      const team = Object.values(teams).find(
+                        (t: Team) => t.teamId === e.target.value
                       );
                       setSelectedTeam(team || null);
                       setSelectedPlayer(null);
                     }}
                   >
                     <option value="">Choose a team...</option>
-                    {Object.values(league.teams).map((team) => (
+                    {Object.values(teams).map((team: Team) => (
                       <option key={team.teamId} value={team.teamId}>
                         {team.teamName}
                       </option>
@@ -442,41 +463,49 @@ const TeamEditor: React.FC<TeamEditorProps> = ({
                   {/* Lineup Editor */}
                   <div className="row">
                     <div className="col-md-8">
-                      <div className="mb-4">
-                        <label className="form-label">Captain Slots</label>
-                        {getCurrentLineup().captains.map((playerId, index) => (
-                          <div key={index} className="mb-2">
-                            {renderSlot("captain", playerId, index)}
-                          </div>
-                        ))}
-                      </div>
+                      {getCurrentLineup().captains.length > 0 && (
+                        <div className="mb-3">
+                          <h6>Captain Slots</h6>
+                          {getCurrentLineup().captains.map((playerId, index) => (
+                            <div key={index} className="mb-2">
+                              {renderSlot("captain", playerId, index)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                      <div className="mb-4">
-                        <label className="form-label">NA Slots</label>
-                        {getCurrentLineup().naSlots.map((playerId, index) => (
-                          <div key={index} className="mb-2">
-                            {renderSlot("na", playerId, index)}
-                          </div>
-                        ))}
-                      </div>
+                      {getCurrentLineup().naSlots.length > 0 && (
+                        <div className="mb-3">
+                          <h6>NA Slots</h6>
+                          {getCurrentLineup().naSlots.map((playerId, index) => (
+                            <div key={index} className="mb-2">
+                              {renderSlot("na", playerId, index)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                      <div className="mb-4">
-                        <label className="form-label">BR/LATAM Slots</label>
-                        {getCurrentLineup().brLatamSlots.map((playerId, index) => (
-                          <div key={index} className="mb-2">
-                            {renderSlot("brLatam", playerId, index)}
-                          </div>
-                        ))}
-                      </div>
+                      {getCurrentLineup().brLatamSlots.length > 0 && (
+                        <div className="mb-3">
+                          <h6>BR/LATAM Slots</h6>
+                          {getCurrentLineup().brLatamSlots.map((playerId, index) => (
+                            <div key={index} className="mb-2">
+                              {renderSlot("brLatam", playerId, index)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                      <div className="mb-4">
-                        <label className="form-label">Flex Slots</label>
-                        {getCurrentLineup().flexSlots.map((playerId, index) => (
-                          <div key={index} className="mb-2">
-                            {renderSlot("flex", playerId, index)}
-                          </div>
-                        ))}
-                      </div>
+                      {getCurrentLineup().flexSlots.length > 0 && (
+                        <div className="mb-3">
+                          <h6>Flex Slots</h6>
+                          {getCurrentLineup().flexSlots.map((playerId, index) => (
+                            <div key={index} className="mb-2">
+                              {renderSlot("flex", playerId, index)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="col-md-4">

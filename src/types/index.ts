@@ -68,15 +68,12 @@ export interface Team {
   ownerDisplayName: string;
   coOwnerDisplayNames?: Record<string, string>;
   roster: string[];
-  cupLineups: {
-    cup1?: CupLineup;
-    cup2?: CupLineup;
-    cup3?: CupLineup;
-  };
+  cupLineups: Record<string, CupLineup>;
+  regionalsLineup?: RegionalsLineup;  // Add this for regionals leagues
   faabBudget: number;
-  pendingBids: PendingBid[];  // Changed from Record to Array to maintain order
+  pendingBids: PendingBid[];
   playoffRoster?: string[];
-  playoffLineup?: PlayoffLineup;
+  playoffLineup?: TeamLineup;
   playoffDollars?: number;
   playoffBids?: Record<string, number>;  // Map of player ID to bid amount
 }
@@ -132,6 +129,7 @@ export interface Transaction {
     reason?: string;
     commissioner?: string;
     action?: 'roster_edit' | 'member_removed' | 'member_left';
+    teamName?: string;
     waiver?: {
       bidAmount: number;
       success?: boolean;
@@ -152,7 +150,7 @@ export interface Transaction {
 
 // Add these new types
 export type LeaguePhase = 'drafting' | 'in_season' | 'playoffs' | 'completed';
-export type LeagueType = 'season-long' | 'single-tournament';
+export type LeagueType = 'season-long' | 'single-tournament' | 'regionals';
 
 export interface League {
   id: number;
@@ -167,11 +165,10 @@ export interface League {
     draftStarted: boolean;
   };
   commissioner: string;
-  teams: Record<string, Team>;
   trades?: Record<string, TradeOffer>;
   transactions: Transaction[];
   invites: { [key: string]: LeagueInvite };
-  draftId?: string;  // Reference to the original draft if converted
+  draftId?: string;
   currentRound?: number;
   currentPick?: number;
   picks?: DraftPick[];
@@ -286,25 +283,26 @@ export interface PerfectRosterChallenge {
   name: string;
   season: string;
   set: number;
-  startDate: string | Timestamp;
+  currentCup: string;
+  startDate: Timestamp;
   endDate: Timestamp;
+  status: 'active' | 'completed';
   settings: {
     captainSlots: number;
     naSlots: number;
     brLatamSlots: number;
     flexSlots: number;
   };
-  currentCup: string;
-  status: 'active' | 'completed';
   entries: Record<string, PerfectRosterLineup>;
   adminOnly?: boolean;
+  type: 'regular' | 'regionals';
 }
 
 export interface UserData {
   displayName: string;
   leagues: string[];
   admin?: boolean;
-  currentCup?: number;  // Add this to track global current cup
+  currentCup?: number;
 }
 
 export const TABS = {
@@ -322,7 +320,9 @@ export type TabType = typeof TABS[keyof typeof TABS];
 
 // Add a helper function to get league type with default
 export function getLeagueType(league: League): LeagueType {
-  return league.leagueType || 'season-long';
+  if (league.leagueType) return league.leagueType;
+  if (league.type) return league.type;
+  return 'season-long';
 }
 
 export interface GlobalSettings {
@@ -337,4 +337,27 @@ export interface GlobalSettings {
     updatedAt: string;
     updatedBy: string;
   };
+}
+
+// Add helper function to determine if we're in regionals phase
+export function isRegionalsPhase(currentCup: number): boolean {
+  return currentCup === 4;
+}
+
+// Add helper to filter players for regionals
+export function getAvailablePlayers(players: Record<string, Player>, leagueType: LeagueType): Record<string, Player> {
+  if (leagueType === 'regionals') {
+    return Object.fromEntries(
+      Object.entries(players).filter(([_, player]) =>
+        player.regionals?.qualified === true
+      )
+    );
+  }
+  return players;
+}
+
+// Add regionals lineup type
+export interface RegionalsLineup extends CupLineup {
+  // Same structure as CupLineup but specifically for regionals
+  locked: boolean;
 }

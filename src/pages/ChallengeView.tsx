@@ -299,6 +299,7 @@ const ChallengeView = () => {
             currentCup={validatedCurrentCup}
             entries={challenge.entries}
             currentUser={currentUser}
+            challenge={challenge}
           />
         </>
       )}
@@ -309,6 +310,7 @@ const ChallengeView = () => {
           players={players}
           currentCup={validatedCurrentCup}
           endDate={challenge.endDate}
+          challenge={challenge}
         />
       )}
 
@@ -326,6 +328,7 @@ const ChallengeView = () => {
           currentCup={validatedCurrentCup}
           settings={challenge.settings}
           isComplete={isTournamentComplete()}
+          challenge={challenge}
         />
       )}
     </div>

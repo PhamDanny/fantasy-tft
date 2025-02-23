@@ -32,14 +32,25 @@ const getTeamPoints = (team: Team): number => {
 
 export const processWaiverClaims = async (league: League): Promise<WaiverResult> => {
   // Get players collection for names
-  const playersRef = collection(db, "players");
-  const playersSnapshot = await getDocs(playersRef);
-  const players = Object.fromEntries(
-    playersSnapshot.docs.map(doc => [doc.id, doc.data()])
-  );
+  const playersSnapshot = await getDocs(collection(db, "players"));
+  const players: Record<string, { name: string; region: string }> = {};
+  playersSnapshot.forEach(doc => {
+    const data = doc.data();
+    players[doc.id] = {
+      name: data.name || "Unknown Player",
+      region: data.region || "Unknown Region"
+    };
+  });
+
+  // Get teams from subcollection
+  const teamsSnapshot = await getDocs(collection(db, "leagues", league.id.toString(), "teams"));
+  const teams: Record<string, Team> = {};
+  teamsSnapshot.forEach((doc) => {
+    teams[doc.id] = doc.data() as Team;
+  });
 
   // Get all teams with pending bids
-  const teamsWithBids = Object.values(league.teams).filter(team =>
+  const teamsWithBids = Object.values(teams).filter((team: Team) =>
     team.pendingBids && team.pendingBids.length > 0
   );
 
@@ -47,8 +58,8 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
   // 1. Bid amount (highest to lowest)
   // 2. Team points (lower points get priority)
   // 3. Processing order (earlier bids get priority)
-  const allBids = teamsWithBids.flatMap(team =>
-    team.pendingBids.map(bid => ({
+  const allBids = teamsWithBids.flatMap((team: Team) =>
+    team.pendingBids.map((bid: PendingBid) => ({
       bid,
       teamId: team.teamId,
       teamPoints: getTeamPoints(team)
@@ -78,7 +89,7 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
   const transactions: Transaction[] = [];
 
   for (const { bid, teamId } of allBids) {
-    const team = league.teams[teamId];
+    const team = teams[teamId];
     let success = false;
     let reason = "";
 
@@ -208,7 +219,7 @@ export const processWaiverClaims = async (league: League): Promise<WaiverResult>
   }
 
   // Update all teams with processed bids
-  await Promise.all(teamsWithBids.map(async team => {
+  await Promise.all(teamsWithBids.map(async (team: Team) => {
     const teamProcessedBids = processedBids.filter(pb => pb.teamId === team.teamId);
     const successfulBids = teamProcessedBids.filter(pb => pb.success);
 

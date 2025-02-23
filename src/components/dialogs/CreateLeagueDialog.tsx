@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { addUserToLeague } from "../../firebase/queries";
 import type { LeagueSettings, CupLineup, LeagueType, LeaguePhase } from "../../types";
 import { Plus, Minus } from 'lucide-react';
+import { isRegionalsPhase } from "../../types";
 
 const generateEmptyLineup = (settings: LeagueSettings): CupLineup => {
   return {
@@ -59,9 +60,12 @@ const CreateLeagueDialog: React.FC<{
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentCup, setCurrentCup] = useState<number>(1);
+  
+  // Keep formState non-nullable with initial values
   const [formState, setFormState] = useState<FormState>({
     name: "",
-    type: "season-long" as LeagueType,
+    type: "season-long",
     settings: {
       captainSlots: 1,
       naSlots: 5,
@@ -69,7 +73,7 @@ const CreateLeagueDialog: React.FC<{
       flexSlots: 3,
       benchSlots: 3,
       teamsLimit: 12,
-      faabBudget: 100,
+      faabBudget: 1000,
       currentCup: 0,
       playoffs: false,
       playoffTeams: 4,
@@ -78,6 +82,38 @@ const CreateLeagueDialog: React.FC<{
       waiversEnabled: true,
     },
   });
+
+  // Update form state when we get the current cup
+  useEffect(() => {
+    const fetchCurrentCup = async () => {
+      const cupDoc = await getDoc(doc(db, 'globalSettings', 'currentCup'));
+      if (cupDoc.exists()) {
+        const cup = cupDoc.data()?.currentCup || 1;
+        setCurrentCup(cup);
+        
+        // If we're in regionals phase, update the form state
+        if (isRegionalsPhase(cup)) {
+          setFormState(prev => ({
+            ...prev,
+            type: 'regionals',
+            settings: {
+              ...prev.settings,
+              captainSlots: 1,
+              naSlots: 0,
+              brLatamSlots: 0,
+              flexSlots: 3,
+              benchSlots: 0,
+              faabBudget: 0,
+              currentCup: cup,
+              playoffs: false,
+              waiversEnabled: false,
+            }
+          }));
+        }
+      }
+    };
+    fetchCurrentCup();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -141,12 +177,22 @@ const CreateLeagueDialog: React.FC<{
           brLatamSlots: 1,
           flexSlots: 2,
           benchSlots: 0,
-          // Force these settings for single tournament leagues
           waiversEnabled: false,
           faabBudget: 0,
           playoffs: false,
           playoffTeams: 4,
-          // Keep trading and FA configurable
+          tradingEnabled: prev.settings.tradingEnabled,
+          freeAgencyEnabled: prev.settings.freeAgencyEnabled,
+        } : newType === 'regionals' ? {
+          captainSlots: 1,
+          naSlots: 0,
+          brLatamSlots: 0,
+          flexSlots: 3,
+          benchSlots: 0,
+          waiversEnabled: false,
+          faabBudget: 0,
+          playoffs: false,
+          playoffTeams: 4,
           tradingEnabled: prev.settings.tradingEnabled,
           freeAgencyEnabled: prev.settings.freeAgencyEnabled,
         } : {
@@ -191,6 +237,11 @@ const CreateLeagueDialog: React.FC<{
 
       const globalCup = cupDoc.exists() ? cupDoc.data()?.currentCup : 1;
       const currentSet = currentSetDoc.exists() ? currentSetDoc.data()?.set : "Set 13";
+
+      // Force regionals league type during Cup 4
+      if (isRegionalsPhase(globalCup)) {
+        formState.type = 'regionals';
+      }
 
       // Use the current cup for all leagues
       const settings = {
@@ -372,19 +423,36 @@ const CreateLeagueDialog: React.FC<{
 
                 <div className="mb-3">
                   <label className="form-label">League Type</label>
-                  <select
-                    className="form-select"
-                    value={formState.type}
-                    onChange={(e) => handleTypeChange(e.target.value as LeagueType)}
-                  >
-                    <option value="season-long">Full Season</option>
-                    <option value="single-tournament">Single Tournament</option>
-                  </select>
-                  <small className="text-muted">
-                    {formState.type === 'season-long' 
-                      ? 'Compete over the entire TFT set. Carefully manage your lineup, make trades, and pick up free agents to try and come out on top at the end!'
-                      : 'Draft a team and score based on just the results of the upcoming tournament. No long term commitment!'}
-                  </small>
+                  {isRegionalsPhase(currentCup) ? (
+                    <>
+                      <input 
+                        type="text" 
+                        className="form-control" 
+                        value="Regionals League" 
+                        disabled 
+                      />
+                      <small className="text-muted">
+                        During Regionals (Americas Golden Spatula), only Regionals leagues can be created. 
+                        These leagues are restricted to players who have qualified for Regionals.
+                      </small>
+                    </>
+                  ) : (
+                    <>
+                      <select
+                        className="form-select"
+                        value={formState.type}
+                        onChange={(e) => handleTypeChange(e.target.value as LeagueType)}
+                      >
+                        <option value="season-long">Full Season</option>
+                        <option value="single-tournament">Single Tournament</option>
+                      </select>
+                      <small className="text-muted">
+                        {formState.type === 'season-long' 
+                          ? 'Compete over the entire TFT set. Carefully manage your lineup, make trades, and pick up free agents to try and come out on top at the end!'
+                          : 'Draft a team and score based on just the results of the upcoming tournament. No long term commitment!'}
+                      </small>
+                    </>
+                  )}
                 </div>
 
                 <div className="mb-3">
@@ -620,7 +688,7 @@ const CreateLeagueDialog: React.FC<{
                     </div>
                     <small className="text-muted">
                       Bench slots allow you to store players for the future, but they do not score any points.
-                      Not recommended for Single Tournament Leagues.
+                      Not recommended for Single Tournament or Regionals Leagues.
                     </small>
                   </div>
 

@@ -15,6 +15,9 @@ interface PlayoffsTabProps {
   teams: Record<string, Team>;
 }
 
+// Add type for cup keys
+type CupKey = 'cup1' | 'cup2' | 'cup3';
+
 const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
   league,
   players,
@@ -31,32 +34,39 @@ const PlayoffsTab: React.FC<PlayoffsTabProps> = ({
 
   const regionalsStarted = league.settings.currentCup === 4 && league.settings.playoffs;
 
+  // Update the calculateTeamCupScore function
+  const calculateTeamCupScore = (team: Team, cupNumber: number): number => {
+    const cupKey = `cup${cupNumber}` as CupKey;
+    const lineup = team.cupLineups[cupKey];
+    let cupTotal = 0;
+
+    if (!lineup) return 0;
+
+    // Calculate captain scores (1.5x multiplier)
+    lineup.captains.forEach((playerId) => {
+      if (playerId && players[playerId]) {
+        const baseScore = players[playerId].scores[cupKey] ?? 0;
+        cupTotal += baseScore * 1.5;
+      }
+    });
+
+    // Calculate other slot scores
+    [...lineup.naSlots, ...lineup.brLatamSlots, ...lineup.flexSlots].forEach(
+      (playerId) => {
+        if (playerId && players[playerId]) {
+          cupTotal += players[playerId].scores[cupKey] ?? 0;
+        }
+      }
+    );
+
+    return cupTotal;
+  };
+
   // Function to calculate team's total score (copied from StandingsTab)
   const calculateTeamTotal = (team: Team): number => {
     return [1, 2, 3].reduce(
       (total, cupNumber) => {
-        const cupKey = `cup${cupNumber}` as keyof typeof team.cupLineups;
-        const lineup = team.cupLineups[cupKey];
-        if (!lineup) return total;
-
-        let cupTotal = 0;
-        // Calculate captain scores
-        lineup.captains.forEach((playerId) => {
-          if (playerId && players[playerId]) {
-            const baseScore = players[playerId].scores[cupKey] ?? 0;
-            cupTotal += baseScore * 1.5;
-          }
-        });
-
-        // Calculate other slots
-        [...lineup.naSlots, ...lineup.brLatamSlots, ...lineup.flexSlots].forEach(
-          (playerId) => {
-            if (playerId && players[playerId]) {
-              cupTotal += players[playerId].scores[cupKey] ?? 0;
-            }
-          }
-        );
-
+        const cupTotal = calculateTeamCupScore(team, cupNumber);
         return total + cupTotal;
       },
       0

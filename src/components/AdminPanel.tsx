@@ -18,7 +18,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
     brLatamSlots: 1,
     flexSlots: 3
   });
-  const [isAdminOnly, setIsAdminOnly] = useState(false);
+  const [challengeType, setChallengeType] = useState<'regular' | 'regionals'>('regular');
 
   const updateSlotCount = (
     slotType: keyof typeof rosterSettings,
@@ -39,7 +39,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
     const name = formData.get('name') as string;
     const season = formData.get('season') as string;
     const set = parseInt(formData.get('set') as string);
-    const currentCup = formData.get('currentCup') as string;
+    const currentCup = challengeType === 'regular' ? formData.get('currentCup') as string : 'regionals';
     const rosterLockLocal = formData.get('rosterLock') as string;
 
     try {
@@ -57,7 +57,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
         status: 'active',
         settings: rosterSettings,
         entries: {},
-        adminOnly: isAdminOnly
+        type: challengeType,
       };
 
       await setDoc(doc(db, 'perfectRosterChallenges', challenge.id), challenge);
@@ -146,15 +146,29 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
               defaultValue="13"
             />
           </div>
+          {challengeType === 'regular' && (
+            <div className="mb-3">
+              <label className="form-label">Current Cup</label>
+              <input
+                type="text"
+                name="currentCup"
+                className="form-control"
+                required={challengeType === 'regular'}
+                placeholder="e.g., cup1"
+              />
+            </div>
+          )}
+
           <div className="mb-3">
-            <label className="form-label">Current Cup</label>
-            <input
-              type="text"
-              name="currentCup"
-              className="form-control"
-              required
-              placeholder="e.g., cup1"
-            />
+            <label className="form-label">Challenge Type</label>
+            <select 
+              className="form-select"
+              value={challengeType}
+              onChange={(e) => setChallengeType(e.target.value as 'regular' | 'regionals')}
+            >
+              <option value="regular">Regular Challenge</option>
+              <option value="regionals">Regionals Challenge</option>
+            </select>
           </div>
 
           <div className="card mb-3">
@@ -180,22 +194,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
             />
             <small className="text-muted">
               All times are in Pacific Time (PT)
-            </small>
-          </div>
-
-          <div className="form-check mb-3">
-            <input
-              type="checkbox"
-              className="form-check-input"
-              id="adminOnly"
-              checked={isAdminOnly}
-              onChange={(e) => setIsAdminOnly(e.target.checked)}
-            />
-            <label className="form-check-label" htmlFor="adminOnly">
-              Admin Only Challenge
-            </label>
-            <small className="form-text text-muted d-block">
-              Only admin users will be able to see this challenge
             </small>
           </div>
 

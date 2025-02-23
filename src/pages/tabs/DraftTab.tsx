@@ -4,7 +4,7 @@ import { doc, updateDoc, writeBatch, onSnapshot, getDoc } from 'firebase/firesto
 import { db } from '../../firebase/config';
 import { useAuth } from '../../firebase/auth';
 import InviteDialog from '../../components/dialogs/InviteDialog';
-import { getLeagueType } from '../../types';
+import { getLeagueType, getAvailablePlayers } from '../../types';
 import TeamDisplay from '../../components/TeamDisplay';
 
 interface DraftTabProps {
@@ -75,7 +75,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
     return () => unsubscribe();
   }, [league.id, teams]);
 
-  // Filter players to only show current set players
+  // Filter players to only show current set players and regionals players if applicable
   const currentSetPlayers = Object.values(players)
     .filter(player => {
       // Extract set number from "Set 13" -> 13
@@ -86,6 +86,9 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
       acc[player.id] = player;
       return acc;
     }, {} as Record<string, Player>);
+
+  // Further filter for regionals if needed
+  const availablePlayers = getAvailablePlayers(currentSetPlayers, getLeagueType(league));
 
   const isCommissioner = user?.uid === league.commissioner;
 
@@ -139,7 +142,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                               className={`card h-100 ${
                                 player.region === 'NA' ? 'bg-primary bg-opacity-10' :
                                 player.region === 'BR' ? 'bg-success bg-opacity-10' :
-                                ['LATAM'].includes(player.region) ? 'bg-warning bg-opacity-10' :
+                                ['LATAM', 'LAS', 'LAN'].includes(player.region) ? 'bg-warning bg-opacity-10' :
                                 ''
                               }`}
                             >
@@ -344,6 +347,12 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Add helper function to get qualifier points (sum of all cup scores)
+  const getQualifierPoints = (player: Player): number => {
+    if (!player.scores) return 0;
+    return player.scores.cup1 + player.scores.cup2 + player.scores.cup3;
   };
 
   if (!league.settings.draftStarted) {
@@ -639,47 +648,72 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
       {/* Available Players Section - Full Width */}
       {league.settings.draftStarted && (
         <div className="card mb-4">
-          <div className="card-header d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">Available Players</h5>
-            <div className="input-group" style={{ maxWidth: '200px' }}>
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                placeholder="Search players..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+          <div className="card-header">
+            <div className="d-flex justify-content-between align-items-center">
+              <div>
+                <h5 className="mb-0">Available Players</h5>
+                <small className={`d-block mt-1 ${isUsersTurn ? 'text-success fw-bold' : 'text-muted'}`}>
+                  {isUsersTurn 
+                    ? "Your Turn to Pick! Select a player then click the Draft button." 
+                    : league.currentPick !== undefined && league.currentRound !== undefined
+                      ? `Currently Picking: ${teams[draftOrder[league.currentPick]]?.teamName || 'Loading...'}`
+                      : 'Draft not started'
+                  }
+                </small>
+              </div>
+              <div className="input-group" style={{ maxWidth: '200px' }}>
+                <input
+                  type="text"
+                  className="form-control form-control-sm"
+                  placeholder="Search players..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
           </div>
           <div className="card-body p-0" style={{ maxHeight: '300px', overflowY: 'auto' }}>
             <div className="list-group list-group-flush">
-              {Object.values(currentSetPlayers)
+              {Object.values(availablePlayers)
                 .filter(player => 
                   !league.picks?.some((pick: DraftPick) => pick.playerId === player.id) &&
                   (searchTerm === '' || 
-                   player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                   player.region.toLowerCase().includes(searchTerm.toLowerCase()))
+                   (String(player.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    String(player.region || '').toLowerCase().includes(searchTerm.toLowerCase())))
                 )
-                .sort((a, b) => a.name.localeCompare(b.name))
+                .sort((a, b) => {
+                  if (getLeagueType(league) === 'regionals') {
+                    // Sort by qualifier points descending for regionals leagues
+                    return getQualifierPoints(b) - getQualifierPoints(a);
+                  }
+                  // Default alphabetical sort for other leagues
+                  const nameA = String(a.name || '');
+                  const nameB = String(b.name || '');
+                  return nameA.localeCompare(nameB);
+                })
                 .map(player => (
-                  <button
+                  <div
                     key={player.id}
-                    className={`list-group-item list-group-item-action ${
+                    className={`list-group-item ${
                       selectedPlayer === player.id ? 'active text-body' : ''
                     } ${
                       player.region === 'NA' ? 'bg-primary bg-opacity-10' :
                       player.region === 'BR' ? 'bg-success bg-opacity-10' :
-                      ['LATAM'].includes(player.region) ? 'bg-warning bg-opacity-10' :
+                      ['LATAM', 'LAS', 'LAN'].includes(player.region) ? 'bg-warning bg-opacity-10' :
                       ''
-                    }`}
+                    } ${isUsersTurn ? 'cursor-pointer' : ''}`}
                     onClick={() => isUsersTurn ? setSelectedPlayer(player.id) : null}
-                    disabled={!isUsersTurn}
+                    role="button"
+                    style={{ cursor: isUsersTurn ? 'pointer' : 'default' }}
                   >
                     <div className="d-flex justify-content-between align-items-center">
                       <div>
                         <span>{player.name}</span>
                         <small className="text-muted">
                           {" "}({player.region})
+                          {getLeagueType(league) === 'regionals' && 
+                            ` - ${getQualifierPoints(player)} QP`
+                          }
                         </small>
                       </div>
                       {selectedPlayer === player.id && isUsersTurn && (
@@ -694,7 +728,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                         </button>
                       )}
                     </div>
-                  </button>
+                  </div>
                 ))}
             </div>
           </div>
@@ -741,7 +775,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                           className={`card h-100 ${
                             player.region === 'NA' ? 'bg-primary bg-opacity-10' :
                             player.region === 'BR' ? 'bg-success bg-opacity-10' :
-                            ['LATAM'].includes(player.region) ? 'bg-warning bg-opacity-10' :
+                            ['LATAM', 'LAS', 'LAN'].includes(player.region) ? 'bg-warning bg-opacity-10' :
                             ''
                           }`}
                         >

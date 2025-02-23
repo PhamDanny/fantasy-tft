@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import type { Player, PerfectRosterLineup, PlayerScores } from '../types';
+import type { Player, PerfectRosterLineup, PlayerScores, PerfectRosterChallenge } from '../types';
+import { PLAYOFF_SCORES } from '../types';  // Import as value, not type
 import { Search } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { DndProvider, useDrag, useDrop, useDragLayer } from 'react-dnd';
@@ -11,9 +12,10 @@ interface LineupEditorProps {
   onSave: (lineup: PerfectRosterLineup) => Promise<void>;
   isLocked: boolean;
   set: number;
-  currentCup: keyof PlayerScores;
+  currentCup: keyof PlayerScores | 'regionals';  // Allow 'regionals' as a value
   entries: Record<string, PerfectRosterLineup>;
   currentUser: { uid: string };
+  challenge: PerfectRosterChallenge;
 }
 
 interface DragItem {
@@ -111,7 +113,7 @@ const DragPreview: React.FC<{ player: Player; isDarkMode: boolean }> = ({ player
     >
       <div className="w-100">
         <div className="d-flex justify-content-between align-items-center">
-          <div className="fw-bold">{player.fullName}</div>
+          <div className="fw-bold">{player.name}</div>
           <small className="text-muted">
             {Object.entries(player.scores || {})
               .filter(([cup]) => cup.startsWith('cup'))
@@ -181,7 +183,7 @@ const DraggablePlayer: React.FC<{
       <div className="w-100">
         <div className="d-flex justify-content-between align-items-center">
           <div className="fw-bold">
-            {player.fullName}
+            {player.name}
             {isUsed && (
               <span className="badge bg-secondary ms-2">In Lineup</span>
             )}
@@ -255,7 +257,7 @@ const PlacedPlayer: React.FC<{
           className="text-decoration-none"
           onClick={(e) => e.stopPropagation()}
         >
-          {player.fullName}
+          {player.name}
         </a>
         <span className="text-muted ms-2">({player.region})</span>
       </div>
@@ -278,6 +280,34 @@ const PlacedPlayer: React.FC<{
   );
 };
 
+// Add formatRank function
+const formatRank = (rank: number): string => {
+  const lastDigit = rank % 10;
+  const lastTwoDigits = rank % 100;
+
+  // Special case for 11th, 12th, 13th
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
+    return `${rank}th`;
+  }
+
+  // For other numbers, check the last digit
+  switch (lastDigit) {
+    case 1:
+      return `${rank}st`;
+    case 2:
+      return `${rank}nd`;
+    case 3:
+      return `${rank}rd`;
+    default:
+      return `${rank}th`;
+  }
+};
+
+const getPlayerTotalQP = (player: Player): number => {
+  if (!player.scores) return 0;
+  return Object.values(player.scores).reduce((total, score) => total + score, 0);
+};
+
 const LineupEditor: React.FC<LineupEditorProps> = ({
   players,
   lineup,
@@ -286,7 +316,8 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
   set,
   currentCup,
   entries,
-  currentUser
+  currentUser,
+  challenge
 }) => {
   const { isDarkMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
@@ -302,37 +333,52 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
     ].filter(Boolean);
   }, [lineup]);
 
-  const getPlayerTotalQP = (player: Player): number => {
-    if (!player.scores) return 0;
-    return Object.values(player.scores).reduce((total, score) => total + score, 0);
-  };
-
   const filteredPlayers = useMemo(() => {
     const searchLower = searchQuery.toLowerCase();
     
     return Object.entries(players)
       .filter(([_, player]) => {
-        if (!player || !player.fullName || !player.region) return false;
-        return (
-          player.set === set &&
-          (player.fullName.toLowerCase().includes(searchLower) ||
-          player.region.toLowerCase().includes(searchLower))
-        );
+        // Make sure player exists and has required fields
+        if (!player || typeof player.name !== 'string' || !player.region) return false;
+        
+        // For regionals challenges, only show qualified players
+        if (challenge.type === 'regionals') {
+          return player.set === set && 
+                 player.regionals?.qualified === true &&
+                 (player.name.toLowerCase().includes(searchLower) ||
+                  player.region.toLowerCase().includes(searchLower));
+        }
+        
+        // For regular challenges
+        return player.set === set &&
+               (player.name.toLowerCase().includes(searchLower) ||
+                player.region.toLowerCase().includes(searchLower));
       })
       .sort((a, b) => {
         const [, playerA] = a;
         const [, playerB] = b;
         
-        const qpA = playerA?.scores ? getPlayerTotalQP(playerA) : 0;
-        const qpB = playerB?.scores ? getPlayerTotalQP(playerB) : 0;
-
+        // Always sort by QP first
+        const qpA = getPlayerTotalQP(playerA);
+        const qpB = getPlayerTotalQP(playerB);
+        
         if (qpA !== qpB) {
           return qpB - qpA;
         }
         
-        return playerA.fullName.localeCompare(playerB.fullName);
+        // For regionals challenges, use placement as secondary sort
+        if (challenge.type === 'regionals') {
+          const placementA = playerA.regionals?.placement || 999;
+          const placementB = playerB.regionals?.placement || 999;
+          if (placementA !== placementB) {
+            return placementA - placementB;
+          }
+        }
+        
+        // Finally sort by name
+        return playerA.name.localeCompare(playerB.name);
       });
-  }, [players, set, searchQuery]);
+  }, [players, set, searchQuery, challenge.type]);
 
   const handleSlotClick = async (
     slotType: 'captains' | 'naSlots' | 'brLatamSlots' | 'flexSlots',
@@ -436,13 +482,13 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
 
       // Check if the dragged player can go in the target slot
       if (!isValidMove(player, slotType)) {
-        setError(`${player.fullName} cannot be placed in ${slotType}`);
+        setError(`${player.name} cannot be placed in ${slotType}`);
         return;
       }
 
       // If there's an existing player, check if they can go in the source slot
       if (existingPlayer && sourceSlotType && !isValidMove(existingPlayer, sourceSlotType)) {
-        setError(`${existingPlayer.fullName} cannot be placed in ${sourceSlotType}`);
+        setError(`${existingPlayer.name} cannot be placed in ${sourceSlotType}`);
         return;
       }
 
@@ -469,7 +515,19 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
     const slots = lineup[slotType] as string[];
     const playerId = slots[index];
     const player = playerId ? players[playerId] : null;
-    const score = player?.scores?.[currentCup] || 0;
+    
+    let score = 0;
+    if (player) {
+      if (challenge.type === 'regionals') {
+        const placement = player.regionals?.placement;
+        if (placement && placement in PLAYOFF_SCORES) {
+          score = PLAYOFF_SCORES[placement];
+        }
+      } else {
+        score = player.scores?.[currentCup as keyof PlayerScores] || 0;
+      }
+    }
+    
     const finalScore = slotType === 'captains' ? score * 1.5 : score;
 
     return (
@@ -502,25 +560,131 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
 
   const calculateTotalScore = () => {
     if (!lineup) return 0;
+
+    if (challenge.type === 'regionals') {
+      // For regionals, calculate based on placements
+      return [
+        ...(lineup.captains || []).map(id => {
+          const player = players[id];
+          const placement = player?.regionals?.placement;
+          if (placement && placement in PLAYOFF_SCORES) {
+            return PLAYOFF_SCORES[placement] * 1.5; // Captain multiplier
+          }
+          return 0;
+        }),
+        ...(lineup.naSlots || []).map(id => {
+          const player = players[id];
+          const placement = player?.regionals?.placement;
+          return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] : 0;
+        }),
+        ...(lineup.brLatamSlots || []).map(id => {
+          const player = players[id];
+          const placement = player?.regionals?.placement;
+          return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] : 0;
+        }),
+        ...(lineup.flexSlots || []).map(id => {
+          const player = players[id];
+          const placement = player?.regionals?.placement;
+          return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] : 0;
+        })
+      ].reduce((a, b) => a + b, 0);
+    }
+
+    // Regular challenge scoring using cup scores
     return [
-      ...(lineup.captains?.map(id => (id && players[id]?.scores?.[currentCup] || 0) * 1.5) || []),
-      ...(lineup.naSlots?.map(id => id && players[id]?.scores?.[currentCup] || 0) || []),
-      ...(lineup.brLatamSlots?.map(id => id && players[id]?.scores?.[currentCup] || 0) || []),
-      ...(lineup.flexSlots?.map(id => id && players[id]?.scores?.[currentCup] || 0) || [])
+      ...(lineup.captains || []).map(id => {
+        const player = players[id];
+        if (!player) return 0;
+        
+        if (challenge.type === 'regionals') {
+          const placement = player.regionals?.placement;
+          return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] * 1.5 : 0;
+        }
+        return (player.scores?.[currentCup as keyof PlayerScores] || 0) * 1.5;
+      }),
+      ...(lineup.naSlots || []).map(id => {
+        const player = players[id];
+        if (!player) return 0;
+        
+        if (challenge.type === 'regionals') {
+          const placement = player.regionals?.placement;
+          return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] : 0;
+        }
+        return player.scores?.[currentCup as keyof PlayerScores] || 0;
+      }),
+      ...(lineup.brLatamSlots || []).map(id => {
+        const player = players[id];
+        if (!player) return 0;
+        
+        if (challenge.type === 'regionals') {
+          const placement = player.regionals?.placement;
+          return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] : 0;
+        }
+        return player.scores?.[currentCup as keyof PlayerScores] || 0;
+      }),
+      ...(lineup.flexSlots || []).map(id => {
+        const player = players[id];
+        if (!player) return 0;
+        
+        if (challenge.type === 'regionals') {
+          const placement = player.regionals?.placement;
+          return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] : 0;
+        }
+        return player.scores?.[currentCup as keyof PlayerScores] || 0;
+      })
     ].reduce((a, b) => a + b, 0);
   };
 
   const calculateRank = () => {
-    // First, calculate all scores and sort them
+    // Calculate scores for all entries
     const entriesWithScores = Object.values(entries)
       .map(entry => ({
         ...entry,
-        totalScore: [
-          ...entry.captains.map(id => (id && players[id]?.scores?.[currentCup] || 0) * 1.5),
-          ...entry.naSlots.map(id => id && players[id]?.scores?.[currentCup] || 0),
-          ...entry.brLatamSlots.map(id => id && players[id]?.scores?.[currentCup] || 0),
-          ...entry.flexSlots.map(id => id && players[id]?.scores?.[currentCup] || 0)
-        ].reduce((a, b) => a + b, 0)
+        totalScore: challenge.type === 'regionals' 
+          ? [
+              ...entry.captains.map(id => {
+                const player = players[id];
+                const placement = player?.regionals?.placement;
+                return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] * 1.5 : 0;
+              }),
+              ...entry.naSlots.map(id => {
+                const player = players[id];
+                const placement = player?.regionals?.placement;
+                return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] : 0;
+              }),
+              ...entry.brLatamSlots.map(id => {
+                const player = players[id];
+                const placement = player?.regionals?.placement;
+                return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] : 0;
+              }),
+              ...entry.flexSlots.map(id => {
+                const player = players[id];
+                const placement = player?.regionals?.placement;
+                return placement && placement in PLAYOFF_SCORES ? PLAYOFF_SCORES[placement] : 0;
+              })
+            ].reduce((a, b) => a + b, 0)
+          : [
+              ...entry.captains.map(id => {
+                const player = players[id];
+                if (!player) return 0;
+                return (player.scores?.[currentCup as keyof PlayerScores] || 0) * 1.5;
+              }),
+              ...entry.naSlots.map(id => {
+                const player = players[id];
+                if (!player) return 0;
+                return player.scores?.[currentCup as keyof PlayerScores] || 0;
+              }),
+              ...entry.brLatamSlots.map(id => {
+                const player = players[id];
+                if (!player) return 0;
+                return player.scores?.[currentCup as keyof PlayerScores] || 0;
+              }),
+              ...entry.flexSlots.map(id => {
+                const player = players[id];
+                if (!player) return 0;
+                return player.scores?.[currentCup as keyof PlayerScores] || 0;
+              })
+            ].reduce((a, b) => a + b, 0)
       }))
       .sort((a, b) => b.totalScore - a.totalScore);
 
@@ -549,6 +713,43 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
 
     return `${userRank} of ${entriesWithScores.length}`;
   };
+
+  const RegionalsScoringTable = () => (
+    <div className="card mb-4">
+      <div className="card-header">
+        <h5 className="mb-0">Regionals Scoring System</h5>
+      </div>
+      <div className="card-body">
+        <div className="row">
+          {[0, 1, 2, 3].map(columnIndex => (
+            <div key={columnIndex} className="col-md-3">
+              <div className="table-responsive">
+                <table className="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Place</th>
+                      <th className="text-end">Pts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: 8 }, (_, i) => i + 1 + (columnIndex * 8)).map(placement => (
+                      <tr key={placement}>
+                        <td>{formatRank(placement)}</td>
+                        <td className="text-end">{PLAYOFF_SCORES[placement]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="text-muted small mt-2">
+          Note: Captain slots receive 1.5x points
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -582,52 +783,65 @@ const LineupEditor: React.FC<LineupEditorProps> = ({
                 </div>
               ) : (
                 <div className="alert alert-warning mb-3">
-                  <strong>How to Play:</strong> Drag and drop players from the player list into appropriate lineup slots.
-                  Scoring is based on Qualification Points (QP) earned from the event, not game-to-game placements. 
-                  Select players playing in Tactician's Trials at your own risk!
+                  <strong>How to Play:</strong> {
+                    challenge.type === 'regionals' 
+                      ? "Drag and drop players from the player list into appropriate lineup slots. Scoring is based on overall placement in the event, not game-to-game placements. See below for scoring details."
+                      : "Drag and drop players from the player list into appropriate lineup slots. Scoring is based on Qualification Points (QP) earned from the event, not game-to-game placements. Select players playing in Tactician's Trials at your own risk!"
+                  }
                 </div>
               )}
               
-              <div className="mb-4">
-                <h6>
-                  {lineup.captains?.length === 1 ? 'Captain' : 'Captains'} <span className="badge bg-warning text-dark">1.5x Points</span>
-                </h6>
-                {lineup.captains?.map((_, idx) => (
-                  <div key={`captain-${idx}`}>
-                    {renderSlot('captains', idx)}
-                  </div>
-                ))}
-              </div>
+              {(lineup.captains?.length || 0) > 0 && (
+                <div className="mb-4">
+                  <h6>
+                    {lineup.captains?.length === 1 ? 'Captain' : 'Captains'} <span className="badge bg-warning text-dark">1.5x Points</span>
+                  </h6>
+                  {lineup.captains?.map((_, idx) => (
+                    <div key={`captain-${idx}`}>
+                      {renderSlot('captains', idx)}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              <div className="mb-4">
-                <h6>{lineup.naSlots?.length === 1 ? 'NA Player' : 'NA Players'}</h6>
-                {lineup.naSlots?.map((_, idx) => (
-                  <div key={`na-${idx}`}>
-                    {renderSlot('naSlots', idx)}
-                  </div>
-                ))}
-              </div>
+              {(lineup.naSlots?.length || 0) > 0 && (
+                <div className="mb-4">
+                  <h6>{lineup.naSlots?.length === 1 ? 'NA Player' : 'NA Players'}</h6>
+                  {lineup.naSlots?.map((_, idx) => (
+                    <div key={`na-${idx}`}>
+                      {renderSlot('naSlots', idx)}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              <div className="mb-4">
-                <h6>{lineup.brLatamSlots?.length === 1 ? 'BR/LATAM Player' : 'BR/LATAM Players'}</h6>
-                {lineup.brLatamSlots?.map((_, idx) => (
-                  <div key={`br-${idx}`}>
-                    {renderSlot('brLatamSlots', idx)}
-                  </div>
-                ))}
-              </div>
+              {(lineup.brLatamSlots?.length || 0) > 0 && (
+                <div className="mb-4">
+                  <h6>{lineup.brLatamSlots?.length === 1 ? 'BR/LATAM Player' : 'BR/LATAM Players'}</h6>
+                  {lineup.brLatamSlots?.map((_, idx) => (
+                    <div key={`br-${idx}`}>
+                      {renderSlot('brLatamSlots', idx)}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              <div className="mb-4">
-                <h6>{lineup.flexSlots?.length === 1 ? 'Flex Player' : 'Flex Players'}</h6>
-                <small className="text-muted d-block mb-2">Can be filled by players from any region</small>
-                {lineup.flexSlots?.map((_, idx) => (
-                  <div key={`flex-${idx}`}>
-                    {renderSlot('flexSlots', idx)}
-                  </div>
-                ))}
-              </div>
+              {(lineup.flexSlots?.length || 0) > 0 && (
+                <div className="mb-4">
+                  <h6>{lineup.flexSlots?.length === 1 ? 'Flex Player' : 'Flex Players'}</h6>
+                  <small className="text-muted d-block mb-2">Can be filled by players from any region</small>
+                  {lineup.flexSlots?.map((_, idx) => (
+                    <div key={`flex-${idx}`}>
+                      {renderSlot('flexSlots', idx)}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
+          
+          {/* Move RegionalsScoringTable here */}
+          {challenge.type === 'regionals' && <RegionalsScoringTable />}
         </div>
 
         <div className="col-md-4">

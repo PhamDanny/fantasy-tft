@@ -76,7 +76,6 @@ const ConvertDraftToLeagueDialog: React.FC<ConvertDraftToLeagueDialogProps> = ({
           currentCup: currentCup,
         },
         commissioner: draft.commissioner,
-        teams: draft.teams,
         transactions: [],
         draftId: draft.id,
         // Handle both old and new draft formats

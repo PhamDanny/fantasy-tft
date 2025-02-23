@@ -467,18 +467,73 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                         </div>
 
                         {settings.playoffs && (
-                          <div className="mb-3">
-                            <label className="form-label">Number of Playoff Teams</label>
-                            <input
-                              type="number"
-                              className="form-control"
-                              value={settings.playoffTeams}
-                              onChange={(e) => handleSettingChange(e, "playoffTeams")}
-                              min="2"
-                              max={settings.teamsLimit}
-                              disabled={loading}
-                            />
-                          </div>
+                          <>
+                            <div className="mb-3">
+                              <label className="form-label">Number of Playoff Teams</label>
+                              <input
+                                type="number"
+                                className="form-control"
+                                value={settings.playoffTeams}
+                                onChange={(e) => handleSettingChange(e, "playoffTeams")}
+                                min="2"
+                                max={settings.teamsLimit}
+                                disabled={loading}
+                              />
+                            </div>
+
+                            {/* Add playoff roster slot settings */}
+                            <h6 className="mt-4 mb-3">Playoff Roster Slots</h6>
+                            <div className="row">
+                              <div className="col-md-6">
+                                <div className="mb-3">
+                                  <label className="form-label">Captain Slots</label>
+                                  <input
+                                    type="number"
+                                    className="form-control"
+                                    value={settings.playoffSettings?.captainSlots ?? 1}
+                                    onChange={(e) => handleSettingChange(e, "playoffSettings.captainSlots")}
+                                    min="0"
+                                    disabled={loading}
+                                  />
+                                </div>
+                                <div className="mb-3">
+                                  <label className="form-label">NA Slots</label>
+                                  <input
+                                    type="number"
+                                    className="form-control"
+                                    value={settings.playoffSettings?.naSlots ?? 1}
+                                    onChange={(e) => handleSettingChange(e, "playoffSettings.naSlots")}
+                                    min="0"
+                                    disabled={loading}
+                                  />
+                                </div>
+                              </div>
+                              <div className="col-md-6">
+                                <div className="mb-3">
+                                  <label className="form-label">BR/LATAM Slots</label>
+                                  <input
+                                    type="number"
+                                    className="form-control"
+                                    value={settings.playoffSettings?.brLatamSlots ?? 1}
+                                    onChange={(e) => handleSettingChange(e, "playoffSettings.brLatamSlots")}
+                                    min="0"
+                                    disabled={loading}
+                                  />
+                                </div>
+                                <div className="mb-3">
+                                  <label className="form-label">Flex Slots</label>
+                                  <input
+                                    type="number"
+                                    className="form-control"
+                                    value={settings.playoffSettings?.flexSlots ?? 3}
+                                    onChange={(e) => handleSettingChange(e, "playoffSettings.flexSlots")}
+                                    min="0"
+                                    disabled={loading}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </>
                         )}
                       </div>
                     </div>
@@ -630,6 +685,7 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
           league={league}
           leagueId={leagueId}
           teamId={selectedTeamId}
+          team={teams[selectedTeamId]}
           onClose={() => setSelectedTeamId(null)}
         />
       )}

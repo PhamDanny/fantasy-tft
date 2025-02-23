@@ -17,20 +17,21 @@ import PlayoffsTab from "./tabs/PlayoffsTab";
 import { TABS } from '../types'; 
 import { getLeagueType } from "../types";
 
-function hasLeagueAccess(league: League, userId: string, isAdmin: boolean) {
+function hasTeam(league: League, userId: string, teamsData: Record<string, Team>, isAdmin: boolean): boolean {
+  // Admins can access any league
   if (isAdmin) return true;
-  
+
   // Check if user is commissioner
   if (league.commissioner === userId) return true;
   
-  // Check if user has a team (either as owner or co-owner)
-  return Object.values(league.teams).some(team => 
+  // Check if user has a team in the teams subcollection
+  return Object.values(teamsData).some((team: Team) => 
     team.ownerID === userId || team.coOwners?.includes(userId)
   );
 }
 
 const getAvailableTabs = (league: League, isCommissioner: boolean): Record<string, boolean> => {
-  const { phase } = league;
+  const { phase, settings } = league;
 
   // Base tabs that are always false unless set to true
   const baseTabs = {
@@ -47,13 +48,13 @@ const getAvailableTabs = (league: League, isCommissioner: boolean): Record<strin
   switch (phase) {
     case 'drafting':
       // If draft is completed but still in drafting phase, show all in_season tabs
-      if (league.settings.draftStarted) {
+      if (settings.draftStarted) {
         return {
           ...baseTabs,
           STANDINGS: true,
           TEAM: true,
-          PLAYERS: true,
-          TRADE: getLeagueType(league) === "season-long",
+          PLAYERS: settings.waiversEnabled === true,
+          TRADE: settings.tradingEnabled === true && getLeagueType(league) === "season-long",
           TRANSACTIONS: true,
           SETTINGS: isCommissioner,
           DRAFT: true,
@@ -71,11 +72,11 @@ const getAvailableTabs = (league: League, isCommissioner: boolean): Record<strin
         ...baseTabs,
         STANDINGS: true,
         TEAM: true,
-        PLAYERS: true,
-        TRADE: getLeagueType(league) === "season-long",
+        PLAYERS: settings.waiversEnabled === true,
+        TRADE: settings.tradingEnabled === true && getLeagueType(league) === "season-long",
         TRANSACTIONS: true,
         SETTINGS: isCommissioner,
-        PLAYOFFS: true,
+        PLAYOFFS: settings.playoffs === true,
         DRAFT: true,
       };
     
@@ -84,7 +85,7 @@ const getAvailableTabs = (league: League, isCommissioner: boolean): Record<strin
         ...baseTabs,
         STANDINGS: true,
         TEAM: true,
-        PLAYOFFS: true,
+        PLAYOFFS: settings.playoffs === true,
         TRANSACTIONS: true,
         SETTINGS: isCommissioner,
         DRAFT: true,
@@ -95,7 +96,7 @@ const getAvailableTabs = (league: League, isCommissioner: boolean): Record<strin
         ...baseTabs,
         STANDINGS: true,
         TEAM: true,
-        PLAYOFFS: true,
+        PLAYOFFS: settings.playoffs === true,
         TRANSACTIONS: true,
         DRAFT: true,
       };
@@ -221,7 +222,7 @@ export const LeagueView: React.FC = () => {
   if (!user) return <div className="p-4">Please log in to view league details</div>;
 
   // Check access after loading
-  if (!hasLeagueAccess(league, user.uid, isAdmin)) {
+  if (!hasTeam(league, user.uid, teams, isAdmin)) {
     return (
       <div className="container mt-4">
         <div className="alert alert-danger">

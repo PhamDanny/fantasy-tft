@@ -1,21 +1,24 @@
 import React, { useState } from 'react';
-import type { PerfectRosterLineup, Player } from '../types';
+import type { PerfectRosterLineup, Player, PerfectRosterChallenge } from '../types';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Timestamp } from 'firebase/firestore';
+import { PLAYOFF_SCORES } from '../types';
 
 interface ChallengeLeaderboardProps {
   entries: Record<string, PerfectRosterLineup>;
   players: Record<string, Player>;
   currentCup: string;
   endDate: Timestamp;
+  challenge: PerfectRosterChallenge;
 }
 
 const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
   entries,
   players,
   currentCup,
-  endDate
+  endDate,
+  challenge
 }) => {
   const { isDarkMode } = useTheme();
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
@@ -23,7 +26,18 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
   // Calculate scores for entries
   const calculatePlayerScore = (playerId: string, isCapt: boolean): number => {
     const player = players[playerId];
-    if (!player || !player.scores || !(currentCup in player.scores)) return 0;
+    if (!player) return 0;
+
+    if (challenge.type === 'regionals') {
+      const placement = player.regionals?.placement;
+      if (placement && placement in PLAYOFF_SCORES) {
+        return PLAYOFF_SCORES[placement] * (isCapt ? 1.5 : 1);
+      }
+      return 0;
+    }
+
+    // Regular cup scoring
+    if (!player.scores || !(currentCup in player.scores)) return 0;
     return player.scores[currentCup as keyof typeof player.scores] * (isCapt ? 1.5 : 1);
   };
 

@@ -1,26 +1,55 @@
 import React from 'react';
 import type { Player, PerfectRosterChallenge, PlayerScores } from '../types';
 import { Trophy } from 'lucide-react';
+import { PLAYOFF_SCORES } from '../types';
 
 interface PerfectLineupProps {
   players: Record<string, Player>;
   currentCup: keyof PlayerScores;
   settings: PerfectRosterChallenge['settings'];
   isComplete: boolean;
+  challenge: PerfectRosterChallenge;
 }
 
 const PerfectLineup: React.FC<PerfectLineupProps> = ({
   players,
   currentCup,
   settings,
-  isComplete
+  isComplete,
+  challenge
 }) => {
+  const calculatePlayerScore = (player: Player, isCapt: boolean): number => {
+    if (challenge.type === 'regionals') {
+      const placement = player.regionals?.placement;
+      if (placement && placement in PLAYOFF_SCORES) {
+        return PLAYOFF_SCORES[placement] * (isCapt ? 1.5 : 1);
+      }
+      return 0;
+    }
+
+    if (!player.scores || !(currentCup in player.scores)) return 0;
+    return player.scores[currentCup as keyof typeof player.scores] * (isCapt ? 1.5 : 1);
+  };
+
+  // For regionals, check if any player has placement "1"
+  const hasWinner = challenge.type === 'regionals' 
+    ? Object.values(players).some(p => p.regionals?.placement === 1)
+    : isComplete;
+
+  if (!hasWinner) {
+    return (
+      <div className="alert alert-info">
+        Check back after the tournament is complete to see what the perfect roster would have been!
+      </div>
+    );
+  }
+
   const calculatePerfectLineup = () => {
     const playersWithScores = Object.entries(players)
       .map(([playerId, player]) => ({
         ...player,
         id: playerId,
-        currentScore: player.scores?.[currentCup] || 0
+        currentScore: calculatePlayerScore(player, false)
       }))
       .filter(p => p.currentScore > 0);
 
@@ -38,7 +67,10 @@ const PerfectLineup: React.FC<PerfectLineupProps> = ({
     // First, assign captains (they get 1.5x points)
     const captainCandidates = [...sortedPlayers];
     while (lineup.captains.length < settings.captainSlots && captainCandidates.length > 0) {
-      lineup.captains.push(captainCandidates.shift()!);
+      const player = captainCandidates.shift()!;
+      // Recalculate score as captain
+      player.currentScore = calculatePlayerScore(player, true);
+      lineup.captains.push(player);
     }
 
     // Then, assign NA players
@@ -74,26 +106,13 @@ const PerfectLineup: React.FC<PerfectLineupProps> = ({
 
     // Calculate total score
     lineup.totalScore = 
-      lineup.captains.reduce((sum, p) => sum + p.currentScore * 1.5, 0) +
+      lineup.captains.reduce((sum, p) => sum + p.currentScore, 0) +
       lineup.naPlayers.reduce((sum, p) => sum + p.currentScore, 0) +
       lineup.brLatamPlayers.reduce((sum, p) => sum + p.currentScore, 0) +
       lineup.flexPlayers.reduce((sum, p) => sum + p.currentScore, 0);
 
     return lineup;
   };
-
-  if (!isComplete) {
-    return (
-      <div className="card">
-        <div className="card-body text-center py-5">
-          <h4 className="mb-3">Tournament In Progress</h4>
-          <p className="text-muted mb-0">
-            Check back after the tournament is complete to see what the perfect roster would have been!
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   const perfectLineup = calculatePerfectLineup();
 
@@ -108,61 +127,69 @@ const PerfectLineup: React.FC<PerfectLineupProps> = ({
           <h5 className="mb-3">Total Score: {perfectLineup.totalScore.toFixed(1)}</h5>
         </div>
 
-        <div className="mb-4">
-          <h6>Captains (1.5x)</h6>
-          {perfectLineup.captains.map(player => (
-            <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
-              <div>
-                <div className="fw-bold">{player.name}</div>
-                <small className="text-muted">
-                  {player.region} • {(player.currentScore * 1.5).toFixed(1)} points
-                </small>
+        {settings.captainSlots > 0 && (
+          <div className="mb-4">
+            <h6>{settings.captainSlots > 1 ? 'Captains' : 'Captain'}</h6>
+            {perfectLineup.captains.map(player => (
+              <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
+                <div>
+                  <div className="fw-bold">{player.name}</div>
+                  <small className="text-muted">
+                    {player.region} • {(player.currentScore * 1.5).toFixed(1)} points
+                  </small>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
-        <div className="mb-4">
-          <h6>NA Players</h6>
-          {perfectLineup.naPlayers.map(player => (
-            <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
-              <div>
-                <div className="fw-bold">{player.name}</div>
-                <small className="text-muted">
-                  {player.region} • {player.currentScore.toFixed(1)} points
-                </small>
+        {settings.naSlots > 0 && (
+          <div className="mb-4">
+            <h6>NA Players</h6>
+            {perfectLineup.naPlayers.map(player => (
+              <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
+                <div>
+                  <div className="fw-bold">{player.name}</div>
+                  <small className="text-muted">
+                    {player.region} • {player.currentScore.toFixed(1)} points
+                  </small>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
-        <div className="mb-4">
-          <h6>BR/LATAM Players</h6>
-          {perfectLineup.brLatamPlayers.map(player => (
-            <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
-              <div>
-                <div className="fw-bold">{player.name}</div>
-                <small className="text-muted">
-                  {player.region} • {player.currentScore.toFixed(1)} points
-                </small>
+        {settings.brLatamSlots > 0 && (
+          <div className="mb-4">
+            <h6>BR/LATAM Players</h6>
+            {perfectLineup.brLatamPlayers.map(player => (
+              <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
+                <div>
+                  <div className="fw-bold">{player.name}</div>
+                  <small className="text-muted">
+                    {player.region} • {player.currentScore.toFixed(1)} points
+                  </small>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
-        <div className="mb-4">
-          <h6>Flex Players</h6>
-          {perfectLineup.flexPlayers.map(player => (
-            <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
-              <div>
-                <div className="fw-bold">{player.name}</div>
-                <small className="text-muted">
-                  {player.region} • {player.currentScore.toFixed(1)} points
-                </small>
+        {settings.flexSlots > 0 && (
+          <div className="mb-4">
+            <h6>Flex Players</h6>
+            {perfectLineup.flexPlayers.map(player => (
+              <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
+                <div>
+                  <div className="fw-bold">{player.name}</div>
+                  <small className="text-muted">
+                    {player.region} • {player.currentScore.toFixed(1)} points
+                  </small>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

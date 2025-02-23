@@ -29,13 +29,22 @@ const AdminCupPanel: React.FC<AdminCupPanelProps> = ({ isVisible, user }) => {
     setSuccess(null);
 
     try {
+      // First update global settings
+      const globalSettingsRef = doc(db, 'globalSettings', 'currentCup');
+      const batch = writeBatch(db);
+
+      // Update global settings
+      batch.set(globalSettingsRef, {
+        currentCup: selectedCup,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.uid
+      });
+
       // Query all leagues for the selected set
       const leaguesRef = collection(db, 'leagues');
       const q = query(leaguesRef, where('season', '==', selectedSet));
       const querySnapshot = await getDocs(q);
 
-      // Use batched writes to update all leagues
-      const batch = writeBatch(db);
       let updateCount = 0;
 
       querySnapshot.forEach((doc) => {
@@ -46,15 +55,12 @@ const AdminCupPanel: React.FC<AdminCupPanelProps> = ({ isVisible, user }) => {
 
         // For Cup 4 (playoffs), only update leagues that have playoffs enabled
         if (selectedCup === 4 && !league.settings.playoffs) {
-          // Skip leagues with playoffs disabled
           return;
         }
 
         // Update the cup number and phase
         batch.update(doc.ref, {
           'settings.currentCup': selectedCup,
-          // If moving to cup 1, set phase to in_season
-          // If moving to playoffs cup (4), set phase to playoffs (only for leagues with playoffs enabled)
           phase: selectedCup === 0 ? 'drafting' 
                : selectedCup === 4 && league.settings.playoffs ? 'playoffs'
                : 'in_season'

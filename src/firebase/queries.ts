@@ -20,7 +20,16 @@ export const fetchLeague = async (leagueId: number): Promise<League> => {
 
   return {
     ...leagueData,
-    teams
+    id: leagueId,
+    name: leagueData.name,
+    creationDate: leagueData.creationDate,
+    season: leagueData.season,
+    type: leagueData.type,
+    phase: leagueData.phase,
+    commissioner: leagueData.commissioner,
+    settings: leagueData.settings,
+    invites: leagueData.invites || {},
+    transactions: leagueData.transactions || []
   } as League;
 };
 
@@ -106,7 +115,16 @@ export const subscribeToLeague = (
 
         const leagueData = {
           ...leagueDoc.data(),
-          teams
+          id: leagueId,
+          name: leagueDoc.data().name,
+          creationDate: leagueDoc.data().creationDate,
+          season: leagueDoc.data().season,
+          type: leagueDoc.data().type,
+          phase: leagueDoc.data().phase,
+          commissioner: leagueDoc.data().commissioner,
+          settings: leagueDoc.data().settings,
+          invites: leagueDoc.data().invites || {},
+          transactions: leagueDoc.data().transactions || []
         } as League;
 
         onUpdate(leagueData);
@@ -137,7 +155,16 @@ export const subscribeToLeague = (
 
         const leagueData = {
           ...leagueDoc.data(),
-          teams
+          id: leagueId,
+          name: leagueDoc.data().name,
+          creationDate: leagueDoc.data().creationDate,
+          season: leagueDoc.data().season,
+          type: leagueDoc.data().type,
+          phase: leagueDoc.data().phase,
+          commissioner: leagueDoc.data().commissioner,
+          settings: leagueDoc.data().settings,
+          invites: leagueDoc.data().invites || {},
+          transactions: leagueDoc.data().transactions || []
         } as League;
 
         onUpdate(leagueData);

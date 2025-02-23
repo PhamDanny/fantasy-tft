@@ -147,33 +147,41 @@ const PopularRoster: React.FC<PopularRosterProps> = ({
         <h4 className="mb-0">Popular Roster</h4>
       </div>
       <div className="card-body">
-        <div className="mb-4">
-          <h6>Most Popular Captain</h6>
-          {popularCaptains.map(({ player, percentage, asCaptain }) => 
-            renderPlayerSlot(player, percentage, (asCaptain / totalRosters) * 100)
-          )}
-        </div>
+        {settings.captainSlots > 0 && (
+          <div className="mb-4">
+            <h6>Most Popular {settings.captainSlots > 1 ? 'Captains' : 'Captain'}</h6>
+            {popularCaptains.map(({ player, percentage, asCaptain }) => 
+              renderPlayerSlot(player, percentage, (asCaptain / totalRosters) * 100)
+            )}
+          </div>
+        )}
 
-        <div className="mb-4">
-          <h6>Most Popular NA Players</h6>
-          {popularNA.map(({ player, percentage }) => 
-            renderPlayerSlot(player, percentage)
-          )}
-        </div>
+        {settings.naSlots > 0 && (
+          <div className="mb-4">
+            <h6>Most Popular NA Players</h6>
+            {popularNA.map(({ player, percentage }) => 
+              renderPlayerSlot(player, percentage)
+            )}
+          </div>
+        )}
 
-        <div className="mb-4">
-          <h6>Most Popular BR/LATAM Players</h6>
-          {popularBRLatam.map(({ player, percentage }) => 
-            renderPlayerSlot(player, percentage)
-          )}
-        </div>
+        {settings.brLatamSlots > 0 && (
+          <div className="mb-4">
+            <h6>Most Popular BR/LATAM Players</h6>
+            {popularBRLatam.map(({ player, percentage }) => 
+              renderPlayerSlot(player, percentage)
+            )}
+          </div>
+        )}
 
-        <div className="mb-4">
-          <h6>Most Popular Flex Players</h6>
-          {popularFlex.map(({ player, percentage }) => 
-            renderPlayerSlot(player, percentage)
-          )}
-        </div>
+        {settings.flexSlots > 0 && (
+          <div className="mb-4">
+            <h6>Most Popular Flex Players</h6>
+            {popularFlex.map(({ player, percentage }) => 
+              renderPlayerSlot(player, percentage)
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

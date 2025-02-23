@@ -5,7 +5,7 @@ import { fetchUserLeagues } from "../firebase/queries";
 import type { League } from "../types";
 import CreateLeagueDialog from "../components/dialogs/CreateLeagueDialog";
 import AdminCupPanel from '../components/AdminCupPanel';
-import { getDoc, doc } from 'firebase/firestore';
+import { getDoc, doc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { getLeagueType } from '../types';
 
@@ -17,12 +17,40 @@ const MyLeagues = () => {
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
   const [filter, setFilter] = useState<'all' | 'season' | 'tournament'>('all');
+  const [teamsCount, setTeamsCount] = useState<Record<string, number>>({});
+  const [userTeams, setUserTeams] = useState<Record<string, { teamName: string; isCommissioner: boolean }>>({});
 
   const loadLeagues = async (authUser: any) => {
     if (!authUser) return;
     try {
       const userLeagues = await fetchUserLeagues(authUser.uid);
       setLeagues(userLeagues);
+
+      // Fetch teams data for each league
+      const counts: Record<string, number> = {};
+      const teams: Record<string, { teamName: string; isCommissioner: boolean }> = {};
+
+      for (const league of userLeagues) {
+        const teamsRef = collection(db, 'leagues', league.id.toString(), 'teams');
+        const teamsSnapshot = await getDocs(teamsRef);
+        counts[league.id] = teamsSnapshot.size;
+
+        // Find user's team in this league
+        const userTeamDoc = teamsSnapshot.docs.find(doc => {
+          const data = doc.data();
+          return data.ownerID === authUser.uid || data.coOwners?.includes(authUser.uid);
+        });
+
+        if (userTeamDoc) {
+          teams[league.id] = {
+            teamName: userTeamDoc.data().teamName,
+            isCommissioner: league.commissioner === authUser.uid
+          };
+        }
+      }
+
+      setTeamsCount(counts);
+      setUserTeams(teams);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch leagues");
     } finally {
@@ -182,9 +210,9 @@ const MyLeagues = () => {
         <>
           <div className="list-group mb-4">
             {displayLeagues.map((league) => {
-              const userTeam = Object.values(league.teams).find(
-                (team) => team.ownerID === user.uid || team.coOwners?.includes(user.uid)
-              );
+              const leagueType = getLeagueType(league);
+              const isRegionals = leagueType === 'regionals';
+              const userTeamInfo = userTeams[league.id];
 
               return (
                 <button
@@ -196,23 +224,29 @@ const MyLeagues = () => {
                     <div>
                       <div className="d-flex align-items-center gap-2 mb-1">
                         <h5 className="mb-0">{league.name}</h5>
-                        {getLeagueTypeDisplay(league)}
-                        {getPhaseDisplay(league)}
+                        {isRegionals ? (
+                          <span className="badge bg-primary">Regionals</span>
+                        ) : (
+                          <>
+                            {getLeagueTypeDisplay(league)}
+                            {getPhaseDisplay(league)}
+                          </>
+                        )}
                       </div>
                       <small className="text-muted">
-                        {league.commissioner === user.uid
-                          ? userTeam
-                            ? `Commissioner • Team: ${userTeam.teamName}`
+                        {userTeamInfo?.isCommissioner
+                          ? userTeamInfo.teamName
+                            ? `Commissioner • Team: ${userTeamInfo.teamName}`
                             : "Commissioner"
-                          : userTeam
-                          ? `Team: ${userTeam.teamName}`
+                          : userTeamInfo?.teamName
+                          ? `Team: ${userTeamInfo.teamName}`
                           : "Member"}
                       </small>
                     </div>
                     <div className="text-end">
                       <div>{league.season}</div>
                       <small className="text-muted">
-                        {Object.keys(league.teams).length} / {league.settings.teamsLimit} teams
+                        {teamsCount[league.id] || 0} / {league.settings.teamsLimit} teams
                       </small>
                     </div>
                   </div>

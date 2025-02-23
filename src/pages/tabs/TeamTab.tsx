@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { League, Player, Team, CupLineup, PlayerScores } from "../../types";
-import { updateDoc, doc, runTransaction, collection, addDoc, deleteField } from "firebase/firestore";
+import { getLeagueType, PLAYOFF_SCORES } from "../../types";  // Import as values, not types
+import { updateDoc, doc, runTransaction, collection, addDoc, getDocs } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import CoOwnerDialog from "../../components/dialogs/CoOwnerDialog";
 import { useNavigate } from "react-router-dom";
@@ -47,7 +48,7 @@ const BenchPlayer: React.FC<{
   canEdit: boolean;
   onDrop: (playerId: string) => void;
   loading: boolean;
-  selectedCup: number;
+  selectedCup: CupSelection;
 }> = ({ playerId, player, isLineupLocked, canEdit, onDrop, loading, selectedCup }) => {
   const [{ isDragging }, drag, preview] = useDrag<
     DragItem,
@@ -210,7 +211,8 @@ const LineupSlot: React.FC<{
   isLineupLocked: boolean;
   canEdit: boolean;
   players: Record<string, Player>;
-  selectedCup: number;
+  selectedCup: CupSelection;
+  league: League;
   onSlotClick: (slotType: "captains" | "naSlots" | "brLatamSlots" | "flexSlots", playerId: string | null, index: number) => void;
   onDropPlayer: (playerId: string) => void;
 }> = ({ 
@@ -222,13 +224,28 @@ const LineupSlot: React.FC<{
   canEdit, 
   players,
   selectedCup,
+  league,
   onSlotClick,
   onDropPlayer 
 }) => {
   const player = playerId ? players[playerId] : null;
-  const cupKey = `cup${selectedCup}` as keyof PlayerScores;
-  const score = player?.scores?.[cupKey] || 0;
-  const finalScore = slotType === "captains" ? score * 1.5 : score;
+  
+  // Update score calculation to handle regionals leagues
+  let finalScore = 0;
+  if (player) {
+    if (getLeagueType(league) === 'regionals') {
+      // For regionals, use placement to determine score
+      const placement = player.regionals?.placement;
+      if (placement && placement in PLAYOFF_SCORES) {
+        const score = PLAYOFF_SCORES[placement];
+        finalScore = slotType === "captains" ? score * 1.5 : score;
+      }
+    } else if (typeof selectedCup === 'number') {
+      const cupKey = `cup${selectedCup}` as keyof PlayerScores;
+      const score = player.scores?.[cupKey] || 0;
+      finalScore = slotType === "captains" ? score * 1.5 : score;
+    }
+  }
 
   const [{ isDragging }, drag, preview] = useDrag<DragItem, unknown, { isDragging: boolean }>({
     type: 'PLAYER',
@@ -309,7 +326,7 @@ const LineupSlot: React.FC<{
             </a>
             <span className="text-muted ms-2">({player.region})</span>
           </div>
-          {showScore && (
+          {showScore && finalScore > 0 && (
             <div className="ms-2">
               <span className="badge bg-secondary">
                 {formatScore(finalScore)}
@@ -337,6 +354,12 @@ const LineupSlot: React.FC<{
   );
 };
 
+// Add a type for cup selection
+type CupSelection = number | 'regionals';
+
+// Add type for slot keys
+type SlotKey = 'captainSlots' | 'naSlots' | 'brLatamSlots' | 'flexSlots';
+
 const TeamTab: React.FC<TeamTabProps> = ({
   league,
   players,
@@ -347,13 +370,23 @@ const TeamTab: React.FC<TeamTabProps> = ({
 }) => {
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
-  const [selectedCup, setSelectedCup] = useState<number>(() => {
+  const [selectedCup, setSelectedCup] = useState<CupSelection>(() => {
+    // For regionals leagues, use 'regionals'
+    if (getLeagueType(league) === 'regionals') {
+      return 'regionals';
+    }
+    // For playoffs, use cup 4
+    if (league.settings.playoffs && league.settings.playoffSettings?.playoffAuctionStarted) {
+      return 4;
+    }
+    // Regular cup logic for other leagues
     const upcomingCup = Math.min(league.settings.currentCup + 1, 3);
     const maxCups = TWO_CUP_SETS.includes(league.season as TwoCupSet) ? 2 : 3;
     return Math.min(upcomingCup, maxCups);
   });
   const [showCoOwnerDialog, setShowCoOwnerDialog] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   if (!userTeam) {
@@ -396,23 +429,57 @@ const TeamTab: React.FC<TeamTabProps> = ({
     };
   };
 
-  const getLineup = (cupNumber: number): CupLineup => {
-    if (cupNumber === 0) {  // Regionals
-      const playoffLineup = selectedTeam.playoffLineup || {
-        captains: Array(league.settings.playoffSettings?.captainSlots || 1).fill(null),
-        naSlots: Array(league.settings.playoffSettings?.naSlots || 1).fill(null),
-        brLatamSlots: Array(league.settings.playoffSettings?.brLatamSlots || 1).fill(null),
-        flexSlots: Array(league.settings.playoffSettings?.flexSlots || 3).fill(null),
+  const getLineup = (cupSelection: CupSelection): CupLineup => {
+    if (cupSelection === 'regionals' || getLeagueType(league) === 'regionals') {
+      return selectedTeam.regionalsLineup || {
+        captains: Array(league.settings.captainSlots || 1).fill(null),
+        naSlots: Array(league.settings.naSlots || 0).fill(null),
+        brLatamSlots: Array(league.settings.brLatamSlots || 0).fill(null),
+        flexSlots: Array(league.settings.flexSlots || 3).fill(null),
         bench: [],
         locked: false
       };
-      return playoffLineup;
     }
-    return getCupLineup(cupNumber);
+
+    // Special handling for playoffs (cup 4)
+    if (cupSelection === 4) {
+      const playoffSettings = league.settings.playoffSettings || {
+        captainSlots: 1,
+        naSlots: 1,
+        brLatamSlots: 1,
+        flexSlots: 3
+      };
+
+      return {
+        ...selectedTeam.playoffLineup || {
+          captains: Array(playoffSettings.captainSlots).fill(null),
+          naSlots: Array(playoffSettings.naSlots).fill(null),
+          brLatamSlots: Array(playoffSettings.brLatamSlots).fill(null),
+          flexSlots: Array(playoffSettings.flexSlots).fill(null),
+          bench: []
+        },
+        locked: false
+      };
+    }
+
+    // Regular cup logic...
+    return getCupLineup(cupSelection as number);
   };
 
   const lineup = getLineup(selectedCup);
-  const isLineupLocked = selectedCup <= (league.settings?.currentCup || 0);
+  const isLineupLocked = (getLeagueType(league) === 'regionals' 
+    ? (lineup.locked || selectedTeam.roster.some(id => {
+        const player = players[id];
+        return player?.regionals?.placement !== undefined && player.regionals.placement > 0;
+      }))
+    : selectedCup === 4 
+      ? selectedTeam.playoffRoster?.some(id => {
+          const player = players[id];
+          return player?.regionals?.placement !== undefined && player.regionals.placement > 0;
+        }) ?? false
+      : typeof selectedCup === 'number' 
+        ? selectedCup <= (league.settings?.currentCup || 0)
+        : false) ?? false;
 
   // Calculate bench as players not in starting lineup
   const getBenchPlayers = () => {
@@ -425,11 +492,12 @@ const TeamTab: React.FC<TeamTabProps> = ({
       ].filter(Boolean)
     );
 
-    const benchPlayerIds = selectedCup === 0
+    // Use playoff roster when in playoffs (cup 4)
+    const rosterToUse = selectedCup === 4
       ? (selectedTeam.playoffRoster || [])
       : selectedTeam.roster;
 
-    return benchPlayerIds
+    return rosterToUse
       .filter(playerId => !startingPlayers.has(playerId))
       .map(playerId => {
         const player = players[playerId];
@@ -477,37 +545,22 @@ const TeamTab: React.FC<TeamTabProps> = ({
     draggedPlayerId: string | null,
     slotIndex: number
   ) => {
-    if (!selectedTeam) return;
-    if (isLineupLocked || !canEdit) return;
+    if (!selectedTeam || isLineupLocked || !canEdit) return;
 
     try {
-      const newLineup = {
-        ...lineup,
-        captains: [...lineup.captains],
-        naSlots: [...lineup.naSlots],
-        brLatamSlots: [...lineup.brLatamSlots],
-        flexSlots: [...lineup.flexSlots],
-      };
-
-      // Get the player currently in the target slot
+      const newLineup = { ...lineup };
       const targetSlots = newLineup[slotType];
-      const existingPlayerId = targetSlots[slotIndex];
-
-      // Find where the dragged player currently is
-      const draggedPlayerCurrentSlot = draggedPlayerId ? getPlayerCurrentSlot(draggedPlayerId, lineup) : null;
-
-      // Handle the swap
-      if (draggedPlayerCurrentSlot && draggedPlayerCurrentSlot.slotType !== 'bench') {
-        // Remove dragged player from their current slot
-        const sourceSlots = newLineup[draggedPlayerCurrentSlot.slotType as keyof CupLineup] as (string | null)[];
-        sourceSlots[draggedPlayerCurrentSlot.index] = existingPlayerId;  // Put existing player in dragged player's old slot
-      }
-
-      // Put dragged player in the target slot
       targetSlots[slotIndex] = draggedPlayerId;
 
-      // Update Firebase
-      if (selectedCup === 0) {
+      // Update Firebase based on league type
+      if (getLeagueType(league) === 'regionals') {
+        await updateDoc(
+          doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
+          {
+            regionalsLineup: newLineup,
+          }
+        );
+      } else if (selectedCup === 4) {  // Changed from 0 to 4
         await updateDoc(
           doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
           {
@@ -632,8 +685,15 @@ const TeamTab: React.FC<TeamTabProps> = ({
       newLineup.brLatamSlots = newLineup.brLatamSlots.map(id => id === playerId ? null : id);
       newLineup.flexSlots = newLineup.flexSlots.map(id => id === playerId ? null : id);
 
-      // Update Firebase
-      if (selectedCup === 0) {
+      // Update Firebase based on league type
+      if (getLeagueType(league) === 'regionals') {
+        await updateDoc(
+          doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
+          {
+            regionalsLineup: newLineup,
+          }
+        );
+      } else if (selectedCup === 0) {
         await updateDoc(
           doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
           {
@@ -657,43 +717,48 @@ const TeamTab: React.FC<TeamTabProps> = ({
   };
 
   const handleLeaveLeague = async () => {
-    const confirmLeagueName = prompt(
-      `To confirm leaving ${league.name}, please type the league name below:`
-    );
+    if (!user) return;
 
-    if (!confirmLeagueName || confirmLeagueName !== league.name) {
-      alert("League name did not match. Action cancelled.");
+    if (!window.confirm('Are you sure you want to leave this league?')) {
       return;
     }
 
-    const team = Object.entries(league.teams).find(([_, t]) => 
-      t.ownerID === user.uid || t.coOwners?.includes(user.uid)
-    );
+    // Get user's team from the teams subcollection
+    const teamsRef = collection(db, "leagues", leagueId.toString(), "teams");
+    const teamSnapshot = await getDocs(teamsRef);
+    const userTeam = teamSnapshot.docs.find(doc => {
+      const data = doc.data() as Team;
+      return data.ownerID === user.uid || data.coOwners?.includes(user.uid);
+    });
 
-    if (!team) return;
+    if (!userTeam) return;
 
     setLoading(true);
-    const [teamId, teamData] = team;
+    const teamData = userTeam.data() as Team;
+    const teamId = userTeam.id;
     const isOwner = teamData.ownerID === user.uid;
 
     try {
       await runTransaction(db, async (transaction) => {
-        const leagueRef = doc(db, "leagues", leagueId.toString());
-        const chatRef = collection(db, "leagues", leagueId.toString(), "chat");
+        const userRef = doc(db, "users", user.uid);
+        const userDoc = await transaction.get(userRef);
+        const userName = userDoc.exists() ? userDoc.data().displayName : "Unknown User";
 
-        // Get user display names
-        const userDoc = await transaction.get(doc(db, "users", user.uid));
-        const userData = userDoc.exists() ? userDoc.data() as UserData : null;
-        const userName = userData?.displayName || "Unknown User";
+        // Remove league from user's leagues array
+        const userData = userDoc.data() as UserData;
+        transaction.update(userRef, {
+          leagues: userData.leagues.filter(id => id !== leagueId.toString())
+        });
+
+        const teamRef = doc(db, "leagues", leagueId.toString(), "teams", teamId);
 
         if (isOwner) {
           if (!teamData.coOwners || teamData.coOwners.length === 0) {
             // Delete the team if no co-owners
-            transaction.update(leagueRef, {
-              [`teams.${teamId}`]: deleteField()
-            });
+            transaction.delete(teamRef);
 
-            await addDoc(chatRef, {
+            // Add system message
+            await addDoc(collection(db, "leagues", leagueId.toString(), "chat"), {
               userId: "system",
               userName: "System",
               content: `Team "${teamData.teamName}" has been disbanded as ${userName} left the league.`,
@@ -705,14 +770,15 @@ const TeamTab: React.FC<TeamTabProps> = ({
             const newOwner = teamData.coOwners[Math.floor(Math.random() * teamData.coOwners.length)];
             const newOwnerDoc = await transaction.get(doc(db, "users", newOwner));
             const newOwnerName = newOwnerDoc.exists() ? newOwnerDoc.data().displayName : "Unknown User";
-            const updatedCoOwners = teamData.coOwners.filter(id => id !== newOwner);
+            const updatedCoOwners = teamData.coOwners.filter((id: string) => id !== newOwner);
 
-            transaction.update(leagueRef, {
-              [`teams.${teamId}.ownerID`]: newOwner,
-              [`teams.${teamId}.coOwners`]: updatedCoOwners
+            transaction.update(teamRef, {
+              ownerID: newOwner,
+              coOwners: updatedCoOwners
             });
 
-            await addDoc(chatRef, {
+            // Add system message
+            await addDoc(collection(db, "leagues", leagueId.toString(), "chat"), {
               userId: "system",
               userName: "System",
               content: `${userName} has left the league. ${newOwnerName} is now the owner of team "${teamData.teamName}".`,
@@ -722,13 +788,14 @@ const TeamTab: React.FC<TeamTabProps> = ({
           }
         } else {
           // Handle leaving as co-owner
-          const updatedCoOwners = teamData.coOwners.filter(id => id !== user.uid);
+          const updatedCoOwners = teamData.coOwners.filter((id: string) => id !== user.uid);
           
-          transaction.update(leagueRef, {
-            [`teams.${teamId}.coOwners`]: updatedCoOwners
+          transaction.update(teamRef, {
+            coOwners: updatedCoOwners
           });
 
-          await addDoc(chatRef, {
+          // Add system message
+          await addDoc(collection(db, "leagues", leagueId.toString(), "chat"), {
             userId: "system",
             userName: "System",
             content: `${userName} has left as co-owner of team "${teamData.teamName}".`,
@@ -736,39 +803,12 @@ const TeamTab: React.FC<TeamTabProps> = ({
             type: "system"
           });
         }
-
-        // Update user's leagues array
-        const userRef = doc(db, "users", user.uid);
-        const userLeagues = userData?.leagues || [];
-        transaction.update(userRef, {
-          leagues: userLeagues.filter((id: string) => id !== leagueId.toString())
-        });
-
-        // Add to transaction history
-        const transactionDoc = {
-          id: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-          teamIds: [teamId],
-          adds: {},
-          drops: {},
-          type: 'commissioner' as const,
-          metadata: {
-            reason: `${userName} left the league`,
-            action: isOwner ? 'member_left' : 'member_left',
-          }
-        };
-
-        transaction.update(leagueRef, {
-          transactions: [
-            ...(league.transactions || []),
-            transactionDoc
-          ]
-        });
       });
 
-      navigate('/my-leagues');
+      navigate('/');
     } catch (error) {
-      console.error("Failed to leave league:", error);
+      console.error("Error leaving league:", error);
+      setError("Failed to leave league");
     } finally {
       setLoading(false);
     }
@@ -791,6 +831,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
         canEdit={canEdit}
         players={players}
         selectedCup={selectedCup}
+        league={league}
         onSlotClick={handleSlotClick}
         onDropPlayer={handleDropPlayer}
       />
@@ -836,9 +877,49 @@ const TeamTab: React.FC<TeamTabProps> = ({
     }
   };
 
+  // Update the lineup card header
+  const getCardHeader = () => {
+    if (selectedCup === 4) {
+      return 'Playoff Lineup';
+    }
+    if (getLeagueType(league) === 'regionals' || selectedCup === 'regionals') {
+      return 'Regionals Lineup';
+    }
+    return `Cup ${selectedCup} Lineup`;
+  };
+
+  // Update the getSlotCount function to use cup 4 for playoffs
+  const getSlotCount = (slotType: SlotKey): number => {
+    if (selectedCup === 4) {  // Changed from 0 to 4
+      const playoffSettings = league.settings.playoffSettings || {
+        captainSlots: 1,
+        naSlots: 1,
+        brLatamSlots: 1,
+        flexSlots: 3
+      };
+      return playoffSettings[slotType];
+    }
+    return league.settings[slotType];
+  };
+
   return (
     <div className="row">
       <CustomDragLayer />
+      
+      {/* Add error display */}
+      {error && (
+        <div className="col-12 mb-3">
+          <div className="alert alert-danger alert-dismissible fade show" role="alert">
+            {error}
+            <button 
+              type="button" 
+              className="btn-close" 
+              onClick={() => setError(null)} 
+              aria-label="Close"
+            />
+          </div>
+        </div>
+      )}
       
       {/* Add the warning at the top */}
       {getTournamentWarning()}
@@ -874,30 +955,35 @@ const TeamTab: React.FC<TeamTabProps> = ({
           {/* Cup Selection and Manage Co-Owners */}
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div className="btn-group">
-              {Array.from({ length: TWO_CUP_SETS.includes(league.season as TwoCupSet) ? 2 : 3 }, (_, i) => i + 1).map((cupNumber) => {
-                // Cup is locked if it's less than or equal to the current cup
-                const isLocked = cupNumber <= league.settings.currentCup;
-                
-                return (
-                  <button
-                    key={cupNumber}
-                    className={`btn ${selectedCup === cupNumber ? 'btn-primary' : 'btn-outline-primary'}`}
-                    onClick={() => setSelectedCup(cupNumber)}
-                  >
-                    Cup {cupNumber}
-                    {isLocked && (
-                      <i className="bi bi-lock-fill ms-1" title="Cup lineup is locked"></i>
-                    )}
-                  </button>
-                );
-              })}
-              {league.settings.playoffs && league.settings.playoffSettings?.playoffAuctionStarted && isInPlayoffs && (
-                <button
-                  className={`btn btn-${selectedCup === 0 ? "primary" : "outline-primary"}`}
-                  onClick={() => setSelectedCup(0)}
-                >
-                  Regionals
-                </button>
+              {getLeagueType(league) === 'regionals' ? (
+                null
+              ) : (
+                <>
+                  {Array.from({ length: TWO_CUP_SETS.includes(league.season as TwoCupSet) ? 2 : 3 }, (_, i) => i + 1).map((cupNumber) => {
+                    const isLocked = cupNumber <= league.settings.currentCup;
+                    return (
+                      <button
+                        key={cupNumber}
+                        className={`btn ${selectedCup === cupNumber ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => setSelectedCup(cupNumber)}
+                      >
+                        Cup {cupNumber}
+                        {isLocked && (
+                          <i className="bi bi-lock-fill ms-1" title="Cup lineup is locked"></i>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {/* Show Playoffs button instead of Regionals */}
+                  {league.settings.playoffs && league.settings.playoffSettings?.playoffAuctionStarted && isInPlayoffs && (
+                    <button
+                      className={`btn btn-${selectedCup === 4 ? "primary" : "outline-primary"}`}
+                      onClick={() => setSelectedCup(4)}
+                    >
+                      Playoffs
+                    </button>
+                  )}
+                </>
               )}
             </div>
             
@@ -956,46 +1042,56 @@ const TeamTab: React.FC<TeamTabProps> = ({
             <div className="col-md-8">
               <div className="card mb-4">
                 <div className="card-header">
-                  <h4 className="card-title mb-0">Cup {selectedCup} Lineup</h4>
+                  <h4 className="card-title mb-0">
+                    {getCardHeader()}
+                  </h4>
                 </div>
                 <div className="card-body">
                   {selectedCup !== 0 || isInPlayoffs ? (
                     <>
-                      <div className="mb-4">
-                        <label className="form-label">Captain (1.5x Points)</label>
-                        {lineup.captains.map((playerId, index) => (
-                          <div key={index} className="mb-2">
-                            {renderSlot("captains", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
-                          </div>
-                        ))}
-                      </div>
+                      {getSlotCount('captainSlots') > 0 && (
+                        <div className="mb-4">
+                          <label className="form-label">Captain (1.5x Points)</label>
+                          {Array(getSlotCount('captainSlots')).fill(null).map((_, index) => (
+                            <div key={index} className="mb-2">
+                              {renderSlot("captains", lineup.captains[index], index, true)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                      <div className="mb-4">
-                        <label className="form-label">NA</label>
-                        {lineup.naSlots.map((playerId, index) => (
-                          <div key={index} className="mb-2">
-                            {renderSlot("naSlots", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
-                          </div>
-                        ))}
-                      </div>
+                      {getSlotCount('naSlots') > 0 && (
+                        <div className="mb-4">
+                          <label className="form-label">NA</label>
+                          {Array(getSlotCount('naSlots')).fill(null).map((_, index) => (
+                            <div key={index} className="mb-2">
+                              {renderSlot("naSlots", lineup.naSlots[index], index, true)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                      <div className="mb-4">
-                        <label className="form-label">BR/LATAM</label>
-                        {lineup.brLatamSlots.map((playerId, index) => (
-                          <div key={index} className="mb-2">
-                            {renderSlot("brLatamSlots", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
-                          </div>
-                        ))}
-                      </div>
+                      {getSlotCount('brLatamSlots') > 0 && (
+                        <div className="mb-4">
+                          <label className="form-label">BR/LATAM</label>
+                          {Array(getSlotCount('brLatamSlots')).fill(null).map((_, index) => (
+                            <div key={index} className="mb-2">
+                              {renderSlot("brLatamSlots", lineup.brLatamSlots[index], index, true)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                      <div className="mb-4">
-                        <label className="form-label">Flex</label>
-                        {lineup.flexSlots.map((playerId, index) => (
-                          <div key={index} className="mb-2">
-                            {renderSlot("flexSlots", playerId, index, selectedCup <= (league.settings?.currentCup || 0))}
-                          </div>
-                        ))}
-                      </div>
+                      {getSlotCount('flexSlots') > 0 && (
+                        <div className="mb-4">
+                          <label className="form-label">Flex</label>
+                          {Array(getSlotCount('flexSlots')).fill(null).map((_, index) => (
+                            <div key={index} className="mb-2">
+                              {renderSlot("flexSlots", lineup.flexSlots[index], index, true)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </>
                   ) : null}
                 </div>
