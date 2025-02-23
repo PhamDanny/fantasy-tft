@@ -192,7 +192,7 @@ const MyLeagues = () => {
           <div>
             <strong>Want to create or join a league?</strong> Sign up to start competing with friends!
           </div>
-          <a href="/login?mode=signup" className="btn btn-primary btn-sm">
+          <a href="/profile" className="btn btn-primary btn-sm">
             Sign Up Now
           </a>
         </div>

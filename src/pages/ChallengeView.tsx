@@ -262,7 +262,7 @@ const ChallengeView = () => {
           <div>
             <strong>Want to participate?</strong> Sign up to create and submit your own lineup!
           </div>
-          <a href="/login?mode=signup" className="btn btn-primary btn-sm">
+          <a href="/profile" className="btn btn-primary btn-sm">
             Sign Up Now
           </a>
         </div>
