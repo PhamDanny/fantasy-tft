@@ -260,7 +260,7 @@ const ChallengeView = () => {
       {!currentUser && (
         <div className={`alert ${isDarkMode ? 'alert-dark' : 'alert-info'} mb-4 d-flex justify-content-between align-items-center`}>
           <div>
-            <strong>Want to participate?</strong> Sign up to create and submit your own lineup!
+            <strong>Want to participate?</strong> Sign up to create your own lineup!
           </div>
           <a href="/login?mode=signup" className="btn btn-primary btn-sm">
             Sign Up Now

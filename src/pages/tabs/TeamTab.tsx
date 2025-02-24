@@ -56,7 +56,12 @@ const BenchPlayer: React.FC<{
     { isDragging: boolean }
   >({
     type: 'PLAYER',
-    item: { type: 'PLAYER', id: playerId, slotType: 'bench', slotIndex: -1 },
+    item: { 
+      type: 'PLAYER', 
+      id: playerId, 
+      slotType: 'bench', 
+      slotIndex: -1 
+    },
     canDrag: () => !isLineupLocked && canEdit,
     collect: (monitor) => ({
       isDragging: monitor.isDragging()
@@ -263,18 +268,24 @@ const LineupSlot: React.FC<{
       const draggedPlayer = item.id ? players[item.id] : null;
       if (!draggedPlayer) return false;
       
+      // Allow drops from bench or other slots
       switch (slotType) {
+        case "captains":
+          return true; // Captains can accept any player
         case "naSlots":
           return draggedPlayer.region === "NA";
         case "brLatamSlots":
           return ["BR", "LAN", "LAS", "LATAM"].includes(draggedPlayer.region);
+        case "flexSlots":
+          return true; // Flex slots can accept any player
         default:
-          return true;
+          return false;
       }
     },
     drop: (item) => {
       if (item.id) {
-        onSlotClick(slotType as "captains" | "naSlots" | "brLatamSlots" | "flexSlots", item.id, index);
+        // Call onSlotClick directly with the dragged player's ID
+        onSlotClick(slotType, item.id, index);
       }
     },
     collect: (monitor) => ({
@@ -521,7 +532,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
   const getPlayerCurrentSlot = (
     playerId: string,
     lineup: CupLineup
-  ): { slotType: string; index: number } | null => {
+  ): { slotType: "captains" | "naSlots" | "brLatamSlots" | "flexSlots"; index: number } | null => {
     if (lineup.captains.includes(playerId)) {
       return { slotType: "captains", index: lineup.captains.indexOf(playerId) };
     }
@@ -545,12 +556,68 @@ const TeamTab: React.FC<TeamTabProps> = ({
     draggedPlayerId: string | null,
     slotIndex: number
   ) => {
-    if (!selectedTeam || isLineupLocked || !canEdit) return;
+    if (!selectedTeam || isLineupLocked || !canEdit || !draggedPlayerId) return;
 
     try {
       const newLineup = { ...lineup };
       const targetSlots = newLineup[slotType];
-      targetSlots[slotIndex] = draggedPlayerId;
+      const existingPlayerId = targetSlots[slotIndex];
+      const draggedPlayer = players[draggedPlayerId];
+
+      // Check if the dragged player can legally go in the target slot
+      const canDraggedPlayerGoToNewSlot =
+        slotType === "captains" ||
+        slotType === "flexSlots" ||
+        (slotType === "naSlots" && draggedPlayer.region === "NA") ||
+        (slotType === "brLatamSlots" && ["BR", "LAN", "LAS", "LATAM"].includes(draggedPlayer.region));
+
+      if (!canDraggedPlayerGoToNewSlot) {
+        return; // Invalid move for this player's region
+      }
+
+      // Find where the dragged player is coming from
+      const draggedPlayerCurrentSlot = getPlayerCurrentSlot(draggedPlayerId, lineup);
+
+      // Handle the swap/move
+      if (existingPlayerId) {
+        // This is a swap
+        const existingPlayer = players[existingPlayerId];
+        
+        if (draggedPlayerCurrentSlot) {
+          // Player is coming from another lineup slot
+          const canExistingPlayerGoToDraggedSlot = 
+            draggedPlayerCurrentSlot.slotType === "captains" || 
+            draggedPlayerCurrentSlot.slotType === "flexSlots" ||
+            (draggedPlayerCurrentSlot.slotType === "naSlots" && existingPlayer.region === "NA") ||
+            (draggedPlayerCurrentSlot.slotType === "brLatamSlots" && 
+              ["BR", "LAN", "LAS", "LATAM"].includes(existingPlayer.region));
+
+          if (canExistingPlayerGoToDraggedSlot) {
+            // Perform the swap
+            const sourceSlots = newLineup[draggedPlayerCurrentSlot.slotType] as (string | null)[];
+            sourceSlots[draggedPlayerCurrentSlot.index] = existingPlayerId;
+            targetSlots[slotIndex] = draggedPlayerId;
+          } else {
+            // If existing player can't go to source slot, move them to bench
+            targetSlots[slotIndex] = draggedPlayerId;
+            // Remove dragged player from old position
+            const sourceSlots = newLineup[draggedPlayerCurrentSlot.slotType] as (string | null)[];
+            sourceSlots[draggedPlayerCurrentSlot.index] = null;
+          }
+        } else {
+          // Player is coming from bench, just replace the existing player
+          targetSlots[slotIndex] = draggedPlayerId;
+        }
+      } else {
+        // No existing player in target slot
+        if (draggedPlayerCurrentSlot) {
+          // Remove from old position if coming from lineup
+          const sourceSlots = newLineup[draggedPlayerCurrentSlot.slotType] as (string | null)[];
+          sourceSlots[draggedPlayerCurrentSlot.index] = null;
+        }
+        // Place in new position
+        targetSlots[slotIndex] = draggedPlayerId;
+      }
 
       // Update Firebase based on league type
       if (getLeagueType(league) === 'regionals') {
@@ -560,7 +627,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
             regionalsLineup: newLineup,
           }
         );
-      } else if (selectedCup === 4) {  // Changed from 0 to 4
+      } else if (selectedCup === 4) {
         await updateDoc(
           doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
           {
@@ -666,24 +733,18 @@ const TeamTab: React.FC<TeamTabProps> = ({
     }
   };
 
-  // Add a function to handle moving players to bench
+  // Update the handleMoveToBench function
   const handleMoveToBench = async (playerId: string | null) => {
     if (!playerId || !selectedTeam || isLineupLocked || !canEdit) return;
 
     try {
       const newLineup = {
         ...lineup,
-        captains: [...lineup.captains],
-        naSlots: [...lineup.naSlots],
-        brLatamSlots: [...lineup.brLatamSlots],
-        flexSlots: [...lineup.flexSlots],
+        captains: lineup.captains.map(id => id === playerId ? null : id),
+        naSlots: lineup.naSlots.map(id => id === playerId ? null : id),
+        brLatamSlots: lineup.brLatamSlots.map(id => id === playerId ? null : id),
+        flexSlots: lineup.flexSlots.map(id => id === playerId ? null : id),
       };
-
-      // Remove player from all slots
-      newLineup.captains = newLineup.captains.map(id => id === playerId ? null : id);
-      newLineup.naSlots = newLineup.naSlots.map(id => id === playerId ? null : id);
-      newLineup.brLatamSlots = newLineup.brLatamSlots.map(id => id === playerId ? null : id);
-      newLineup.flexSlots = newLineup.flexSlots.map(id => id === playerId ? null : id);
 
       // Update Firebase based on league type
       if (getLeagueType(league) === 'regionals') {
@@ -693,7 +754,7 @@ const TeamTab: React.FC<TeamTabProps> = ({
             regionalsLineup: newLineup,
           }
         );
-      } else if (selectedCup === 0) {
+      } else if (selectedCup === 4) { // Changed from 0 to 4
         await updateDoc(
           doc(db, "leagues", leagueId.toString(), "teams", selectedTeam.teamId),
           {
