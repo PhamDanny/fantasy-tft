@@ -4,6 +4,10 @@
       "handle": "filesystem"
     },
     {
+      "src": "/login",
+      "dest": "/"
+    },
+    {
       "src": "/perfect-roster/([^/]+)",
       "dest": "/"
     },
