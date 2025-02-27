@@ -68,12 +68,14 @@ const PerfectLineup: React.FC<PerfectLineupProps> = ({
     const captainCandidates = [...sortedPlayers];
     while (lineup.captains.length < settings.captainSlots && captainCandidates.length > 0) {
       const player = captainCandidates.shift()!;
-      // Recalculate score as captain
-      player.currentScore = calculatePlayerScore(player, true);
-      lineup.captains.push(player);
+      // Create a new player object with captain score
+      lineup.captains.push({
+        ...player,
+        currentScore: calculatePlayerScore(player, true)
+      });
     }
 
-    // Then, assign NA players
+    // Then, assign NA players (using original scores)
     const remainingPlayers = captainCandidates;
     const naPlayers = remainingPlayers.filter(p => p.region === 'NA')
       .sort((a, b) => b.currentScore - a.currentScore);
