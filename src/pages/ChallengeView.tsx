@@ -243,7 +243,7 @@ const ChallengeView = () => {
             className={`nav-link ${activeTab === 'popular' ? 'active' : ''}`}
             onClick={() => setActiveTab('popular')}
           >
-            Popular Roster
+            Fan Favorites
           </button>
         </li>
         <li className="nav-item">

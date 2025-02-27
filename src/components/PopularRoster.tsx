@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Player, PerfectRosterChallenge, PerfectRosterLineup } from '../types';
-import { Users } from 'lucide-react';
+import { Users, ArrowUpDown } from 'lucide-react';
 
 interface PopularRosterProps {
   entries: Record<string, PerfectRosterLineup>;
@@ -8,11 +8,16 @@ interface PopularRosterProps {
   settings: PerfectRosterChallenge['settings'];
 }
 
+type SortField = 'name' | 'rosterRate' | 'captainRate';
+type SortDirection = 'asc' | 'desc';
+
 const PopularRoster: React.FC<PopularRosterProps> = ({
   entries,
-  players,
-  settings
+  players
 }) => {
+  const [sortField, setSortField] = useState<SortField>('rosterRate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
   const totalRosters = Object.keys(entries).length;
   if (totalRosters === 0) return null;
 
@@ -45,143 +50,84 @@ const PopularRoster: React.FC<PopularRosterProps> = ({
 
   const { totalCounts } = getPlayerCounts();
 
-  // Get most popular captains based on captain usage
-  const popularCaptains = Object.entries(totalCounts)
-    .sort((a, b) => b[1].asCaptain - a[1].asCaptain)
-    .slice(0, settings.captainSlots)
+  // Convert player counts to array of player stats
+  const playerStats = Object.entries(totalCounts)
     .map(([playerId, stats]) => ({
       player: players[playerId],
-      count: stats.total,
-      asCaptain: stats.asCaptain,
-      percentage: (stats.total / totalRosters) * 100
-    }));
+      rosterRate: (stats.total / totalRosters) * 100,
+      captainRate: (stats.asCaptain / totalRosters) * 100
+    }))
+    .filter(stat => stat.rosterRate > 0); // Only show players with roster rate > 0%
 
-  // Track used players
-  const usedPlayers = new Set(popularCaptains.map(p => p.player.id));
+  // Sort the player stats based on current sort field and direction
+  const sortedPlayerStats = [...playerStats].sort((a, b) => {
+    let comparison = 0;
+    
+    if (sortField === 'name') {
+      comparison = a.player.name.localeCompare(b.player.name);
+    } else if (sortField === 'rosterRate') {
+      comparison = a.rosterRate - b.rosterRate;
+    } else if (sortField === 'captainRate') {
+      comparison = a.captainRate - b.captainRate;
+    }
 
-  // Get most popular NA players by total appearances, excluding used players
-  const popularNA = Object.entries(totalCounts)
-    .filter(([playerId]) => {
-      const player = players[playerId];
-      return player && 
-             player.region === 'NA' && 
-             !usedPlayers.has(playerId);
-    })
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, settings.naSlots)
-    .map(([playerId, stats]) => ({
-      player: players[playerId],
-      count: stats.total,
-      asCaptain: stats.asCaptain,
-      percentage: (stats.total / totalRosters) * 100
-    }));
+    return sortDirection === 'asc' ? comparison : -comparison;
+  });
 
-  // Add NA players to used set
-  popularNA.forEach(p => usedPlayers.add(p.player.id));
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      // If clicking the same field, toggle direction
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // If clicking a new field, set it as the sort field and default to descending
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
 
-  // Get most popular BR/LATAM players by total appearances, excluding used players
-  const popularBRLatam = Object.entries(totalCounts)
-    .filter(([playerId]) => {
-      const player = players[playerId];
-      return player && 
-             ['BR', 'LATAM'].includes(player.region) && 
-             !usedPlayers.has(playerId);
-    })
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, settings.brLatamSlots)
-    .map(([playerId, stats]) => ({
-      player: players[playerId],
-      count: stats.total,
-      asCaptain: stats.asCaptain,
-      percentage: (stats.total / totalRosters) * 100
-    }));
-
-  // Add BR/LATAM players to used set
-  popularBRLatam.forEach(p => usedPlayers.add(p.player.id));
-
-  // Get most popular flex players from remaining players
-  const popularFlex = Object.entries(totalCounts)
-    .filter(([playerId]) => !usedPlayers.has(playerId))
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, settings.flexSlots)
-    .map(([playerId, stats]) => ({
-      player: players[playerId],
-      count: stats.total,
-      asCaptain: stats.asCaptain,
-      percentage: (stats.total / totalRosters) * 100
-    }));
-
-  const renderPlayerSlot = (
-    player: Player,
-    percentage: number,
-    asCaptain?: number
-  ) => (
-    <div className="d-flex align-items-center p-2 border rounded mb-2">
-      <div className="w-100">
-        <div className="d-flex justify-content-between align-items-center">
-          <div>
-            <div className="fw-bold">{player.name}</div>
-            <small className="text-muted">
-              {player.region}
-            </small>
-          </div>
-          <div className="d-flex gap-2">
-            {asCaptain !== undefined && (
-              <span className="badge bg-warning text-dark">
-                {asCaptain.toFixed(1)}% Captain Rate
-              </span>
-            )}
-            <span className="badge bg-light text-dark">
-              {percentage.toFixed(1)}% of rosters
-            </span>
-          </div>
-        </div>
+  const renderSortableHeader = (field: SortField, label: string) => (
+    <th 
+      className="cursor-pointer user-select-none" 
+      onClick={() => handleSort(field)}
+      style={{ cursor: 'pointer' }}
+    >
+      <div className="d-flex align-items-center gap-1">
+        {label}
+        <ArrowUpDown size={14} className={sortField === field ? 'opacity-100' : 'opacity-25'} />
       </div>
-    </div>
+    </th>
   );
 
   return (
     <div className="card">
       <div className="card-header d-flex align-items-center">
         <Users className="text-primary me-2" size={20} />
-        <h4 className="mb-0">Popular Roster</h4>
+        <h4 className="mb-0">Fan Favorites</h4>
       </div>
-      <div className="card-body">
-        {settings.captainSlots > 0 && (
-          <div className="mb-4">
-            <h6>Most Popular {settings.captainSlots > 1 ? 'Captains' : 'Captain'}</h6>
-            {popularCaptains.map(({ player, percentage, asCaptain }) => 
-              renderPlayerSlot(player, percentage, (asCaptain / totalRosters) * 100)
-            )}
-          </div>
-        )}
-
-        {settings.naSlots > 0 && (
-          <div className="mb-4">
-            <h6>Most Popular NA Players</h6>
-            {popularNA.map(({ player, percentage }) => 
-              renderPlayerSlot(player, percentage)
-            )}
-          </div>
-        )}
-
-        {settings.brLatamSlots > 0 && (
-          <div className="mb-4">
-            <h6>Most Popular BR/LATAM Players</h6>
-            {popularBRLatam.map(({ player, percentage }) => 
-              renderPlayerSlot(player, percentage)
-            )}
-          </div>
-        )}
-
-        {settings.flexSlots > 0 && (
-          <div className="mb-4">
-            <h6>Most Popular Flex Players</h6>
-            {popularFlex.map(({ player, percentage }) => 
-              renderPlayerSlot(player, percentage)
-            )}
-          </div>
-        )}
+      <div className="card-body p-0">
+        <div className="table-responsive" style={{ maxWidth: '768px' }}>
+          <table className="table">
+            <thead>
+              <tr className="text-nowrap">
+                {renderSortableHeader('name', 'Player')}
+                {renderSortableHeader('rosterRate', 'Roster Rate')}
+                {renderSortableHeader('captainRate', 'Captain Rate')}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedPlayerStats.map(({ player, rosterRate, captainRate }) => (
+                <tr key={player.id} className="text-nowrap">
+                  <td>
+                    <span className="fw-bold">{player.name}</span>
+                    <span className="text-muted ms-1">({player.region})</span>
+                  </td>
+                  <td>{rosterRate.toFixed(1)}%</td>
+                  <td>{captainRate > 0 ? `${captainRate.toFixed(1)}%` : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

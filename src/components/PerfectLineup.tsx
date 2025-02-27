@@ -116,7 +116,67 @@ const PerfectLineup: React.FC<PerfectLineupProps> = ({
     return lineup;
   };
 
+  // Add new function to calculate roster percentages
+  const calculateRosterStats = () => {
+    const totalRosters = Object.keys(challenge.entries).length;
+    if (totalRosters === 0) return new Map();
+
+    const stats = new Map<string, { total: number, asCaptain: number }>();
+
+    Object.values(challenge.entries).forEach(entry => {
+      [...entry.captains, ...entry.naSlots, ...entry.brLatamSlots, ...entry.flexSlots].forEach(playerId => {
+        if (!playerId) return;
+        
+        if (!stats.has(playerId)) {
+          stats.set(playerId, { total: 0, asCaptain: 0 });
+        }
+        
+        const playerStats = stats.get(playerId)!;
+        playerStats.total++;
+        
+        if (entry.captains.includes(playerId)) {
+          playerStats.asCaptain++;
+        }
+      });
+    });
+
+    return stats;
+  };
+
   const perfectLineup = calculatePerfectLineup();
+  const rosterStats = calculateRosterStats();
+  const totalRosters = Object.keys(challenge.entries).length;
+
+  const renderPlayerCard = (player: Player & { currentScore: number }) => {
+    const stats = rosterStats.get(player.id);
+    const rosterPercentage = stats ? (stats.total / totalRosters) * 100 : 0;
+    const captainPercentage = stats ? (stats.asCaptain / totalRosters) * 100 : 0;
+
+    return (
+      <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
+        <div className="w-100">
+          <div className="d-flex justify-content-between align-items-center">
+            <div>
+              <div className="fw-bold">{player.name}</div>
+              <small className="text-muted">
+                {player.region} • {player.currentScore.toFixed(1)} points
+              </small>
+            </div>
+            <div className="d-flex gap-2">
+              {captainPercentage > 0 && (
+                <span className="badge bg-warning text-dark">
+                  {captainPercentage.toFixed(1)}% Captain Rate
+                </span>
+              )}
+              <span className="badge bg-light text-dark">
+                {rosterPercentage.toFixed(1)}% of rosters
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="card">
@@ -132,64 +192,28 @@ const PerfectLineup: React.FC<PerfectLineupProps> = ({
         {settings.captainSlots > 0 && (
           <div className="mb-4">
             <h6>{settings.captainSlots > 1 ? 'Captains' : 'Captain'}</h6>
-            {perfectLineup.captains.map(player => (
-              <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
-                <div>
-                  <div className="fw-bold">{player.name}</div>
-                  <small className="text-muted">
-                    {player.region} • {player.currentScore.toFixed(1)} points
-                  </small>
-                </div>
-              </div>
-            ))}
+            {perfectLineup.captains.map(player => renderPlayerCard(player))}
           </div>
         )}
 
         {settings.naSlots > 0 && (
           <div className="mb-4">
             <h6>NA Players</h6>
-            {perfectLineup.naPlayers.map(player => (
-              <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
-                <div>
-                  <div className="fw-bold">{player.name}</div>
-                  <small className="text-muted">
-                    {player.region} • {player.currentScore.toFixed(1)} points
-                  </small>
-                </div>
-              </div>
-            ))}
+            {perfectLineup.naPlayers.map(player => renderPlayerCard(player))}
           </div>
         )}
 
         {settings.brLatamSlots > 0 && (
           <div className="mb-4">
             <h6>BR/LATAM Players</h6>
-            {perfectLineup.brLatamPlayers.map(player => (
-              <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
-                <div>
-                  <div className="fw-bold">{player.name}</div>
-                  <small className="text-muted">
-                    {player.region} • {player.currentScore.toFixed(1)} points
-                  </small>
-                </div>
-              </div>
-            ))}
+            {perfectLineup.brLatamPlayers.map(player => renderPlayerCard(player))}
           </div>
         )}
 
         {settings.flexSlots > 0 && (
           <div className="mb-4">
             <h6>Flex Players</h6>
-            {perfectLineup.flexPlayers.map(player => (
-              <div key={player.id} className="d-flex align-items-center p-2 border rounded mb-2">
-                <div>
-                  <div className="fw-bold">{player.name}</div>
-                  <small className="text-muted">
-                    {player.region} • {player.currentScore.toFixed(1)} points
-                  </small>
-                </div>
-              </div>
-            ))}
+            {perfectLineup.flexPlayers.map(player => renderPlayerCard(player))}
           </div>
         )}
       </div>
