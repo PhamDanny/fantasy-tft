@@ -135,7 +135,7 @@ const PerfectLineup: React.FC<PerfectLineupProps> = ({
                 <div>
                   <div className="fw-bold">{player.name}</div>
                   <small className="text-muted">
-                    {player.region} • {(player.currentScore * 1.5).toFixed(1)} points
+                    {player.region} • {player.currentScore.toFixed(1)} points
                   </small>
                 </div>
               </div>

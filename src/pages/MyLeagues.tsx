@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../firebase/auth";
 import { fetchUserLeagues } from "../firebase/queries";
-import type { League } from "../types";
+import type { League, GlobalSettings } from "../types";
 import CreateLeagueDialog from "../components/dialogs/CreateLeagueDialog";
 import AdminCupPanel from '../components/AdminCupPanel';
 import { getDoc, doc, collection, getDocs } from 'firebase/firestore';
@@ -16,9 +16,10 @@ const MyLeagues = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'season' | 'tournament'>('all');
+  const [filter, setFilter] = useState<string>('current');
   const [teamsCount, setTeamsCount] = useState<Record<string, number>>({});
   const [userTeams, setUserTeams] = useState<Record<string, { teamName: string; isCommissioner: boolean }>>({});
+  const [globalSettings, setGlobalSettings] = useState<GlobalSettings | null>(null);
 
   const loadLeagues = async (authUser: any) => {
     if (!authUser) return;
@@ -58,7 +59,21 @@ const MyLeagues = () => {
     }
   };
 
+  // Fetch global settings
+  const fetchGlobalSettings = async () => {
+    try {
+      const settingsDoc = await getDoc(doc(db, 'settings', 'global'));
+      if (settingsDoc.exists()) {
+        setGlobalSettings(settingsDoc.data() as GlobalSettings);
+      }
+    } catch (err) {
+      console.error("Error fetching global settings:", err);
+    }
+  };
+
   useEffect(() => {
+    fetchGlobalSettings();
+    
     const unsubscribe = useAuth(async (authUser) => {
       setUser(authUser);
       if (authUser) {
@@ -74,9 +89,17 @@ const MyLeagues = () => {
     return () => unsubscribe();
   }, []);
 
-  // Group leagues by type
-  const seasonLeagues = leagues.filter(l => getLeagueType(l) === 'season-long');
-  const tournamentLeagues = leagues.filter(l => getLeagueType(l) === 'single-tournament');
+  // Filter leagues by set
+  const getFilteredLeagues = () => {
+    if (filter === 'all') {
+      return leagues;
+    } else if (filter === 'current') {
+      const currentSet = globalSettings?.currentSet?.set;
+      return currentSet ? leagues.filter(league => league.season === currentSet) : leagues;
+    } else {
+      return leagues.filter(league => league.season === filter);
+    }
+  };
   
   const getPhaseDisplay = (league: League) => {
     switch (league.phase) {
@@ -102,8 +125,7 @@ const MyLeagues = () => {
       <span className="badge bg-primary">Single Tournament</span>;
   };
 
-  const displayLeagues = filter === 'all' ? leagues :
-    filter === 'season' ? seasonLeagues : tournamentLeagues;
+  const displayLeagues = getFilteredLeagues();
 
   if (loading) {
     return <div className="p-4">Loading...</div>;
@@ -127,22 +149,16 @@ const MyLeagues = () => {
         {user && leagues.length > 0 && (
           <div className="btn-group">
             <button 
+              className={`btn btn-outline-primary ${filter === 'current' ? 'active' : ''}`}
+              onClick={() => setFilter('current')}
+            >
+              {globalSettings?.currentSet?.set || 'Current Set'}
+            </button>
+            <button 
               className={`btn btn-outline-primary ${filter === 'all' ? 'active' : ''}`}
               onClick={() => setFilter('all')}
             >
-              All
-            </button>
-            <button 
-              className={`btn btn-outline-primary ${filter === 'season' ? 'active' : ''}`}
-              onClick={() => setFilter('season')}
-            >
-              Full Season
-            </button>
-            <button 
-              className={`btn btn-outline-primary ${filter === 'tournament' ? 'active' : ''}`}
-              onClick={() => setFilter('tournament')}
-            >
-              Single Tournament
+              All Sets
             </button>
           </div>
         )}
@@ -266,3 +282,4 @@ const MyLeagues = () => {
 };
 
 export default MyLeagues;
+
