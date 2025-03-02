@@ -132,10 +132,16 @@ const ChallengeLeaderboard: React.FC<ChallengeLeaderboardProps> = ({
   };
 
   const formatRank = (rank: number): string => {
-    if (rank === 1) return '1st';
-    if (rank === 2) return '2nd';
-    if (rank === 3) return '3rd';
-    return `${rank}th`;
+    if (rank % 100 >= 11 && rank % 100 <= 13) {
+      return `${rank}th`;
+    }
+    
+    switch (rank % 10) {
+      case 1: return `${rank}st`;
+      case 2: return `${rank}nd`;
+      case 3: return `${rank}rd`;
+      default: return `${rank}th`;
+    }
   };
 
   const formatScore = (score: number): string => {
