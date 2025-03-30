@@ -54,7 +54,6 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
         const playersData: Record<string, Player> = {};
         playersSnapshot.forEach((doc) => {
           const data = doc.data();
-          console.log('Player data:', data);
           playersData[doc.id] = {
             ...data,
             id: doc.id,
