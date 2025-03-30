@@ -398,9 +398,9 @@ const Draft = () => {
                       )
                       .sort((a, b) => a.name.localeCompare(b.name))
                       .map(player => (
-                        <button
+                        <div  // Changed from button to div if not user's turn
                           key={player.id}
-                          className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${
+                          className={`list-group-item ${!isUsersTurn ? '' : 'list-group-item-action'} d-flex justify-content-between align-items-center ${
                             selectedPlayer === player.id ? 'active text-dark' : ''
                           } ${
                             player.region === 'NA' ? 'bg-primary bg-opacity-10' :
@@ -408,8 +408,8 @@ const Draft = () => {
                             ['LATAM'].includes(player.region) ? 'bg-warning bg-opacity-10' :
                             ''
                           }`}
-                          onClick={() => isUsersTurn ? setSelectedPlayer(player.id) : null}
-                          disabled={!isUsersTurn}
+                          onClick={isUsersTurn ? () => setSelectedPlayer(player.id) : undefined}
+                          role={isUsersTurn ? 'button' : undefined}
                           style={{ cursor: isUsersTurn ? 'pointer' : 'default' }}
                         >
                           <div>
@@ -431,7 +431,7 @@ const Draft = () => {
                               Draft
                             </button>
                           )}
-                        </button>
+                        </div>
                       ))}
                   </div>
                 </div>
