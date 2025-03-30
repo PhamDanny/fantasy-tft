@@ -53,13 +53,16 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
         const playersSnapshot = await getDocs(collection(db, collectionName));
         const playersData: Record<string, Player> = {};
         playersSnapshot.forEach((doc) => {
+          const data = doc.data();
+          console.log('Player data:', data);
           playersData[doc.id] = {
-            ...doc.data(),
+            ...data,
             id: doc.id,
+            name: data.name || data.fullName || 'Unknown',
             scores: {
-              cup1: doc.data().cup1 || 0,
-              cup2: doc.data().cup2 || 0,
-              cup3: doc.data().cup3 || 0,
+              cup1: data.cup1 || 0,
+              cup2: data.cup2 || 0,
+              cup3: data.cup3 || 0,
             }
           } as Player;
         });
@@ -85,6 +88,7 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
           setAllPlayers(currentSetPlayers);
         }
       } catch (err) {
+        console.error('Error fetching players:', err);
         setError(
           err instanceof Error ? err.message : "Failed to fetch players"
         );
@@ -130,7 +134,10 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
 
     const filteredPlayers = Object.entries(allPlayers)
       .filter(([playerId, player]) => {
-        if (!player || !player.name) return false;
+        if (!player || typeof player !== 'object') return false;
+        if (!player.name || typeof player.name !== 'string') return false;
+        if (!player.region || typeof player.region !== 'string') return false;
+
         const matchesSearch =
           player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           player.region.toLowerCase().includes(searchQuery.toLowerCase());
