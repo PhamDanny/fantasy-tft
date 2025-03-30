@@ -8,6 +8,7 @@ import { processWaivers } from "../../utils/waiverUtils";
 import WaiverClaimDialog from "../../components/dialogs/WaiverClaimDialog";
 import { getLeagueType } from "../../types";
 import TeamDisplay from "../../components/TeamDisplay";
+import { getPlayersCollectionName } from "../../firebase/queries";
 
 interface PlayersTabProps {
   league: League;
@@ -48,10 +49,19 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
   useEffect(() => {
     const fetchAllPlayers = async () => {
       try {
-        const playersSnapshot = await getDocs(collection(db, "players"));
+        const collectionName = getPlayersCollectionName(league.season);
+        const playersSnapshot = await getDocs(collection(db, collectionName));
         const playersData: Record<string, Player> = {};
         playersSnapshot.forEach((doc) => {
-          playersData[doc.id] = doc.data() as Player;
+          playersData[doc.id] = {
+            ...doc.data(),
+            id: doc.id,
+            scores: {
+              cup1: doc.data().cup1 || 0,
+              cup2: doc.data().cup2 || 0,
+              cup3: doc.data().cup3 || 0,
+            }
+          } as Player;
         });
 
         // First filter by set
