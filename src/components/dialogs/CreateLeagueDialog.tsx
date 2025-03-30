@@ -236,7 +236,7 @@ const CreateLeagueDialog: React.FC<{
       ]);
 
       const globalCup = cupDoc.exists() ? cupDoc.data()?.currentCup : 1;
-      const currentSet = currentSetDoc.exists() ? currentSetDoc.data()?.set : "Set 13";
+      const currentSet = currentSetDoc.exists() ? currentSetDoc.data()?.set : "Set 14";
 
       // Force regionals league type during Cup 4
       if (isRegionalsPhase(globalCup)) {
