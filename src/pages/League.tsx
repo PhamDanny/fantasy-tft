@@ -142,31 +142,32 @@ export const LeagueView: React.FC = () => {
           const userDoc = await getDoc(doc(db, 'users', authUser.uid));
           setIsAdmin(userDoc.exists() && userDoc.data().admin === true);
 
-          // Load all players first
-          const allPlayers = await fetchPlayers();
-          setPlayers(allPlayers);
-
-          // Subscribe to teams subcollection
-          const teamsQuery = query(collection(db, "leagues", numericLeagueId.toString(), "teams"));
-          teamsUnsubscribe = onSnapshot(teamsQuery, (snapshot) => {
-            const teamsData: Record<string, Team> = {};
-            snapshot.forEach((doc) => {
-              teamsData[doc.id] = doc.data() as Team;
-            });
-            setTeams(teamsData);
-            
-            // Find user's team and set it
-            const foundUserTeam = Object.values(teamsData).find(team => 
-              team.ownerID === authUser.uid || team.coOwners?.includes(authUser.uid)
-            );
-            setUserTeam(foundUserTeam || null);
-          });
-
+          // Subscribe to league first to get the season
           leagueUnsubscribe = subscribeToLeague(
             numericLeagueId,
-            (leagueData: League) => {
+            async (leagueData: League) => {
               setLeague(leagueData);
               setIsCommissioner(leagueData.commissioner === authUser.uid);
+
+              // Load players with the league's season
+              const allPlayers = await fetchPlayers(leagueData.season);
+              setPlayers(allPlayers);
+
+              // Subscribe to teams subcollection
+              const teamsQuery = query(collection(db, "leagues", numericLeagueId.toString(), "teams"));
+              teamsUnsubscribe = onSnapshot(teamsQuery, (snapshot) => {
+                const teamsData: Record<string, Team> = {};
+                snapshot.forEach((doc) => {
+                  teamsData[doc.id] = doc.data() as Team;
+                });
+                setTeams(teamsData);
+                
+                const foundUserTeam = Object.values(teamsData).find(team => 
+                  team.ownerID === authUser.uid || team.coOwners?.includes(authUser.uid)
+                );
+                setUserTeam(foundUserTeam || null);
+              });
+
               setLoading(false);
             },
             (error: Error) => {
