@@ -17,6 +17,7 @@ export interface Player {
   ladderRegion: string;
   set: number;
   profileLink: string;
+  prevSetQP: number;
   scores: {
     cup1: number;
     cup2: number;
@@ -101,6 +102,7 @@ export interface LeagueSettings {
     flexSlots: number;
     playoffAuctionStarted?: boolean;
   };
+  thirdRoundReversal?: boolean;
 }
 
 export interface TradeOffer {

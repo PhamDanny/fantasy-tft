@@ -33,37 +33,53 @@ export const fetchLeague = async (leagueId: number): Promise<League> => {
   } as League;
 };
 
-export const fetchPlayers = async (playerIds?: string[]): Promise<Record<string, Player>> => {
-  const players: Record<string, Player> = {};
+// Helper function to get the players collection name based on season
+export function getPlayersCollectionName(season: string): string {
+  // Special case for Set 13 which uses the "players" collection
+  if (season.toLowerCase() === "set 13") {
+    return "players";
+  }
 
+  // For Set 14 and onwards, use players_setX format
+  const setMatch = season.match(/Set (\d+)/i);
+  if (setMatch) {
+    return `players_set${setMatch[1]}`;
+  }
+
+  // If we reach here, something is wrong with the season format
+  console.error(`Invalid season format: ${season}`);
+  throw new Error(`Invalid season format: ${season}`);
+}
+
+export async function fetchPlayers(season: string): Promise<Record<string, Player>> {
   try {
+    // Now requiring season parameter since we need to know which collection to use
+    const collectionName = getPlayersCollectionName(season);
 
-    if (playerIds) {
-      // Fetch specific players if IDs are provided
-      await Promise.all(
-        playerIds.map(async (playerId) => {
-          const playerDoc = await getDoc(doc(db, 'players', playerId));
-          if (playerDoc.exists()) {
-            players[playerId] = { id: playerId, ...playerDoc.data() } as Player;
-          }
-        })
-      );
-    } else {
-      // Fetch all players if no IDs are provided
-      const playersSnapshot = await getDocs(collection(db, 'players'));
+    const playersSnapshot = await getDocs(collection(db, collectionName));
 
-      playersSnapshot.forEach((doc) => {
-        const data = doc.data();
-        players[doc.id] = { id: doc.id, ...data } as Player;
-      });
-    }
-
+    const players: Record<string, Player> = {};
+    playersSnapshot.forEach((doc) => {
+      const playerData = doc.data();
+      players[doc.id] = {
+        ...playerData,
+        scores: {
+          cup1: playerData.cup1 || 0,
+          cup2: playerData.cup2 || 0,
+          cup3: playerData.cup3 || 0,
+        },
+        regionals: {
+          qualified: playerData.Regionals || false,
+          placement: playerData.RegionalsPlacement || 0
+        }
+      } as Player;
+    });
     return players;
   } catch (error) {
-    console.error('Error in fetchPlayers:', error);
+    console.error("Error fetching players:", error);
     throw error;
   }
-};
+}
 
 export const addUserToLeague = async (userId: string, leagueId: string) => {
   await updateDoc(doc(db, 'users', userId), {

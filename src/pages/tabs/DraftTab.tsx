@@ -349,12 +349,6 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
     }
   };
 
-  // Add helper function to get qualifier points (sum of all cup scores)
-  const getQualifierPoints = (player: Player): number => {
-    if (!player.scores) return 0;
-    return player.scores.cup1 + player.scores.cup2 + player.scores.cup3;
-  };
-
   if (!league.settings.draftStarted) {
     return (
       <div className="row">
@@ -569,23 +563,40 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
       const currentRound = league.currentRound ?? 1;
       const currentPick = league.currentPick ?? 0;
 
-      // Calculate next pick for snake draft
+      // Calculate next pick for snake draft with third round reversal
       const totalTeams = league.settings.draftOrder.length;
-      const isEvenRound = currentRound % 2 === 0;
       let nextPick = currentPick;
       let nextRound = currentRound;
 
-      if (isEvenRound) {
-        nextPick--;  // Move backwards
-        if (nextPick < 0) {
-          nextRound++;
-          nextPick = 0;  // Start at beginning for odd rounds
+      if (league.settings.thirdRoundReversal && currentRound >= 3) {
+        // After round 3, reverse the snake pattern
+        if (currentRound % 2 === 1) {
+          nextPick--;  // Move backwards in odd rounds
+          if (nextPick < 0) {
+            nextRound++;
+            nextPick = totalTeams - 1;  // Start at end for even rounds
+          }
+        } else {
+          nextPick++;  // Move forwards in even rounds
+          if (nextPick >= totalTeams) {
+            nextRound++;
+            nextPick = 0;  // Start at beginning for odd rounds
+          }
         }
       } else {
-        nextPick++;  // Move forwards
-        if (nextPick >= totalTeams) {
-          nextRound++;
-          nextPick = totalTeams - 1;  // Start at end for even rounds
+        // Standard snake draft for rounds 1-2
+        if (currentRound % 2 === 0) {
+          nextPick--;  // Move backwards
+          if (nextPick < 0) {
+            nextRound++;
+            nextPick = 0;  // Start at beginning for odd rounds
+          }
+        } else {
+          nextPick++;  // Move forwards
+          if (nextPick >= totalTeams) {
+            nextRound++;
+            nextPick = totalTeams - 1;  // Start at end for even rounds
+          }
         }
       }
 
@@ -682,14 +693,12 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                     String(player.region || '').toLowerCase().includes(searchTerm.toLowerCase())))
                 )
                 .sort((a, b) => {
-                  if (getLeagueType(league) === 'regionals') {
-                    // Sort by qualifier points descending for regionals leagues
-                    return getQualifierPoints(b) - getQualifierPoints(a);
-                  }
-                  // Default alphabetical sort for other leagues
-                  const nameA = String(a.name || '');
-                  const nameB = String(b.name || '');
-                  return nameA.localeCompare(nameB);
+                  // Sort by prevSetQP first (highest to lowest)
+                  const qpDiff = (b.prevSetQP || 0) - (a.prevSetQP || 0);
+                  if (qpDiff !== 0) return qpDiff;
+                  
+                  // If QP is equal, sort alphabetically
+                  return String(a.name || '').localeCompare(String(b.name || ''));
                 })
                 .map(player => (
                   <div
@@ -711,9 +720,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                         <span>{player.name}</span>
                         <small className="text-muted">
                           {" "}({player.region})
-                          {getLeagueType(league) === 'regionals' && 
-                            ` - ${getQualifierPoints(player)} QP`
-                          }
+                          {` - ${player.prevSetQP || 0} Previous Set QP`}
                         </small>
                       </div>
                       {selectedPlayer === player.id && isUsersTurn && (
@@ -741,57 +748,65 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
           <h4 className="h5 mb-0">Draft Board</h4>
         </div>
         <div className="card-body">
-      <div className="table-responsive">
-        <table className="table table-bordered table-sm">
-          <thead>
-            <tr>
-              <th style={{ width: '60px' }}>Rd</th>
-              {draftOrder.map((teamId) => (
+          {league.settings.thirdRoundReversal && (
+            <div className="alert alert-info mb-3">
+              <strong>Third Round Reversal Active:</strong> Draft order will reverse starting from round 3.
+            </div>
+          )}
+          <div className="table-responsive">
+            <table className="table table-bordered table-sm">
+              <thead>
+                <tr>
+                  <th style={{ width: '60px' }}>Rd</th>
+                  {draftOrder.map((teamId) => (
                     <th key={teamId}>
                       <TeamDisplay team={localTeams[teamId]} />
                     </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: totalRounds }, (_, round) => (
-              <tr key={round}>
-                <td className="text-center">
-                  {round + 1}
-                  <span className="ms-2 text-muted">
-                    {(round + 1) % 2 === 0 ? '←' : '→'}
-                  </span>
-                </td>
-                {draftOrder.map((teamId) => {
-                      const pick = league.picks?.find((p: DraftPick) => 
-                    p.round === round + 1 && 
-                    p.teamId === teamId
-                  );
-                  const player = pick ? players[pick.playerId] : null;
-                  return (
-                    <td key={teamId} className="p-2" style={{ minWidth: '200px' }}>
-                      {player ? (
-                        <div 
-                          className={`card h-100 ${
-                            player.region === 'NA' ? 'bg-primary bg-opacity-10' :
-                            player.region === 'BR' ? 'bg-success bg-opacity-10' :
-                            ['LATAM', 'LAS', 'LAN'].includes(player.region) ? 'bg-warning bg-opacity-10' :
-                            ''
-                          }`}
-                        >
-                          <div className="card-body p-2">
-                            <h6 className="card-title mb-1">{player.name}</h6>
-                            <small className="text-muted">{player.region}</small>
-                          </div>
-                        </div>
-                      ) : ''}
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: totalRounds }, (_, round) => (
+                  <tr key={round}>
+                    <td className="text-center">
+                      {round + 1}
+                      <span className="ms-2 text-muted">
+                        {league.settings.thirdRoundReversal && round + 1 >= 3
+                          ? (round + 1) % 2 === 1 ? '←' : '→'  // Reversed after round 3
+                          : (round + 1) % 2 === 0 ? '←' : '→'  // Normal snake for rounds 1-2
+                        }
+                      </span>
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    {draftOrder.map((teamId) => {
+                      const pick = league.picks?.find((p: DraftPick) => 
+                        p.round === round + 1 && 
+                        p.teamId === teamId
+                      );
+                      const player = pick ? players[pick.playerId] : null;
+                      return (
+                        <td key={teamId} className="p-2" style={{ minWidth: '200px' }}>
+                          {player ? (
+                            <div 
+                              className={`card h-100 ${
+                                player.region === 'NA' ? 'bg-primary bg-opacity-10' :
+                                player.region === 'BR' ? 'bg-success bg-opacity-10' :
+                                ['LATAM', 'LAS', 'LAN'].includes(player.region) ? 'bg-warning bg-opacity-10' :
+                                ''
+                              }`}
+                            >
+                              <div className="card-body p-2">
+                                <h6 className="card-title mb-1">{player.name}</h6>
+                                <small className="text-muted">{player.region}</small>
+                              </div>
+                            </div>
+                          ) : ''}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

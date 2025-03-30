@@ -589,6 +589,26 @@ const LeagueSettingsTab: React.FC<LeagueSettingsTabProps> = ({
                   </>
                 )}
 
+                {/* Add this field for third round reversal */}
+                <div className="mb-3">
+                  <div className="form-check">
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      id="thirdRoundReversal"
+                      checked={settings.thirdRoundReversal || false}
+                      onChange={(e) => handleSettingChange(e, "thirdRoundReversal")}
+                    />
+                    <label className="form-check-label" htmlFor="thirdRoundReversal">
+                      Enable Third Round Reversal Draft
+                    </label>
+                    <small className="form-text text-muted d-block">
+                      When enabled, the draft order will reverse from round 3 onwards, 
+                      helping to balance early and late draft positions.
+                    </small>
+                  </div>
+                </div>
+
                 <button
                   type="submit"
                   className="btn btn-primary"
