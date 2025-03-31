@@ -3,6 +3,7 @@ import { doc, updateDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { ArrowLeftRight } from "lucide-react";
 import type { League, Team, Player, CupLineup } from "../../types";
+import { getPlayersCollectionName } from "../../firebase/queries";
 
 interface TeamEditorProps {
   league: League;
@@ -44,14 +45,29 @@ const TeamEditor: React.FC<TeamEditorProps> = ({
     fetchTeams();
   }, [leagueId]);
 
-  // Fetch all players on mount
+  // Update the fetch players useEffect
   useEffect(() => {
     const fetchAllPlayers = async () => {
       try {
-        const playersSnapshot = await getDocs(collection(db, "players"));
+        // Get the correct collection name based on the league's season
+        const collectionName = getPlayersCollectionName(league.season);
+        const playersSnapshot = await getDocs(collection(db, collectionName));
+        
         const playersData: Record<string, Player> = {};
         playersSnapshot.forEach((doc) => {
-          playersData[doc.id] = doc.data() as Player;
+          const playerData = doc.data();
+          playersData[doc.id] = {
+            ...playerData,
+            scores: {
+              cup1: playerData.cup1 || 0,
+              cup2: playerData.cup2 || 0,
+              cup3: playerData.cup3 || 0,
+            },
+            regionals: {
+              qualified: playerData.Regionals || false,
+              placement: playerData.RegionalsPlacement || 0
+            }
+          } as Player;
         });
         setAllPlayers(playersData);
       } catch (err) {
@@ -62,7 +78,7 @@ const TeamEditor: React.FC<TeamEditorProps> = ({
     };
 
     fetchAllPlayers();
-  }, []);
+  }, [league.season]); // Add league.season as a dependency
 
   const generateEmptyLineup = (): CupLineup => {
     return {
