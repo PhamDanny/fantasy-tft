@@ -191,7 +191,6 @@ export const subscribeToLeague = (
     (error) => onError(error)
   );
 
-  // Return a cleanup function that unsubscribes from both
   return () => {
     leagueUnsubscribe();
     teamsUnsubscribe();
