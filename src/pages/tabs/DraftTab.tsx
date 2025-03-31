@@ -29,6 +29,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
   const [user, setUser] = useState<any>(null);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [localTeams, setLocalTeams] = useState(teams);
+  const [ownerNames, setOwnerNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const unsubscribe = useAuth((authUser) => {
@@ -73,6 +74,99 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
     );
 
     return () => unsubscribe();
+  }, [league.id, teams]);
+
+  useEffect(() => {
+    const fetchDisplayNames = async () => {
+      const names: Record<string, string> = {};
+      const missingTeams: Team[] = [];
+      
+      // First use names from teams
+      for (const team of Object.values(teams)) {
+        if (team.ownerDisplayName) {
+          names[team.ownerID] = team.ownerDisplayName;
+        }
+        if (team.coOwnerDisplayNames) {
+          Object.assign(names, team.coOwnerDisplayNames);
+        }
+        
+        // Check if we need to fetch owner name
+        if ((!team.ownerDisplayName && team.ownerID) || 
+            (team.coOwners?.length && !team.coOwnerDisplayNames)) {
+          missingTeams.push(team);
+        }
+      }
+
+      // Only fetch missing names
+      if (missingTeams.length > 0) {
+        try {
+          for (const team of missingTeams) {
+            const updates: Partial<Team> = {};
+            
+            // Fetch owner name if missing and ownerID exists
+            if (!team.ownerDisplayName && team.ownerID) {
+              try {
+                const ownerDoc = await getDoc(doc(db, "users", team.ownerID));
+                if (ownerDoc.exists()) {
+                  const displayName = ownerDoc.data().displayName;
+                  names[team.ownerID] = displayName;
+                  updates.ownerDisplayName = displayName;
+                } else {
+                  names[team.ownerID] = "Unknown User";
+                  updates.ownerDisplayName = "Unknown User";
+                }
+              } catch (error) {
+                console.error(`Error fetching owner ${team.ownerID}:`, error);
+                names[team.ownerID] = "Unknown User";
+              }
+            }
+
+            // Fetch co-owner names if missing
+            if (team.coOwners?.length && !team.coOwnerDisplayNames) {
+              const coOwnerNames: Record<string, string> = {};
+              for (const coOwnerId of team.coOwners) {
+                try {
+                  const coOwnerDoc = await getDoc(doc(db, "users", coOwnerId));
+                  if (coOwnerDoc.exists()) {
+                    const displayName = coOwnerDoc.data().displayName;
+                    names[coOwnerId] = displayName;
+                    coOwnerNames[coOwnerId] = displayName;
+                  } else {
+                    names[coOwnerId] = "Unknown User";
+                    coOwnerNames[coOwnerId] = "Unknown User";
+                  }
+                } catch (error) {
+                  console.error(`Error fetching co-owner ${coOwnerId}:`, error);
+                  names[coOwnerId] = "Unknown User";
+                  coOwnerNames[coOwnerId] = "Unknown User";
+                }
+              }
+              updates.coOwnerDisplayNames = coOwnerNames;
+            }
+
+            // Update team document if we have updates
+            if (Object.keys(updates).length > 0) {
+              try {
+                await updateDoc(
+                  doc(db, "leagues", league.id.toString(), "teams", team.teamId),
+                  updates
+                );
+              } catch (error) {
+                console.error(`Error updating team ${team.teamId}:`, error);
+              }
+            }
+          }
+
+          setOwnerNames(names);
+        } catch (error) {
+          console.error("Error in fetchDisplayNames:", error);
+        }
+      } else {
+        setOwnerNames(names);
+      }
+    };
+
+    fetchDisplayNames();
   }, [league.id, teams]);
 
   // Filter players to only show current set players and regionals players if applicable
@@ -398,6 +492,11 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                         {localTeams[teamId]?.ownerID === user?.uid && (
                           <span className="badge bg-primary ms-2">Your Team</span>
                         )}
+                        {localTeams[teamId]?.teamName !== ownerNames[localTeams[teamId]?.ownerID] && (
+                          <small className="text-muted ms-2">
+                            ({ownerNames[localTeams[teamId]?.ownerID]})
+                          </small>
+                        )}
                       </div>
                       {isCommissioner && (
                         <div>
@@ -568,35 +667,33 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
       let nextPick = currentPick;
       let nextRound = currentRound;
 
-      if (league.settings.thirdRoundReversal && currentRound >= 3) {
-        // After round 3, reverse the snake pattern
-        if (currentRound % 2 === 1) {
-          nextPick--;  // Move backwards in odd rounds
-          if (nextPick < 0) {
-            nextRound++;
-            nextPick = totalTeams - 1;  // Start at end for even rounds
-          }
-        } else {
-          nextPick++;  // Move forwards in even rounds
-          if (nextPick >= totalTeams) {
-            nextRound++;
-            nextPick = 0;  // Start at beginning for odd rounds
-          }
+      // Determine if we're in a reversed round
+      const isReversedRound = league.settings.thirdRoundReversal && currentRound >= 3 && currentRound % 2 === 1;
+      const isNormalSnakeRound = !isReversedRound && currentRound % 2 === 0;
+
+      if (isReversedRound) {
+        // In reversed rounds (3, 5, 7, etc), move backwards
+        nextPick--;
+        if (nextPick < 0) {
+          nextRound++;
+          // If next round is even, start at beginning, otherwise start at end
+          nextPick = nextRound % 2 === 0 ? 0 : totalTeams - 1;
+        }
+      } else if (isNormalSnakeRound) {
+        // In normal snake even rounds (2, 4, 6, etc), move backwards
+        nextPick--;
+        if (nextPick < 0) {
+          nextRound++;
+          // If we're entering a reversed round (3+), start at end, otherwise start at beginning
+          nextPick = (league.settings.thirdRoundReversal && nextRound >= 3) ? totalTeams - 1 : 0;
         }
       } else {
-        // Standard snake draft for rounds 1-2
-        if (currentRound % 2 === 0) {
-          nextPick--;  // Move backwards
-          if (nextPick < 0) {
-            nextRound++;
-            nextPick = 0;  // Start at beginning for odd rounds
-          }
-        } else {
-          nextPick++;  // Move forwards
-          if (nextPick >= totalTeams) {
-            nextRound++;
-            nextPick = totalTeams - 1;  // Start at end for even rounds
-          }
+        // In normal odd rounds (1, etc), move forwards
+        nextPick++;
+        if (nextPick >= totalTeams) {
+          nextRound++;
+          // If next round is even or reversed, start at end, otherwise start at beginning
+          nextPick = (nextRound % 2 === 0 || (league.settings.thirdRoundReversal && nextRound >= 3)) ? totalTeams - 1 : 0;
         }
       }
 
@@ -720,7 +817,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                         <span>{player.name}</span>
                         <small className="text-muted">
                           {" "}({player.region})
-                          {` - ${player.prevSetQP || 0} Previous Set QP`}
+                          {` - Set ${player.set - 1} QP: ${player.prevSetQP || 0}`}
                         </small>
                       </div>
                       {selectedPlayer === player.id && isUsersTurn && (
