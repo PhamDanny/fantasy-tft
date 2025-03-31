@@ -29,7 +29,6 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
   const [user, setUser] = useState<any>(null);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [localTeams, setLocalTeams] = useState(teams);
-  const [ownerNames, setOwnerNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const unsubscribe = useAuth((authUser) => {
@@ -156,13 +155,9 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
               }
             }
           }
-
-          setOwnerNames(names);
         } catch (error) {
           console.error("Error in fetchDisplayNames:", error);
         }
-      } else {
-        setOwnerNames(names);
       }
     };
 
@@ -491,11 +486,6 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
                         <TeamDisplay team={localTeams[teamId]} />
                         {localTeams[teamId]?.ownerID === user?.uid && (
                           <span className="badge bg-primary ms-2">Your Team</span>
-                        )}
-                        {localTeams[teamId]?.teamName !== ownerNames[localTeams[teamId]?.ownerID] && (
-                          <small className="text-muted ms-2">
-                            ({ownerNames[localTeams[teamId]?.ownerID]})
-                          </small>
                         )}
                       </div>
                       {isCommissioner && (
