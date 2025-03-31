@@ -651,31 +651,40 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
       const currentTeam = localTeams[currentTeamId];
       const currentRound = league.currentRound ?? 1;
       const currentPick = league.currentPick ?? 0;
-
-      // Calculate next pick for snake draft with third round reversal
       const totalTeams = league.settings.draftOrder.length;
-      let nextPick = currentPick;
-      let nextRound = currentRound;
 
-      // Determine if we're in a reversed round
-      const isReversedRound = league.settings.thirdRoundReversal && currentRound >= 3 && currentRound % 2 === 1;
-      const isNormalSnakeRound = !isReversedRound && currentRound % 2 === 0;
+      // Calculate pick number and direction for this round
+      let isRoundReversed;
+      if (league.settings.thirdRoundReversal && currentRound >= 3) {
+        // After round 3, the snake pattern is flipped
+        isRoundReversed = currentRound % 2 === 1;
+      } else {
+        // Normal snake pattern for rounds 1-2
+        isRoundReversed = currentRound % 2 === 0;
+      }
 
-      if (isReversedRound || isNormalSnakeRound) {
-        // In reversed rounds (3, 5, 7, etc) or normal snake even rounds, move backwards
-        nextPick--;
+      // Calculate next pick
+      let nextPick: number;
+      let nextRound = currentRound;  // Initialize nextRound with currentRound
+      if (isRoundReversed) {
+        // Moving right to left
+        nextPick = currentPick - 1;
         if (nextPick < 0) {
-          nextRound++;
-          // If next round is even or not reversed, start at beginning, otherwise start at end
-          nextPick = (!isReversedRound && nextRound % 2 === 1) ? 0 : totalTeams - 1;
+          nextRound = currentRound + 1;
+          // Determine direction for next round
+          const isNextRoundReversed = league.settings.thirdRoundReversal && nextRound >= 3 ? 
+            nextRound % 2 === 1 : nextRound % 2 === 0;
+          nextPick = isNextRoundReversed ? totalTeams - 1 : 0;
         }
       } else {
-        // In normal odd rounds (1, etc), move forwards
-        nextPick++;
+        // Moving left to right
+        nextPick = currentPick + 1;
         if (nextPick >= totalTeams) {
-          nextRound++;
-          // If next round is even or reversed, start at end, otherwise start at beginning
-          nextPick = (nextRound % 2 === 0 || (league.settings.thirdRoundReversal && nextRound >= 3 && nextRound % 2 === 1)) ? totalTeams - 1 : 0;
+          nextRound = currentRound + 1;
+          // Determine direction for next round
+          const isNextRoundReversed = league.settings.thirdRoundReversal && nextRound >= 3 ? 
+            nextRound % 2 === 1 : nextRound % 2 === 0;
+          nextPick = isNextRoundReversed ? totalTeams - 1 : 0;
         }
       }
 
