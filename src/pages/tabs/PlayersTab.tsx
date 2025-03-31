@@ -451,18 +451,22 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
 
             {/* Add the info box here */}
             <div className="alert alert-info m-3 mb-0">
-              {getLeagueType(league) === 'season-long' && league.settings.waiversEnabled ? (
-                <>
-                  Waivers are enabled. Players must be claimed through the waiver system.
-                  <button
-                    className="btn btn-link btn-sm p-0 ms-2"
-                    onClick={() => setShowWaiverHelpDialog(true)}
-                  >
-                    Learn More
-                  </button>
-                </>
+              {getLeagueType(league) === 'season-long' ? (
+                league.settings.waiversEnabled ? (
+                  <>
+                    Waivers are enabled. Players must be claimed through the waiver system.
+                    <button
+                      className="btn btn-link btn-sm p-0 ms-2"
+                      onClick={() => setShowWaiverHelpDialog(true)}
+                    >
+                      Learn More
+                    </button>
+                  </>
+                ) : (
+                  "Free Agency is active. Players can be added instantly."
+                )
               ) : (
-                "Free Agency is active. Players can be added instantly."
+                "Players can be added instantly."
               )}
             </div>
 

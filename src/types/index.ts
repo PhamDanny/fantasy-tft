@@ -92,9 +92,9 @@ export interface LeagueSettings {
   draftOrder?: string[];
   playoffs: boolean;
   playoffTeams: number;
-  waiversEnabled: boolean;
+  waiversEnabled: boolean;     // Controls whether waiver bidding system is used
+  freeAgencyEnabled: boolean;  // Controls whether players can be added at all
   tradingEnabled: boolean;
-  freeAgencyEnabled: boolean;
   playoffSettings?: {
     captainSlots: number;
     naSlots: number;
