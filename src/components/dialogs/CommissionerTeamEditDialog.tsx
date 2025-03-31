@@ -5,6 +5,7 @@ import type { League, Player, CupLineup, Team } from "../../types";
 import TeamDisplay from "../../components/TeamDisplay";
 import { getLeagueType } from "../../types";
 import { Modal, Button } from "react-bootstrap";
+import { getPlayersCollectionName } from "../../firebase/queries";
 
 interface CommissionerTeamEditDialogProps {
   league: League;
@@ -36,10 +37,25 @@ const CommissionerTeamEditDialog: React.FC<CommissionerTeamEditDialogProps> = ({
   useEffect(() => {
     const fetchAllPlayers = async () => {
       try {
-        const playersSnapshot = await getDocs(collection(db, "players"));
+        // Get the correct collection name based on the league's season
+        const collectionName = getPlayersCollectionName(league.season);
+        const playersSnapshot = await getDocs(collection(db, collectionName));
+        
         const playersData: Record<string, Player> = {};
         playersSnapshot.forEach((doc) => {
-          playersData[doc.id] = doc.data() as Player;
+          const playerData = doc.data();
+          playersData[doc.id] = {
+            ...playerData,
+            scores: {
+              cup1: playerData.cup1 || 0,
+              cup2: playerData.cup2 || 0,
+              cup3: playerData.cup3 || 0,
+            },
+            regionals: {
+              qualified: playerData.Regionals || false,
+              placement: playerData.RegionalsPlacement || 0
+            }
+          } as Player;
         });
         setAllPlayers(playersData);
       } catch (err) {
@@ -50,7 +66,7 @@ const CommissionerTeamEditDialog: React.FC<CommissionerTeamEditDialogProps> = ({
     };
 
     fetchAllPlayers();
-  }, []);
+  }, [league.season]);
 
   useEffect(() => {
     if (team?.playoffRoster) {
