@@ -661,21 +661,13 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
       const isReversedRound = league.settings.thirdRoundReversal && currentRound >= 3 && currentRound % 2 === 1;
       const isNormalSnakeRound = !isReversedRound && currentRound % 2 === 0;
 
-      if (isReversedRound) {
-        // In reversed rounds (3, 5, 7, etc), move backwards
+      if (isReversedRound || isNormalSnakeRound) {
+        // In reversed rounds (3, 5, 7, etc) or normal snake even rounds, move backwards
         nextPick--;
         if (nextPick < 0) {
           nextRound++;
-          // If next round is even, start at beginning, otherwise start at end
-          nextPick = nextRound % 2 === 0 ? 0 : totalTeams - 1;
-        }
-      } else if (isNormalSnakeRound) {
-        // In normal snake even rounds (2, 4, 6, etc), move backwards
-        nextPick--;
-        if (nextPick < 0) {
-          nextRound++;
-          // If we're entering a reversed round (3+), start at end, otherwise start at beginning
-          nextPick = (league.settings.thirdRoundReversal && nextRound >= 3) ? totalTeams - 1 : 0;
+          // If next round is even or not reversed, start at beginning, otherwise start at end
+          nextPick = (!isReversedRound && nextRound % 2 === 1) ? 0 : totalTeams - 1;
         }
       } else {
         // In normal odd rounds (1, etc), move forwards
@@ -683,7 +675,7 @@ const DraftTab: React.FC<DraftTabProps> = ({ league, players, teams }) => {
         if (nextPick >= totalTeams) {
           nextRound++;
           // If next round is even or reversed, start at end, otherwise start at beginning
-          nextPick = (nextRound % 2 === 0 || (league.settings.thirdRoundReversal && nextRound >= 3)) ? totalTeams - 1 : 0;
+          nextPick = (nextRound % 2 === 0 || (league.settings.thirdRoundReversal && nextRound >= 3 && nextRound % 2 === 1)) ? totalTeams - 1 : 0;
         }
       }
 
