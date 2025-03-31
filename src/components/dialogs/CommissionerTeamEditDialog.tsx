@@ -37,9 +37,7 @@ const CommissionerTeamEditDialog: React.FC<CommissionerTeamEditDialogProps> = ({
   useEffect(() => {
     const fetchAllPlayers = async () => {
       try {
-        console.log('Fetching players for season:', league.season);
         const collectionName = getPlayersCollectionName(league.season);
-        console.log('Using collection:', collectionName);
         
         const playersSnapshot = await getDocs(collection(db, collectionName));
         
