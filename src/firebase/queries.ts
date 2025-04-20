@@ -62,15 +62,23 @@ export async function fetchPlayers(season: string): Promise<Record<string, Playe
     playersSnapshot.forEach((doc) => {
       const playerData = doc.data();
       players[doc.id] = {
-        ...playerData,
+        id: doc.id,
+        fullName: playerData.fullName || playerData.name || '',
+        name: playerData.name || playerData.fullName || '',
+        tag: playerData.tag || '',
+        region: playerData.region || '',
+        ladderRegion: playerData.ladderRegion || '',
+        set: playerData.set || parseInt(season.replace('Set ', '')),
+        profileLink: playerData.profileLink || '',
+        prevSetQP: playerData.prevSetQP || 0,
         scores: {
-          cup1: playerData.cup1 || 0,
-          cup2: playerData.cup2 || 0,
-          cup3: playerData.cup3 || 0,
+          cup1: playerData.cup1 || playerData.scores?.cup1 || 0,
+          cup2: playerData.cup2 || playerData.scores?.cup2 || 0,
+          cup3: playerData.cup3 || playerData.scores?.cup3 || 0,
         },
         regionals: {
-          qualified: playerData.Regionals || false,
-          placement: playerData.RegionalsPlacement || 0
+          qualified: playerData.Regionals || playerData.regionals?.qualified || false,
+          placement: playerData.RegionalsPlacement || playerData.regionals?.placement || 0
         }
       } as Player;
     });
