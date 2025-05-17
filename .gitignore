@@ -74,13 +74,6 @@ firebase-export-1738779286864glMt8B/firestore_export/firestore_export.overall_ex
 firebase-export-1738779286864glMt8B/firestore_export/all_namespaces/all_kinds/all_namespaces_all_kinds.export_metadata
 firebase-export-1738779286864glMt8B/firestore_export/all_namespaces/all_kinds/output-0
 /src/emulator-data
-players_set14_backup_2025-03-30T22-00-55-346Z.json
-players_set14_backup_2025-03-31T02-43-17-674Z.json
-players_set14_backup_2025-03-31T02-52-41-104Z.json
-players_set14_backup_2025-03-31T03-25-05-915Z.json
-players_set14_backup_2025-03-31T03-28-55-969Z.json
-players_set14_backup_2025-03-31T03-35-19-096Z.json
-players_set14_backup_2025-03-31T22-04-27-428Z.json
-players_set14_backup_2025-04-18T17-40-58-847Z.json
-players_set14_backup_2025-04-20T07-00-58-241Z.json
-players_set14_backup_2025-04-20T07-02-36-606Z.json
+
+# Player backup files
+players_*_backup_*.json

@@ -50,29 +50,38 @@ const PlayersTab: React.FC<PlayersTabProps> = ({
     const fetchAllPlayers = async () => {
       try {
         const collectionName = getPlayersCollectionName(league.season);
+        console.log('Fetching from collection:', collectionName);
         const playersSnapshot = await getDocs(collection(db, collectionName));
         const playersData: Record<string, Player> = {};
         playersSnapshot.forEach((doc) => {
           const data = doc.data();
+          if (data.name === 'Chunington') {
+            console.log('Raw Chunington data:', JSON.stringify(data, null, 2));
+          }
+          console.log('Raw player data for', data.name, ':', data);
           playersData[doc.id] = {
             ...data,
             id: doc.id,
             name: data.name || data.fullName || 'Unknown',
             scores: {
-              cup1: data.cup1 || 0,
-              cup2: data.cup2 || 0,
-              cup3: data.cup3 || 0,
+              cup1: data.cup1 || (data.scores?.cup1) || 0,
+              cup2: data.cup2 || (data.scores?.cup2) || 0,
+              cup3: data.cup3 || (data.scores?.cup3) || 0,
             }
           } as Player;
+          console.log('Processed player data for', data.name, ':', playersData[doc.id]);
         });
 
         // First filter by set
+        const setNumber = parseInt(league.season.replace('Set ', ''));
+        console.log('Filtering for set:', setNumber);
         const currentSetPlayers = Object.fromEntries(
           Object.entries(playersData).filter(([_, player]) => {
-            const setNumber = parseInt(league.season.replace('Set ', ''));
+            console.log('Checking player', player.name, 'set:', player.set);
             return player.set === setNumber;
           })
         );
+        console.log('Filtered players:', currentSetPlayers);
 
         // Then filter for regionals if needed
         const leagueType = getLeagueType(league);
